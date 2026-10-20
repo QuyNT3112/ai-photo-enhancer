@@ -14,6 +14,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const previewFileDims = document.getElementById('previewFileDims');
     const btnRemoveFile = document.getElementById('btnRemoveFile');
 
+    // Batch Enhance Elements
+    const enhanceFileCountBadge = document.getElementById('enhanceFileCountBadge');
+    const enhanceFilesListWrapper = document.getElementById('enhanceFilesListWrapper');
+    const enhanceSelectedCount = document.getElementById('enhanceSelectedCount');
+    const btnClearEnhanceFiles = document.getElementById('btnClearEnhanceFiles');
+    const enhanceFilesGrid = document.getElementById('enhanceFilesGrid');
+    const btnAddMoreEnhanceFiles = document.getElementById('btnAddMoreEnhanceFiles');
+
+    // Batch Enhance Result Elements
+    const batchEnhanceProcessingState = document.getElementById('batchEnhanceProcessingState');
+    const batchEnhanceProgressBar = document.getElementById('batchEnhanceProgressBar');
+    const batchEnhanceProgressPercent = document.getElementById('batchEnhanceProgressPercent');
+    const batchEnhanceResultContainer = document.getElementById('batchEnhanceResultContainer');
+    const batchEnhanceZipTitle = document.getElementById('batchEnhanceZipTitle');
+    const batchEnhanceResultCount = document.getElementById('batchEnhanceResultCount');
+    const batchEnhanceResultModel = document.getElementById('batchEnhanceResultModel');
+    const batchEnhanceResultTime = document.getElementById('batchEnhanceResultTime');
+    const btnSaveBatchEnhanceZipToDownloads = document.getElementById('btnSaveBatchEnhanceZipToDownloads');
+    const btnDownloadBatchEnhanceZip = document.getElementById('btnDownloadBatchEnhanceZip');
+    const btnResetBatchEnhance = document.getElementById('btnResetBatchEnhance');
+    const batchEnhanceResultCountText = document.getElementById('batchEnhanceResultCountText');
+    const batchEnhanceResultsGrid = document.getElementById('batchEnhanceResultsGrid');
+
     const sampleBtns = document.querySelectorAll('.btn-sample');
     const modelCards = document.querySelectorAll('.model-card');
     const scaleBtns = document.querySelectorAll('.btn-scale');
@@ -61,6 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // State Variables
     let currentFile = null;
     let currentSampleId = null;
+    let selectedEnhanceFiles = [];
     let selectedScale = 4;
     let isProcessing = false;
     let currentResultData = null;
@@ -82,10 +106,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     fileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0]) {
-            handleFileSelect(e.target.files[0]);
+        if (e.target.files && e.target.files.length > 0) {
+            handleEnhanceFilesSelect(e.target.files);
         }
     });
+
+    if (btnAddMoreEnhanceFiles) {
+        btnAddMoreEnhanceFiles.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+    }
+
+    if (btnClearEnhanceFiles) {
+        btnClearEnhanceFiles.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedEnhanceFiles = [];
+            resetFileInput();
+        });
+    }
 
     ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
@@ -105,8 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dropZone.addEventListener('drop', (e) => {
         const dt = e.dataTransfer;
-        if (dt.files && dt.files[0]) {
-            handleFileSelect(dt.files[0]);
+        if (dt.files && dt.files.length > 0) {
+            handleEnhanceFilesSelect(dt.files);
         }
     });
 
@@ -117,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
                 const blob = items[i].getAsFile();
-                handleFileSelect(blob, 'Ảnh từ Clipboard.png');
+                handleEnhanceFilesSelect([blob], 'Ảnh từ Clipboard.png');
                 showToast('Đã dán ảnh từ Clipboard thành công!');
                 break;
             }
@@ -129,41 +168,128 @@ document.addEventListener('DOMContentLoaded', () => {
         resetFileInput();
     });
 
-    function handleFileSelect(file, customName = null) {
-        if (!file.type.startsWith('image/')) {
+    function handleEnhanceFilesSelect(files, customName = null) {
+        const fileArr = Array.from(files).filter(f => f.type.startsWith('image/'));
+        if (fileArr.length === 0) {
             showToast('Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP, BMP)', 'error');
             return;
         }
 
-        currentFile = file;
         currentSampleId = null;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const dataUrl = e.target.result;
-            const img = new Image();
-            img.onload = () => {
-                uploadThumb.src = dataUrl;
-                previewFileName.textContent = customName || file.name;
-                const sizeKb = (file.size / 1024).toFixed(1);
-                previewFileDims.textContent = `${img.naturalWidth} x ${img.naturalHeight} px · ${sizeKb} KB`;
+        // Auto recommend Anime model if PNG or cartoon-like name
+        const hasAnimeHint = fileArr.some(f => f.name.toLowerCase().endsWith('.png') || f.name.toLowerCase().includes('anime') || f.name.toLowerCase().includes('art'));
+        if (hasAnimeHint) {
+            const animeRadio = document.getElementById('modelAnime');
+            if (animeRadio) {
+                animeRadio.checked = true;
+                updateActiveModelCard();
+                showToast('💡 Đã tự động chọn mô hình Anime 6B (Tối ưu cho nét vẽ 2D / sticker)!');
+            }
+        }
 
-                dropPrompt.classList.add('hidden');
-                uploadPreviewWrapper.classList.remove('hidden');
-                btnEnhance.disabled = false;
+        // If currently in single mode and adding more
+        if (fileArr.length === 1 && selectedEnhanceFiles.length === 0) {
+            currentFile = fileArr[0];
+            selectedEnhanceFiles = [currentFile];
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const dataUrl = e.target.result;
+                const img = new Image();
+                img.onload = () => {
+                    uploadThumb.src = dataUrl;
+                    previewFileName.textContent = customName || currentFile.name;
+                    const sizeKb = (currentFile.size / 1024).toFixed(1);
+                    previewFileDims.textContent = `${img.naturalWidth} x ${img.naturalHeight} px · ${sizeKb} KB`;
+
+                    dropPrompt.classList.add('hidden');
+                    uploadPreviewWrapper.classList.remove('hidden');
+                    if (enhanceFilesListWrapper) enhanceFilesListWrapper.classList.add('hidden');
+                    if (enhanceFileCountBadge) enhanceFileCountBadge.classList.add('hidden');
+                    btnEnhance.disabled = false;
+                    btnEnhanceText.textContent = 'Bắt Đầu Làm Nét Chi Tiết';
+                };
+                img.src = dataUrl;
             };
-            img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
+            reader.readAsDataURL(currentFile);
+        } else {
+            // Multi-image batch mode
+            fileArr.forEach(f => {
+                // Avoid duplicates by name + size
+                if (!selectedEnhanceFiles.some(existing => existing.name === f.name && existing.size === f.size)) {
+                    selectedEnhanceFiles.push(f);
+                }
+            });
+
+            currentFile = null;
+            dropPrompt.classList.add('hidden');
+            uploadPreviewWrapper.classList.add('hidden');
+            if (enhanceFilesListWrapper) enhanceFilesListWrapper.classList.remove('hidden');
+            if (enhanceFileCountBadge) {
+                enhanceFileCountBadge.classList.remove('hidden');
+                enhanceFileCountBadge.textContent = `${selectedEnhanceFiles.length} ảnh`;
+            }
+            if (enhanceSelectedCount) enhanceSelectedCount.textContent = selectedEnhanceFiles.length;
+
+            renderEnhanceFilesGrid();
+            btnEnhance.disabled = false;
+            btnEnhanceText.textContent = `⚡ Bắt Đầu Làm Nét Hàng Loạt (${selectedEnhanceFiles.length} ảnh)`;
+        }
+    }
+
+    function renderEnhanceFilesGrid() {
+        if (!enhanceFilesGrid) return;
+        enhanceFilesGrid.innerHTML = '';
+        selectedEnhanceFiles.forEach((file, idx) => {
+            const card = document.createElement('div');
+            card.className = 'batch-file-card';
+            card.style.cssText = 'display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);';
+            
+            const thumbUrl = URL.createObjectURL(file);
+            const sizeKb = (file.size / 1024).toFixed(1);
+
+            card.innerHTML = `
+                <img src="${thumbUrl}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover;">
+                <div style="flex: 1; overflow: hidden; min-width: 0;">
+                    <div style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${file.name}</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">${sizeKb} KB</div>
+                </div>
+                <button type="button" class="btn-remove-mini" data-idx="${idx}" style="background: transparent; border: none; color: #ef4444; cursor: pointer; padding: 4px;" title="Xóa">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+
+            card.querySelector('.btn-remove-mini').addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectedEnhanceFiles.splice(idx, 1);
+                if (selectedEnhanceFiles.length === 0) {
+                    resetFileInput();
+                } else if (selectedEnhanceFiles.length === 1) {
+                    handleEnhanceFilesSelect([selectedEnhanceFiles[0]]);
+                } else {
+                    if (enhanceSelectedCount) enhanceSelectedCount.textContent = selectedEnhanceFiles.length;
+                    if (enhanceFileCountBadge) enhanceFileCountBadge.textContent = `${selectedEnhanceFiles.length} ảnh`;
+                    btnEnhanceText.textContent = `⚡ Bắt Đầu Làm Nét Hàng Loạt (${selectedEnhanceFiles.length} ảnh)`;
+                    renderEnhanceFilesGrid();
+                }
+            });
+
+            enhanceFilesGrid.appendChild(card);
+        });
     }
 
     function resetFileInput() {
         currentFile = null;
         currentSampleId = null;
+        selectedEnhanceFiles = [];
         fileInput.value = '';
         dropPrompt.classList.remove('hidden');
         uploadPreviewWrapper.classList.add('hidden');
+        if (enhanceFilesListWrapper) enhanceFilesListWrapper.classList.add('hidden');
+        if (enhanceFileCountBadge) enhanceFileCountBadge.classList.add('hidden');
         btnEnhance.disabled = true;
+        btnEnhanceText.textContent = 'Bắt Đầu Làm Nét Chi Tiết';
     }
 
     // 2. Sample Presets
@@ -251,7 +377,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Enhance Action
     btnEnhance.addEventListener('click', () => {
         if (isProcessing) return;
-        runEnhance();
+        if (selectedEnhanceFiles && selectedEnhanceFiles.length > 1) {
+            runBatchEnhance();
+        } else {
+            runEnhance();
+        }
     });
 
     async function runEnhance() {
@@ -267,6 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update UI states
         emptyState.classList.add('hidden');
         resultContainer.classList.add('hidden');
+        if (batchEnhanceResultContainer) batchEnhanceResultContainer.classList.add('hidden');
         processingState.classList.remove('hidden');
 
         // Dynamic step animation
@@ -310,6 +441,214 @@ document.addEventListener('DOMContentLoaded', () => {
             isProcessing = false;
             btnEnhance.disabled = false;
             btnEnhanceText.textContent = 'Bắt Đầu Làm Nét Chi Tiết';
+        }
+    }
+
+    // Batch Enhance Flow (Nhiều ảnh cùng lúc)
+    async function runBatchEnhance() {
+        if (!selectedEnhanceFiles || selectedEnhanceFiles.length === 0) return;
+
+        isProcessing = true;
+        btnEnhance.disabled = true;
+        btnEnhanceText.textContent = `Đang xử lý ${selectedEnhanceFiles.length} ảnh trên GPU...`;
+
+        emptyState.classList.add('hidden');
+        resultContainer.classList.add('hidden');
+        if (batchEnhanceResultContainer) batchEnhanceResultContainer.classList.add('hidden');
+        if (batchEnhanceProcessingState) batchEnhanceProcessingState.classList.remove('hidden');
+
+        const selectedModel = document.querySelector('input[name="modelType"]:checked')?.value || 'anime';
+        const isFaceEnhance = faceEnhanceToggle.checked;
+
+        const formData = new FormData();
+        formData.append('model_type', selectedModel);
+        formData.append('outscale', selectedScale);
+        formData.append('face_enhance', isFaceEnhance ? 'true' : 'false');
+
+        selectedEnhanceFiles.forEach(f => {
+            formData.append('images', f);
+        });
+
+        // Dynamic progress bar
+        let progress = 10;
+        if (batchEnhanceProgressBar) batchEnhanceProgressBar.style.width = '10%';
+        if (batchEnhanceProgressPercent) batchEnhanceProgressPercent.textContent = `Đang tải ${selectedEnhanceFiles.length} ảnh vào VRAM (10%)...`;
+
+        const progressTimer = setInterval(() => {
+            if (!isProcessing) {
+                clearInterval(progressTimer);
+                return;
+            }
+            if (progress < 90) {
+                progress += Math.floor(Math.random() * 8) + 4;
+                if (progress > 90) progress = 90;
+                if (batchEnhanceProgressBar) batchEnhanceProgressBar.style.width = `${progress}%`;
+                const currentItem = Math.min(selectedEnhanceFiles.length, Math.ceil((progress / 100) * selectedEnhanceFiles.length));
+                if (batchEnhanceProgressPercent) {
+                    batchEnhanceProgressPercent.textContent = `Đang xử lý ảnh ${currentItem}/${selectedEnhanceFiles.length} trên RTX 3060 (${progress}%)...`;
+                }
+            }
+        }, 600);
+
+        try {
+            const response = await fetch('/api/batch-enhance', {
+                method: 'POST',
+                body: formData
+            });
+
+            const res = await response.json();
+            clearInterval(progressTimer);
+
+            if (res.status === 'success') {
+                if (batchEnhanceProgressBar) batchEnhanceProgressBar.style.width = '100%';
+                if (batchEnhanceProgressPercent) batchEnhanceProgressPercent.textContent = 'Hoàn tất 100%!';
+                displayBatchEnhanceResult(res.data);
+                showToast(`Đã làm nét xong ${res.data.total_files} ảnh trong ${res.data.total_duration_sec}s!`);
+                fetchHistory();
+            } else {
+                throw new Error(res.message || 'Lỗi khi làm nét hàng loạt.');
+            }
+        } catch (err) {
+            console.error('Batch enhance error:', err);
+            showToast(`Lỗi: ${err.message}`, 'error');
+            if (batchEnhanceProcessingState) batchEnhanceProcessingState.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+        } finally {
+            isProcessing = false;
+            btnEnhance.disabled = false;
+            btnEnhanceText.textContent = `⚡ Bắt Đầu Làm Nét Hàng Loạt (${selectedEnhanceFiles.length} ảnh)`;
+        }
+    }
+
+    function displayBatchEnhanceResult(data) {
+        if (batchEnhanceProcessingState) batchEnhanceProcessingState.classList.add('hidden');
+        if (batchEnhanceResultContainer) batchEnhanceResultContainer.classList.remove('hidden');
+
+        if (batchEnhanceZipTitle) batchEnhanceZipTitle.textContent = data.zip_filename;
+        if (batchEnhanceResultCount) batchEnhanceResultCount.textContent = data.total_files;
+        if (batchEnhanceResultCountText) batchEnhanceResultCountText.textContent = data.total_files;
+        if (batchEnhanceResultModel) batchEnhanceResultModel.textContent = data.model_used.toUpperCase();
+        if (batchEnhanceResultTime) batchEnhanceResultTime.textContent = `${data.total_duration_sec}s (tb: ${data.avg_duration_sec}s/ảnh)`;
+
+        if (btnDownloadBatchEnhanceZip) {
+            btnDownloadBatchEnhanceZip.onclick = () => {
+                window.location.href = data.zip_url;
+            };
+        }
+
+        if (btnSaveBatchEnhanceZipToDownloads) {
+            btnSaveBatchEnhanceZipToDownloads.onclick = () => {
+                saveBatchEnhanceZipToDownloads(data.zip_filename);
+            };
+        }
+
+        if (btnResetBatchEnhance) {
+            btnResetBatchEnhance.onclick = () => {
+                selectedEnhanceFiles = [];
+                resetFileInput();
+                if (batchEnhanceResultContainer) batchEnhanceResultContainer.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+            };
+        }
+
+        // Render Gallery Grid
+        if (batchEnhanceResultsGrid) {
+            batchEnhanceResultsGrid.innerHTML = '';
+            data.images.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'batch-result-card glass-card';
+                card.style.cssText = 'padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); display: flex; flex-direction: column; gap: 10px;';
+                
+                card.innerHTML = `
+                    <div style="position: relative; border-radius: 8px; overflow: hidden; height: 180px; background: #0b0f19; display: flex; align-items: center; justify-content: center;">
+                        <img src="${item.enhanced_url}" alt="${item.enhanced_filename}" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        <button type="button" class="btn-preview-split" style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.75); color: #00f0ff; border: 1px solid rgba(0,240,255,0.4); border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Xem thanh trượt so sánh ảnh này">
+                            <i class="fa-solid fa-arrows-left-right"></i> So sánh
+                        </button>
+                    </div>
+                    <div style="font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.original_filename}">
+                        ${item.original_filename}
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                        <span>${item.stats.orig_width}x${item.stats.orig_height} ➔ <strong style="color: #00f0ff;">${item.stats.final_width}x${item.stats.final_height}</strong></span>
+                        <span>${item.orig_size_kb} KB ➔ <strong style="color: #10b981;">${item.enhanced_size_kb} KB</strong></span>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 4px;">
+                        <a href="${item.download_url}" class="btn-secondary-sm" style="flex: 1; text-align: center; text-decoration: none; padding: 6px 8px; font-size: 12px; border-radius: 6px; background: rgba(255,255,255,0.06); color: white; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                            <i class="fa-solid fa-download"></i> Tải PNG
+                        </a>
+                        <button type="button" class="btn-save-item-downloads" style="flex: 1; padding: 6px 8px; font-size: 12px; border-radius: 6px; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px;" title="Lưu thẳng vào Downloads">
+                            <i class="fa-solid fa-folder-arrow-down"></i> Downloads
+                        </button>
+                    </div>
+                `;
+
+                // Wire individual download save
+                card.querySelector('.btn-save-item-downloads').onclick = () => {
+                    saveBatchEnhanceItemToDownloads(item.batch_id, item.enhanced_filename);
+                };
+
+                // Wire "So sánh" button to open comparison slider for this image!
+                card.querySelector('.btn-preview-split').onclick = () => {
+                    if (batchEnhanceResultContainer) batchEnhanceResultContainer.classList.add('hidden');
+                    displayResult({
+                        enhanced_url: item.enhanced_url,
+                        original_url: item.original_url,
+                        download_url: item.download_url,
+                        download_jpg_url: item.download_url,
+                        filename: item.enhanced_filename,
+                        original_filename: item.original_filename,
+                        stats: item.stats,
+                        file_sizes: {
+                            original_kb: item.orig_size_kb,
+                            enhanced_kb: item.enhanced_size_kb,
+                            enhanced_mb: (item.enhanced_size_kb / 1024).toFixed(2)
+                        }
+                    });
+                    showToast(`Đang xem so sánh Trước/Sau: ${item.original_filename}`);
+                };
+
+                batchEnhanceResultsGrid.appendChild(card);
+            });
+        }
+    }
+
+    async function saveBatchEnhanceZipToDownloads(filename) {
+        try {
+            const formData = new FormData();
+            formData.append('filename', filename);
+            const res = await fetch('/api/save-batch-zip-to-downloads', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                showToast(`Đã lưu file ZIP vào Downloads: ${filename}`);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (e) {
+            showToast(`Lỗi: ${e.message}`, 'error');
+        }
+    }
+
+    async function saveBatchEnhanceItemToDownloads(batchId, filename) {
+        try {
+            const formData = new FormData();
+            formData.append('batch_id', batchId);
+            formData.append('filename', filename);
+            const res = await fetch('/api/save-batch-enhance-item-to-downloads', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                showToast(`Đã lưu ${filename} vào Downloads!`);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (e) {
+            showToast(`Lỗi: ${e.message}`, 'error');
         }
     }
 

@@ -418,6 +418,164 @@ def api_history():
 
 
 # =========================================================================
+# BATCH ENHANCE APIS (Làm Nét Nhiều Ảnh Cùng Lúc)
+# =========================================================================
+
+@app.route('/api/batch-enhance', methods=['POST'])
+def api_batch_enhance():
+    try:
+        model_type = request.form.get('model_type', 'anime')
+        outscale = int(request.form.get('outscale', 1))
+        face_enhance = request.form.get('face_enhance', 'false').lower() in ['true', '1', 'yes']
+
+        uploaded_files = request.files.getlist('images')
+        if not uploaded_files or len(uploaded_files) == 0:
+            return jsonify({'status': 'error', 'message': 'Vui lòng chọn ít nhất 1 ảnh để làm nét.'}), 400
+
+        batch_id = uuid.uuid4().hex[:10]
+        batch_folder = os.path.join(BATCH_DIR, f"enhance_{batch_id}")
+        os.makedirs(batch_folder, exist_ok=True)
+
+        results = []
+        total_start = time.time()
+        used_filenames = set()
+
+        for idx, file in enumerate(uploaded_files):
+            if not file or not file.filename:
+                continue
+            if not allowed_file(file.filename):
+                continue
+
+            orig_filename = secure_filename(file.filename)
+            base_name = os.path.splitext(orig_filename)[0] or f"image_{idx+1}"
+            candidate_name = f"enhanced_{base_name}.png"
+            counter = 1
+            while candidate_name in used_filenames:
+                candidate_name = f"enhanced_{base_name}_{counter}.png"
+                counter += 1
+            used_filenames.add(candidate_name)
+
+            # Save input temp
+            ext = os.path.splitext(orig_filename)[1].lower() or '.png'
+            in_temp_name = f"raw_{idx}_{orig_filename}"
+            in_temp_path = os.path.join(batch_folder, in_temp_name)
+            file.save(in_temp_path)
+
+            out_path = os.path.join(batch_folder, candidate_name)
+
+            try:
+                stats = enhancer.enhance_image(
+                    input_path=in_temp_path,
+                    output_path=out_path,
+                    model_type=model_type,
+                    outscale=outscale,
+                    face_enhance=face_enhance
+                )
+
+                orig_kb = round(os.path.getsize(in_temp_path) / 1024, 1)
+                enh_kb = round(os.path.getsize(out_path) / 1024, 1)
+
+                results.append({
+                    'id': f"{batch_id}_{idx}",
+                    'batch_id': batch_id,
+                    'original_filename': orig_filename,
+                    'enhanced_filename': candidate_name,
+                    'original_url': f"/outputs/batch/enhance_{batch_id}/{in_temp_name}",
+                    'enhanced_url': f"/outputs/batch/enhance_{batch_id}/{candidate_name}",
+                    'download_url': f"/api/download-batch-enhance-item/{batch_id}/{candidate_name}",
+                    'orig_size_kb': orig_kb,
+                    'enhanced_size_kb': enh_kb,
+                    'stats': stats
+                })
+            except Exception as item_err:
+                print(f"[BatchEnhance] Error processing {orig_filename}: {item_err}")
+                continue
+
+        if not results:
+            return jsonify({'status': 'error', 'message': 'Không thể làm nét các ảnh đã chọn. Vui lòng kiểm tra định dạng tệp.'}), 500
+
+        # Create zip archive of all enhanced images
+        zip_filename = f"ClarityAI_Batch_Enhanced_{batch_id}.zip"
+        zip_path = os.path.join(OUTPUT_DIR, zip_filename)
+        with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+            for item in results:
+                file_full = os.path.join(batch_folder, item['enhanced_filename'])
+                if os.path.exists(file_full):
+                    zipf.write(file_full, arcname=item['enhanced_filename'])
+
+        total_duration = round(time.time() - total_start, 2)
+        zip_size_bytes = os.path.getsize(zip_path) if os.path.exists(zip_path) else 0
+
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'batch_id': batch_id,
+                'total_files': len(results),
+                'total_duration_sec': total_duration,
+                'avg_duration_sec': round(total_duration / max(1, len(results)), 2),
+                'zip_filename': zip_filename,
+                'zip_url': f"/api/download-batch-zip/{zip_filename}",
+                'zip_size_mb': round(zip_size_bytes / (1024 * 1024), 2),
+                'zip_size_kb': round(zip_size_bytes / 1024, 1),
+                'model_used': model_type,
+                'outscale': outscale,
+                'images': results
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/download-batch-enhance-item/<batch_id>/<path:filename>')
+def api_download_batch_enhance_item(batch_id, filename):
+    safe_batch = secure_filename(batch_id)
+    safe_file = secure_filename(filename)
+    batch_dir = os.path.join(BATCH_DIR, f"enhance_{safe_batch}")
+    file_path = os.path.join(batch_dir, safe_file)
+    if not os.path.exists(file_path):
+        return jsonify({'status': 'error', 'message': 'Không tìm thấy file ảnh'}), 404
+    return send_from_directory(
+        batch_dir,
+        safe_file,
+        as_attachment=True,
+        download_name=safe_file,
+        mimetype='image/png'
+    )
+
+
+@app.route('/api/save-batch-enhance-item-to-downloads', methods=['POST'])
+def api_save_batch_enhance_item_to_downloads():
+    try:
+        import shutil
+        batch_id = request.form.get('batch_id')
+        filename = request.form.get('filename')
+        if not batch_id or not filename:
+            return jsonify({'status': 'error', 'message': 'Tham số không hợp lệ'}), 400
+        safe_batch = secure_filename(batch_id)
+        safe_file = secure_filename(filename)
+        src_path = os.path.join(BATCH_DIR, f"enhance_{safe_batch}", safe_file)
+        if not os.path.exists(src_path):
+            return jsonify({'status': 'error', 'message': 'Không tìm thấy file ảnh trên máy chủ'}), 404
+
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        os.makedirs(downloads_dir, exist_ok=True)
+
+        dst_path = os.path.join(downloads_dir, safe_file)
+        shutil.copy2(src_path, dst_path)
+
+        return jsonify({
+            'status': 'success',
+            'saved_path': dst_path,
+            'filename': safe_file,
+            'message': f'Đã lưu ảnh {safe_file} vào thư mục Downloads'
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# =========================================================================
 # BATCH RESIZE STUDIO APIS (Chức năng Resize Nhiều Ảnh Hàng Loạt -> ZIP PNG)
 # =========================================================================
 

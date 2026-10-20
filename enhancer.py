@@ -197,7 +197,11 @@ class ImageEnhancer:
         alpha_channel = None
         if has_alpha:
             alpha_channel = img[:, :, 3]
-            img = img[:, :, :3]
+            bgr_channel = img[:, :, :3]
+            # Replace dark transparent pixels with clean white background to prevent dark halos
+            clean_bgr = bgr_channel.copy()
+            clean_bgr[alpha_channel < 15] = [255, 255, 255]
+            img = clean_bgr
             
         print(f"[Enhancer] Processing {os.path.basename(input_path)}: {orig_w}x{orig_h} with model '{model_type}', scale={outscale}, face_enhance={face_enhance}")
 
@@ -270,11 +274,20 @@ class ImageEnhancer:
         if (outscale == 1 or model_type == 'scunet') and (output_img.shape[0] != orig_h or output_img.shape[1] != orig_w):
             output_img = cv2.resize(output_img, (orig_w, orig_h), interpolation=cv2.INTER_AREA)
 
+        # Subtle adaptive edge clarity boost for 1X scale to preserve razor sharpness
+        if outscale == 1:
+            try:
+                bgr_part = output_img[:, :, :3]
+                blur = cv2.GaussianBlur(bgr_part, (0, 0), 1.2)
+                output_img = cv2.addWeighted(bgr_part, 1.22, blur, -0.22, 0)
+            except Exception as e:
+                print(f"[Enhancer] Warning in edge boost: {e}")
+
         # Handle alpha channel restore if original had transparency
         if has_alpha and alpha_channel is not None:
             new_h, new_w = output_img.shape[:2]
             resized_alpha = cv2.resize(alpha_channel, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-            output_img = cv2.merge([output_img[:, :, 0], output_img[:, :, 1], output_img[:, :, 2], resized_alpha])
+            output_img = cv2.merge([output_img[:, :, 0], output_img[:, :, 1], output_img[:, :, 2], np.clip(resized_alpha, 0, 255).astype(np.uint8)])
 
         # Save output image
         os.makedirs(os.path.dirname(output_path), exist_ok=True)

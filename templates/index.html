@@ -81,23 +81,24 @@
                 <div class="card-header">
                     <div class="step-badge">1</div>
                     <h2 class="card-title">Tải Ảnh Lên</h2>
+                    <span class="file-counter-badge hidden" id="enhanceFileCountBadge">0 ảnh</span>
                 </div>
 
                 <div class="drop-zone" id="dropZone">
-                    <input type="file" id="fileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden">
+                    <input type="file" id="fileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden" multiple>
                     <div class="drop-content" id="dropPrompt">
                         <div class="upload-icon-circle">
                             <i class="fa-solid fa-cloud-arrow-up"></i>
                         </div>
-                        <p class="drop-title">Kéo & thả ảnh vào đây</p>
-                        <p class="drop-sub">hoặc <span class="highlight-link">chọn từ máy tính</span></p>
+                        <p class="drop-title">Kéo & thả một hoặc nhiều ảnh vào đây</p>
+                        <p class="drop-sub">hoặc <span class="highlight-link">chọn nhiều tệp từ máy tính</span></p>
                         <div class="paste-hint">
                             <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp
                         </div>
-                        <p class="file-limit-text">Hỗ trợ JPG, PNG, WEBP, BMP (Tối đa 32MB)</p>
+                        <p class="file-limit-text">Hỗ trợ JPG, PNG, WEBP, BMP (Được chọn nhiều ảnh cùng lúc)</p>
                     </div>
 
-                    <!-- Uploaded Image Thumbnail Preview -->
+                    <!-- Single Uploaded Image Thumbnail Preview -->
                     <div class="upload-preview-wrapper hidden" id="uploadPreviewWrapper">
                         <img src="" alt="Ảnh tải lên" id="uploadThumb" class="upload-thumb">
                         <div class="upload-file-meta">
@@ -106,6 +107,26 @@
                         </div>
                         <button type="button" class="btn-remove-file" id="btnRemoveFile" title="Xóa ảnh">
                             <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Multi-image Selected Preview Grid for Batch Enhance -->
+                <div class="batch-files-list-wrapper hidden" id="enhanceFilesListWrapper">
+                    <div class="batch-list-header">
+                        <span class="batch-list-title">
+                            <i class="fa-solid fa-list-check text-cyan"></i> Đã chọn: <strong id="enhanceSelectedCount">0</strong> ảnh
+                        </span>
+                        <button type="button" class="btn-clear-batch" id="btnClearEnhanceFiles" title="Xóa toàn bộ ảnh đã chọn">
+                            <i class="fa-solid fa-trash-can"></i> Xóa tất cả
+                        </button>
+                    </div>
+                    <div class="batch-files-grid" id="enhanceFilesGrid">
+                        <!-- Populated dynamically with mini cards -->
+                    </div>
+                    <div class="batch-add-more">
+                        <button type="button" class="btn-add-more-files" id="btnAddMoreEnhanceFiles">
+                            <i class="fa-solid fa-plus"></i> Chọn thêm ảnh khác...
                         </button>
                     </div>
                 </div>
@@ -138,20 +159,20 @@
                         <div class="model-card-content">
                             <div class="model-card-header">
                                 <span class="model-name"><i class="fa-solid fa-sparkles text-cyan"></i> Siêu Chân Dung (Real-ESRGAN + GFPGAN)</span>
-                                <span class="rec-badge">Khuyên dùng</span>
+                                <span class="rec-badge">Khuyên dùng cho Người</span>
                             </div>
-                            <p class="model-desc">Làm nét toàn bộ cảnh và phục hồi chi tiết mắt, mũi, sợi tóc, khuôn mặt sắc sảo chân thực.</p>
+                            <p class="model-desc">Làm nét toàn bộ cảnh và phục hồi chi tiết mắt, mũi, sợi tóc, khuôn mặt người sắc sảo (1X · 2X · 4X).</p>
                         </div>
                     </label>
 
-                    <label class="model-card" for="modelScunet">
-                        <input type="radio" name="modelType" id="modelScunet" value="scunet">
+                    <label class="model-card" for="modelAnime">
+                        <input type="radio" name="modelType" id="modelAnime" value="anime">
                         <div class="model-card-content">
                             <div class="model-card-header">
-                                <span class="model-name"><i class="fa-solid fa-shield-halved text-cyan"></i> Siêu Khôi Phục 1X (SCUNet Swin-UNet)</span>
-                                <span class="rec-badge" style="background: rgba(0, 240, 255, 0.15); border-color: rgba(0, 240, 255, 0.4); color: #00f0ff;">100% Giữ Nguyên Size</span>
+                                <span class="model-name"><i class="fa-solid fa-paintbrush text-pink"></i> Siêu Nét Vector & Anime (Anime 6B)</span>
+                                <span class="rec-badge" style="background: rgba(236, 72, 153, 0.2); border-color: rgba(236, 72, 153, 0.5); color: #f472b6;">Khuyên dùng cho Tranh 2D & Sticker</span>
                             </div>
-                            <p class="model-desc">Mạng nơ-ron Transformer chuyên trị ảnh vỡ nát, mờ nhòe, khử nhiễu nén JPEG cực mạnh ở tỷ lệ 1X nguyên bản.</p>
+                            <p class="model-desc">Khắc tinh ảnh vỡ nét: Tối ưu TUYỆT ĐỐI cho tranh 2D, Anime, hoạt hình, logo, sticker, nét vẽ viền đen. Tái tạo viền sắc lẹm, mịn màng không răng cưa (1X · 2X · 4X).</p>
                         </div>
                     </label>
 
@@ -160,18 +181,20 @@
                         <div class="model-card-content">
                             <div class="model-card-header">
                                 <span class="model-name"><i class="fa-solid fa-image text-purple"></i> Real-ESRGAN Đa Dụng (x4plus)</span>
+                                <span class="rec-badge" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">Ảnh Thực Tế</span>
                             </div>
-                            <p class="model-desc">Tối ưu cho ảnh phong cảnh, vật thể, xe cộ, kiến trúc, đồ họa và tài liệu văn bản bị vỡ hạt.</p>
+                            <p class="model-desc">Tối ưu cho ảnh phong cảnh đời thực, đồ vật, xe cộ, kiến trúc, tài liệu văn bản bị vỡ hạt (1X · 2X · 4X).</p>
                         </div>
                     </label>
 
-                    <label class="model-card" for="modelAnime">
-                        <input type="radio" name="modelType" id="modelAnime" value="anime">
+                    <label class="model-card" for="modelScunet">
+                        <input type="radio" name="modelType" id="modelScunet" value="scunet">
                         <div class="model-card-content">
                             <div class="model-card-header">
-                                <span class="model-name"><i class="fa-solid fa-paintbrush text-pink"></i> Real-ESRGAN Anime 6B</span>
+                                <span class="model-name"><i class="fa-solid fa-shield-halved text-cyan"></i> Siêu Khôi Phục Nhiễu Hạt (SCUNet Swin-UNet)</span>
+                                <span class="rec-badge" style="background: rgba(0, 240, 255, 0.15); border-color: rgba(0, 240, 255, 0.4); color: #00f0ff;">Khử Nhiễu Ảnh Chụp 1X</span>
                             </div>
-                            <p class="model-desc">Chuyên biệt hóa cho nét vẽ anime, manga, truyện tranh, làm mịn viền răng cưa.</p>
+                            <p class="model-desc">Mạng Transformer chuyên trị ảnh chụp máy ảnh bị nhiễu hạt muỗi, vỡ nén JPEG ở tỷ lệ 1X gốc (không đổi size).</p>
                         </div>
                     </label>
                 </div>
@@ -367,6 +390,68 @@
                     </div>
                 </div>
 
+            </div>
+
+            <!-- Batch Processing Loading State -->
+            <div class="glass-card processing-state hidden" id="batchEnhanceProcessingState">
+                <div class="scanner-container">
+                    <div class="scanner-ring ring-1"></div>
+                    <div class="scanner-ring ring-2"></div>
+                    <div class="scanner-core">
+                        <i class="fa-solid fa-bolt-lightning text-cyan"></i>
+                    </div>
+                </div>
+                <h3 class="processing-title" id="batchEnhanceProcessTitle">Đang Làm Nét Hàng Loạt Trên GPU...</h3>
+                <p class="processing-sub" id="batchEnhanceProcessSub">Hệ thống đang chạy mạng nơ-ron AI khử vỡ hạt và phục hồi chi tiết từng ảnh...</p>
+                
+                <div class="batch-progress-bar-wrap" style="max-width: 450px; margin: 18px auto 8px; background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; height: 10px;">
+                    <div class="batch-progress-bar" id="batchEnhanceProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #00f0ff, #a855f7); border-radius: 6px; transition: width 0.3s ease;"></div>
+                </div>
+                <span class="batch-progress-percent" id="batchEnhanceProgressPercent" style="color: #00f0ff; font-weight: 600; font-size: 13px;">Đang khởi tạo...</span>
+            </div>
+
+            <!-- Batch Result Container -->
+            <div class="glass-card result-container hidden" id="batchEnhanceResultContainer" style="padding: 24px;">
+                <!-- Top Action Bar: ZIP Download Highlight -->
+                <div class="batch-zip-action-card">
+                    <div class="zip-card-info">
+                        <div class="zip-icon-box">
+                            <i class="fa-solid fa-file-zipper"></i>
+                        </div>
+                        <div class="zip-meta">
+                            <h3 class="zip-title" id="batchEnhanceZipTitle">ClarityAI_Batch_Enhanced.zip</h3>
+                            <div class="zip-tags">
+                                <span class="zip-tag highlight"><i class="fa-solid fa-images"></i> <strong id="batchEnhanceResultCount">0</strong> ảnh đã làm nét</span>
+                                <span class="zip-tag"><i class="fa-solid fa-microchip"></i> <strong id="batchEnhanceResultModel">Anime 6B</strong></span>
+                                <span class="zip-tag"><i class="fa-solid fa-stopwatch"></i> <strong id="batchEnhanceResultTime">0s</strong></span>
+                                <span class="zip-tag success"><i class="fa-solid fa-circle-check"></i> Hoàn tất 100%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="zip-actions-group">
+                        <button type="button" class="btn-success" id="btnSaveBatchEnhanceZipToDownloads" title="Lưu trực tiếp file ZIP vào thư mục Downloads của Windows">
+                            <i class="fa-solid fa-folder-arrow-down"></i> Lưu ZIP Vào Downloads
+                        </button>
+                        <button type="button" class="btn-primary-large" id="btnDownloadBatchEnhanceZip">
+                            <i class="fa-solid fa-download"></i> Tải Về Trọn Bộ (File ZIP)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Processed Images Grid Gallery -->
+                <div class="batch-results-header" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center;">
+                    <h4 class="batch-gallery-title" style="margin: 0; font-size: 16px; font-weight: 600;">
+                        <i class="fa-regular fa-images text-cyan"></i> Danh sách ảnh kết quả (<span id="batchEnhanceResultCountText">0</span> ảnh):
+                    </h4>
+                    <button type="button" class="btn-secondary-sm" id="btnResetBatchEnhance">
+                        <i class="fa-solid fa-rotate-left"></i> Làm Nét Đợt Khác
+                    </button>
+                </div>
+
+                <div class="batch-results-grid" id="batchEnhanceResultsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+                    <!-- Populated dynamically with individual cards -->
+                </div>
             </div>
 
         </section>

@@ -27,12 +27,13 @@
 
 ## 🌟 Tính Năng Chính
 
-### 1. 🔍 Siêu Làm Nét & Phục Hồi Chi Tiết (AI Super-Resolution)
-- **🛡️ Siêu Khôi Phục 1X (SCUNet Swin-Conv-UNet GAN)**: Mô hình State-of-the-Art chuyên trị **ảnh vỡ hạt nặng, nhiễu nén JPEG, mất nét mà 100% GIỮ NGUYÊN KÍCH THƯỚC GỐC (Scale 1x)**. Ứng dụng Swin Transformer kết hợp mạng nơ-ron tích chập khôi phục đường nét sắc sảo mà không thay đổi độ phân giải. Hỗ trợ kết hợp cùng GFPGAN để phục hồi mắt, mũi, miệng 1X chân thực.
-- **⚡ Siêu Chân Dung (Combo Real-ESRGAN x4plus + GFPGAN v1.4)**: Tái tạo chi tiết mắt, mũi, chân mày, làn da và từng sợi tóc siêu thực cho ảnh chân dung cũ hoặc mờ.
-- **🖼️ Real-ESRGAN Đa Dụng (x4plus)**: Phục hồi ảnh phong cảnh, công trình kiến trúc, xe cộ, tài liệu, vật thể bị vỡ hạt do nén ảnh.
-- **🎨 Real-ESRGAN Anime (x4plus Anime 6B)**: Khử răng cưa, làm mịn viền nét vẽ cho tranh 2D, truyện tranh, manga, anime, đồ họa vector.
-- **Tùy chọn phóng to linh hoạt**: Hỗ trợ phóng đại 1x (Khôi phục nguyên kích thước), 2x hoặc 4x, bật/tắt tính năng nhận diện & phục hồi khuôn mặt (Face Enhance).
+### 1. 🔍 Siêu Làm Nét & Phục Hồi Chi Tiết (AI Super-Resolution & Batch Enhance)
+- **⚡ Làm Nét Hàng Loạt (Batch Multi-Image Enhance)**: Hỗ trợ chọn hoặc kéo thả **nhiều ảnh cùng lúc**, hệ thống tự động xử lý song song trên GPU CUDA, đóng gói toàn bộ thành **1 file ZIP tải về tiện lợi** hoặc **Lưu Thẳng Vào Downloads** của Windows chỉ với 1 click, kèm Gallery xem trước và nút so sánh Before/After cho từng ảnh.
+- **🎨 Siêu Nét Vector & Tranh 2D (Real-ESRGAN Anime 6B)**: Khắc tinh của ảnh vẽ vỡ nét, truyện tranh manga, anime, sticker, logo. Tái tạo đường viền sắc lẹm, khử răng cưa và bảo toàn 100% nền trong suốt (Alpha PNG) không bị lem viền đen (Hỗ trợ cả **1X giữ nguyên kích thước**, 2X và 4X).
+- **⚡ Siêu Chân Dung (Combo Real-ESRGAN x4plus + GFPGAN v1.4)**: Tái tạo chi tiết mắt, mũi, chân mày, làn da và từng sợi tóc siêu thực cho ảnh chân dung cũ hoặc mờ (1X, 2X, 4X).
+- **🖼️ Real-ESRGAN Đa Dụng (x4plus)**: Phục hồi ảnh phong cảnh, công trình kiến trúc, xe cộ, tài liệu, vật thể bị vỡ hạt do nén ảnh (1X, 2X, 4X).
+- **🛡️ Siêu Khôi Phục Nhiễu Hạt (SCUNet Swin-Conv-UNet GAN)**: Chuyên trị ảnh chụp thực tế bị hạt muỗi, nhiễu nén JPEG ở tỷ lệ 1X gốc.
+- **Tùy chọn phóng to linh hoạt**: Hỗ trợ 1x (Khôi phục nguyên kích thước pixel gốc), 2x hoặc 4x siêu nét, tích hợp bộ lọc làm nét viền thích ứng (Adaptive Crisp Edge Boost).
 
 ### 2. 📐 Đổi Tỷ Lệ Khung Hình Thông Minh (Aspect Ratio Studio)
 - Hỗ trợ chuyển đổi nhanh giữa 3 tỷ lệ phổ biến nhất:
