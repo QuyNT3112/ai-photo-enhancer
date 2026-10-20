@@ -34,6 +34,7 @@ MODELS_DIR = os.path.join(BASE_DIR, 'models')
 MODEL_PATHS = {
     'general': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus.pth'),
     'anime': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus_anime_6B.pth'),
+    'animesharp': os.path.join(MODELS_DIR, '4x-AnimeSharp.pth'),
     'anime_v3': os.path.join(MODELS_DIR, 'realesr-animevideov3.pth'),
     'face': os.path.join(MODELS_DIR, 'GFPGANv1.4.pth'),
     'scunet': os.path.join(MODELS_DIR, 'scunet_color_real_gan.pth')
@@ -57,6 +58,7 @@ class ImageEnhancer:
             'models_available': {
                 'realesrgan_general': os.path.exists(MODEL_PATHS['general']),
                 'realesrgan_anime': os.path.exists(MODEL_PATHS['anime']),
+                'animesharp': os.path.exists(MODEL_PATHS['animesharp']),
                 'gfpgan_face': os.path.exists(MODEL_PATHS['face']) and HAS_GFPGAN,
                 'scunet_real': os.path.exists(MODEL_PATHS['scunet']),
             }
@@ -100,6 +102,70 @@ class ImageEnhancer:
             print("[Enhancer] RealESRGAN_x4plus_anime_6B loaded with tile=0!")
         return self.cached_models['anime']
 
+    def _load_animesharp(self):
+        if 'animesharp' not in self.cached_models:
+            path = MODEL_PATHS['animesharp']
+            if not os.path.exists(path):
+                print(f"[Enhancer] Warning: {path} not found, will fallback to anime 6B")
+                return None
+            import spandrel  # type: ignore
+            model = spandrel.ModelLoader().load_from_file(path).to(self.device).eval()
+            if self.half and self.device == 'cuda':
+                model = model.half()
+            self.cached_models['animesharp'] = model
+            print(f"[Enhancer] 4x-AnimeSharp (23-block high-capacity model) loaded on {self.device.upper()} (FP16: {self.half})!")
+        return self.cached_models['animesharp']
+
+    def _enhance_animesharp(self, img_bgr):
+        model = self._load_animesharp()
+        if model is None:
+            upsampler = self._load_realesrgan_anime()
+            out_4x, _ = upsampler.enhance(img_bgr, outscale=4)
+            return out_4x
+
+        h, w = img_bgr.shape[:2]
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        tensor = torch.from_numpy(img_rgb).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+        tensor = tensor.to(self.device)
+        if self.half and self.device == 'cuda':
+            tensor = tensor.half()
+
+        tile_size = 640
+        tile_pad = 32
+
+        if h <= 1200 and w <= 1200:
+            with torch.no_grad():
+                out_tensor = model(tensor)
+        else:
+            scale = 4
+            out_h, out_w = h * scale, w * scale
+            out_tensor = torch.zeros((1, 3, out_h, out_w), device=self.device, dtype=tensor.dtype)
+            weights = torch.zeros((1, 1, out_h, out_w), device=self.device, dtype=tensor.dtype)
+            stride = tile_size - 2 * tile_pad
+
+            y_starts = list(range(0, max(1, h - tile_size + 1), stride))
+            if y_starts[-1] + tile_size < h:
+                y_starts.append(h - tile_size)
+            x_starts = list(range(0, max(1, w - tile_size + 1), stride))
+            if x_starts[-1] + tile_size < w:
+                x_starts.append(w - tile_size)
+
+            mask = torch.ones((1, 1, tile_size * scale, tile_size * scale), device=self.device, dtype=tensor.dtype)
+            for y in y_starts:
+                for x in x_starts:
+                    tile = tensor[:, :, y:y+tile_size, x:x+tile_size]
+                    with torch.no_grad():
+                        out_tile = model(tile)
+                    oy, ox = y * scale, x * scale
+                    ot_h, ot_w = tile_size * scale, tile_size * scale
+                    out_tensor[:, :, oy:oy+ot_h, ox:ox+ot_w] += out_tile
+                    weights[:, :, oy:oy+ot_h, ox:ox+ot_w] += mask
+            out_tensor = out_tensor / weights
+
+        res_rgb = (out_tensor.squeeze(0).permute(1, 2, 0).clamp(0, 1).cpu().float().numpy() * 255.0).astype(np.uint8)
+        res_bgr = cv2.cvtColor(res_rgb, cv2.COLOR_RGB2BGR)
+        return res_bgr
+
     def _clarify_vector_lineart(self, img_bgr):
         """
         Enhance and solidify faint pencil/cartoon lines into crisp, bold vector outlines
@@ -107,28 +173,20 @@ class ImageEnhancer:
         """
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
         
-        # Multi-scale black top-hat filter detects thin and medium stroke contours
+        # Black top-hat filter detects thin and medium stroke contours
         k1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        k2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        tophat1 = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, k1)
-        tophat2 = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, k2)
-        tophat = np.maximum(tophat1, tophat2)
+        tophat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, k1)
         
-        # Exclude colored areas (e.g., mouth, tongue, colored effects) so only line strokes are darkened
-        lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
-        L, A, B = cv2.split(lab)
-        chroma = np.sqrt((A.astype(float) - 128)**2 + (B.astype(float) - 128)**2)
-        is_neutral_or_line = (chroma < 35)
-        
-        line_strength = np.clip((tophat.astype(float) - 8.0) / 28.0, 0, 1.0) * is_neutral_or_line.astype(float)
+        # Line strength
+        line_strength = np.clip((tophat.astype(float) - 5.0) / 20.0, 0, 1.0)
         
         # Deepen lines towards solid black (charcoal/ink)
-        darkened = img_bgr.astype(float) * (1.0 - line_strength[:, :, None] * 0.75)
+        darkened = img_bgr.astype(float) * (1.0 - line_strength[:, :, None] * 0.35)
         darkened = np.clip(darkened, 0, 255).astype(np.uint8)
         
-        # Anti-aliased edge sharpening on the stroke contours
-        blur = cv2.GaussianBlur(darkened, (0, 0), 1.0)
-        sharp = cv2.addWeighted(darkened, 1.35, blur, -0.35, 0)
+        # Anti-aliased edge sharpening on stroke contours
+        blur = cv2.GaussianBlur(darkened, (0, 0), 0.8)
+        sharp = cv2.addWeighted(darkened, 1.25, blur, -0.25, 0)
         final_bgr = np.where(line_strength[:, :, None] > 0.08, sharp, darkened)
         return final_bgr
 
@@ -267,17 +325,16 @@ class ImageEnhancer:
             output_img = restored_img
 
         elif model_type in ['anime', 'animesharp']:
-            # Run clean RealESRGAN Anime 6B model with tile=0 (silky smooth, zero noise)
-            upsampler = self._load_realesrgan_anime()
-            out_4x, _ = upsampler.enhance(img, outscale=4)
+            # Run high-capacity 23-block 4x-AnimeSharp model (reconstructs sharp line art & micro details)
+            out_4x = self._enhance_animesharp(img)
 
-            # If 1X scale requested (keep exact original dimension), downsample first then clarify lines
+            # If 1X scale requested (keep exact original dimension), downsample with Lanczos to preserve detail
             if outscale == 1:
-                target_img = cv2.resize(out_4x, (orig_w, orig_h), interpolation=cv2.INTER_AREA)
+                target_img = cv2.resize(out_4x, (orig_w, orig_h), interpolation=cv2.INTER_LANCZOS4)
             elif outscale != 4:
                 target_w = max(1, int(orig_w * outscale))
                 target_h = max(1, int(orig_h * outscale))
-                target_img = cv2.resize(out_4x, (target_w, target_h), interpolation=cv2.INTER_AREA)
+                target_img = cv2.resize(out_4x, (target_w, target_h), interpolation=cv2.INTER_LANCZOS4)
             else:
                 target_img = out_4x
 
@@ -319,7 +376,7 @@ class ImageEnhancer:
 
         # Ensure 100% exact original dimensions if outscale=1 was requested or if using SCUNet
         if (outscale == 1 or model_type == 'scunet') and (output_img.shape[0] != orig_h or output_img.shape[1] != orig_w):
-            output_img = cv2.resize(output_img, (orig_w, orig_h), interpolation=cv2.INTER_AREA)
+            output_img = cv2.resize(output_img, (orig_w, orig_h), interpolation=cv2.INTER_LANCZOS4)
 
         # Subtle adaptive edge clarity boost for 1X scale (non-anime only, anime is already clarified)
         if outscale == 1 and model_type not in ['anime', 'animesharp']:
