@@ -34,7 +34,7 @@ uploads/*
 !uploads/.gitkeep
 outputs/*
 !outputs/.gitkeep
-!outputs/batch/
+outputs/batch/*
 !outputs/batch/.gitkeep
 
 # Environment variables & Logs

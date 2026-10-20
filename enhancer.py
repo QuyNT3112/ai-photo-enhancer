@@ -34,7 +34,8 @@ MODELS_DIR = os.path.join(BASE_DIR, 'models')
 MODEL_PATHS = {
     'general': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus.pth'),
     'anime': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus_anime_6B.pth'),
-    'face': os.path.join(MODELS_DIR, 'GFPGANv1.4.pth')
+    'face': os.path.join(MODELS_DIR, 'GFPGANv1.4.pth'),
+    'scunet': os.path.join(MODELS_DIR, 'scunet_color_real_gan.pth')
 }
 
 
@@ -56,6 +57,7 @@ class ImageEnhancer:
                 'realesrgan_general': os.path.exists(MODEL_PATHS['general']),
                 'realesrgan_anime': os.path.exists(MODEL_PATHS['anime']),
                 'gfpgan_face': os.path.exists(MODEL_PATHS['face']) and HAS_GFPGAN,
+                'scunet_real': os.path.exists(MODEL_PATHS['scunet']),
             }
         }
         return info
@@ -115,6 +117,62 @@ class ImageEnhancer:
             print(f"[Enhancer] GFPGANv1.4 loaded (scale {upscale})!")
         return self.cached_models[key]
 
+    def _load_scunet(self):
+        if 'scunet' not in self.cached_models:
+            path = MODEL_PATHS['scunet']
+            if not os.path.exists(path):
+                print("[Enhancer] Downloading SCUNet 1X restoration model (~31MB)...")
+                import urllib.request
+                url = 'https://github.com/cszn/KAIR/releases/download/v1.0/scunet_color_real_gan.pth'
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                urllib.request.urlretrieve(url, path)
+                print("[Enhancer] SCUNet downloaded!")
+            import spandrel  # type: ignore
+            model = spandrel.ModelLoader().load_from_file(path).to(self.device).eval()
+            self.cached_models['scunet'] = model
+            print(f"[Enhancer] SCUNet 1X model loaded on {self.device.upper()}!")
+        return self.cached_models['scunet']
+
+    def _enhance_scunet(self, img_bgr):
+        model = self._load_scunet()
+        h, w = img_bgr.shape[:2]
+
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        tensor = torch.from_numpy(img_rgb).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+        tensor = tensor.to(self.device)
+
+        tile_size = 512
+        tile_pad = 32
+
+        if h <= tile_size and w <= tile_size:
+            with torch.no_grad():
+                out_tensor = model(tensor)
+        else:
+            out_tensor = torch.zeros_like(tensor)
+            weights = torch.zeros((1, 1, h, w), device=self.device)
+            stride = tile_size - 2 * tile_pad
+
+            y_starts = list(range(0, max(1, h - tile_size + 1), stride))
+            if y_starts[-1] + tile_size < h:
+                y_starts.append(h - tile_size)
+            x_starts = list(range(0, max(1, w - tile_size + 1), stride))
+            if x_starts[-1] + tile_size < w:
+                x_starts.append(w - tile_size)
+
+            mask = torch.ones((1, 1, tile_size, tile_size), device=self.device)
+            for y in y_starts:
+                for x in x_starts:
+                    tile = tensor[:, :, y:y+tile_size, x:x+tile_size]
+                    with torch.no_grad():
+                        out_tile = model(tile)
+                    out_tensor[:, :, y:y+tile_size, x:x+tile_size] += out_tile
+                    weights[:, :, y:y+tile_size, x:x+tile_size] += mask
+            out_tensor = out_tensor / weights
+
+        res_rgb = (out_tensor.squeeze(0).permute(1, 2, 0).clamp(0, 1).cpu().numpy() * 255.0).astype(np.uint8)
+        res_bgr = cv2.cvtColor(res_rgb, cv2.COLOR_RGB2BGR)
+        return res_bgr
+
     def enhance_image(self, input_path, output_path, model_type='general', outscale=4, face_enhance=False):
         """
         Enhance an image using the selected model.
@@ -145,7 +203,21 @@ class ImageEnhancer:
 
         output_img = None
 
-        if model_type == 'face_only':
+        if model_type == 'scunet':
+            # SCUNet Native 1X Blind Restoration (zero dimension change)
+            restored = self._enhance_scunet(img)
+            if face_enhance and HAS_GFPGAN and os.path.exists(MODEL_PATHS['face']):
+                restorer = self._load_gfpgan(upscale=1)
+                _, _, output_img = restorer.enhance(
+                    restored,
+                    has_aligned=False,
+                    only_center_face=False,
+                    paste_back=True
+                )
+            else:
+                output_img = restored
+
+        elif model_type == 'face_only':
             # Run GFPGAN directly
             restorer = self._load_gfpgan(upscale=outscale)
             # GFPGAN expects BGR
@@ -193,6 +265,10 @@ class ImageEnhancer:
                     only_center_face=False,
                     paste_back=True
                 )
+
+        # Ensure 100% exact original dimensions if outscale=1 was requested or if using SCUNet
+        if (outscale == 1 or model_type == 'scunet') and (output_img.shape[0] != orig_h or output_img.shape[1] != orig_w):
+            output_img = cv2.resize(output_img, (orig_w, orig_h), interpolation=cv2.INTER_AREA)
 
         # Handle alpha channel restore if original had transparency
         if has_alpha and alpha_channel is not None:

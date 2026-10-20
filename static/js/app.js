@@ -221,6 +221,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const input = card.querySelector('input');
             if (input.checked) {
                 card.classList.add('active');
+                if (input.value === 'scunet') {
+                    selectedScale = 1;
+                    updateScaleButtons();
+                }
             } else {
                 card.classList.remove('active');
             }

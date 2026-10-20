@@ -28,10 +28,11 @@
 ## 🌟 Tính Năng Chính
 
 ### 1. 🔍 Siêu Làm Nét & Phục Hồi Chi Tiết (AI Super-Resolution)
+- **🛡️ Siêu Khôi Phục 1X (SCUNet Swin-Conv-UNet GAN)**: Mô hình State-of-the-Art chuyên trị **ảnh vỡ hạt nặng, nhiễu nén JPEG, mất nét mà 100% GIỮ NGUYÊN KÍCH THƯỚC GỐC (Scale 1x)**. Ứng dụng Swin Transformer kết hợp mạng nơ-ron tích chập khôi phục đường nét sắc sảo mà không thay đổi độ phân giải. Hỗ trợ kết hợp cùng GFPGAN để phục hồi mắt, mũi, miệng 1X chân thực.
 - **⚡ Siêu Chân Dung (Combo Real-ESRGAN x4plus + GFPGAN v1.4)**: Tái tạo chi tiết mắt, mũi, chân mày, làn da và từng sợi tóc siêu thực cho ảnh chân dung cũ hoặc mờ.
-- **🖼️ Real-ESRGAN Đa Dụng (x4plus)**: Phục hồi ảnh phong cảnh, công trình kiến trúc, xe cộ, tài liệu, vật thể bị vỡ hạt do nén nén ảnh.
+- **🖼️ Real-ESRGAN Đa Dụng (x4plus)**: Phục hồi ảnh phong cảnh, công trình kiến trúc, xe cộ, tài liệu, vật thể bị vỡ hạt do nén ảnh.
 - **🎨 Real-ESRGAN Anime (x4plus Anime 6B)**: Khử răng cưa, làm mịn viền nét vẽ cho tranh 2D, truyện tranh, manga, anime, đồ họa vector.
-- **Tùy chọn phóng to linh hoạt**: Hỗ trợ phóng đại 2x hoặc 4x, bật/tắt tính năng nhận diện & phục hồi khuôn mặt (Face Enhance).
+- **Tùy chọn phóng to linh hoạt**: Hỗ trợ phóng đại 1x (Khôi phục nguyên kích thước), 2x hoặc 4x, bật/tắt tính năng nhận diện & phục hồi khuôn mặt (Face Enhance).
 
 ### 2. 📐 Đổi Tỷ Lệ Khung Hình Thông Minh (Aspect Ratio Studio)
 - Hỗ trợ chuyển đổi nhanh giữa 3 tỷ lệ phổ biến nhất:
@@ -270,11 +271,12 @@ Giao diện ứng dụng gồm 2 tab chính ở thanh điều hướng trên cù
    - Hoặc sao chép ảnh từ web/ảnh chụp màn hình và nhấn **`Ctrl + V`** để dán ngay lập tức.
    - Bạn cũng có thể bấm vào các nút ảnh mẫu (*Chân dung cũ*, *Anime 2D*) để trải nghiệm nhanh.
 2. **Bước 2 - Chọn mô hình & thông số**:
-   - **Siêu Chân Dung (Real-ESRGAN + GFPGAN)**: Phù hợp nhất cho ảnh có người, ảnh thẻ, ảnh gia đình, ảnh chân dung cổ điển.
-   - **Real-ESRGAN Đa Dụng**: Phù hợp cho phong cảnh, chữ viết, đồ vật, kiến trúc.
-   - **Real-ESRGAN Anime 6B**: Phù hợp cho hình vẽ 2D, truyện tranh, hoạt hình.
-   - Chọn độ phóng đại: `4x` (Mặc định) hoặc `2x`.
-   - Tùy chọn `Phục hồi chi tiết khuôn mặt (GFPGAN)`: Tích chọn để AI tập trung làm nét mắt, mũi, miệng.
+   - **Siêu Khôi Phục 1X (SCUNet Swin-Conv-UNet GAN)**: Lựa chọn hàng đầu cho **ảnh vỡ hạt nặng, nhiễu nén JPEG, ảnh mờ vỡ điểm ảnh**. Giữ nguyên 100% kích thước pixel gốc (1x), không làm tăng kích thước ảnh.
+   - **Siêu Chân Dung (Real-ESRGAN + GFPGAN)**: Phù hợp nhất cho ảnh có người, ảnh thẻ, ảnh gia đình, ảnh chân dung cổ điển (phóng đại 2x / 4x).
+   - **Real-ESRGAN Đa Dụng**: Phù hợp cho phong cảnh, chữ viết, đồ vật, kiến trúc (2x / 4x).
+   - **Real-ESRGAN Anime 6B**: Phù hợp cho hình vẽ 2D, truyện tranh, hoạt hình (2x / 4x).
+   - Chọn độ phóng đại: `1x` (Tự động khi chọn SCUNet), `2x` hoặc `4x`.
+   - Tùy chọn `Phục hồi chi tiết khuôn mặt (GFPGAN)`: Tích chọn để AI tập trung làm nét mắt, mũi, miệng (hỗ trợ cả ở 1x lẫn 2x/4x).
 3. **Bước 3 - Xử lý & Xem kết quả**:
    - Bấm nút **"Bắt Đầu Khôi Phục & Làm Nét"**.
    - Sau vài giây, kết quả sẽ hiện lên. Bạn kéo thanh trượt giữa ảnh để xem sự biến đổi kinh ngạc trước và sau khi làm nét.
@@ -358,6 +360,7 @@ Giao diện ứng dụng gồm 2 tab chính ở thanh điều hướng trên cù
 ai-photo-enhancer/
 │
 ├── models/                                # Thư mục chứa các mô hình trọng số AI
+│   ├── scunet_color_real_gan.pth          # Model SCUNet phục hồi 1X không đổi kích thước
 │   ├── RealESRGAN_x4plus.pth              # Model x4 cho ảnh thực tế
 │   ├── RealESRGAN_x4plus_anime_6B.pth     # Model x4 cho tranh vẽ Anime
 │   ├── GFPGANv1.4.pth                     # Model phục hồi khuôn mặt

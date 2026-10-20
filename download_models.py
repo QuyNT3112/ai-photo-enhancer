@@ -31,6 +31,11 @@ MODELS = [
         "name": "big-lama.pt",
         "url": "https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt",
         "desc": "LaMa Neural Network for Generative AI Outpainting (~205MB)"
+    },
+    {
+        "name": "scunet_color_real_gan.pth",
+        "url": "https://github.com/cszn/KAIR/releases/download/v1.0/scunet_color_real_gan.pth",
+        "desc": "SCUNet Swin-Conv-UNet Blind Restoration & Denoise 1X Model (~31MB)"
     }
 ]
 
