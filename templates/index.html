@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clarity AI Studio - Siêu Phục Hồi & Làm Nét Ảnh AI</title>
+    <meta name="description" content="Website phục hồi chi tiết ảnh bị mờ, vỡ hạt bằng mô hình AI Real-ESRGAN và GFPGAN tăng tốc GPU NVIDIA RTX 3060.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
+</head>
+<body>
+    <div class="app-background">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
+    <!-- Main Navigation Bar -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-title">Clarity AI <span class="gradient-text">Studio</span></span>
+                    <span class="brand-subtitle">Khôi Phục & Làm Nét Chi Tiết Ảnh</span>
+                </div>
+            </div>
+
+            <nav class="nav-tabs-wrapper">
+                <button type="button" class="nav-main-tab active" id="tabBtnEnhancer">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Siêu Làm Nét AI
+                </button>
+                <button type="button" class="nav-main-tab" id="tabBtnAspect">
+                    <i class="fa-solid fa-crop-simple"></i> Đổi Tỷ Lệ Ảnh
+                </button>
+                <button type="button" class="nav-main-tab" id="tabBtnBatchResize">
+                    <i class="fa-solid fa-layer-group"></i> Resize Hàng Loạt
+                </button>
+                <button type="button" class="nav-main-tab" id="tabBtnGenerator">
+                    <i class="fa-solid fa-palette"></i> Tạo Ảnh AI (T2I & I2I)
+                </button>
+                <button type="button" class="nav-main-tab" id="tabBtnChatbot">
+                    <i class="fa-solid fa-comments"></i> Trợ Lý AI & Chatbot
+                    <span class="badge-tab-new">MỚI</span>
+                </button>
+                <button type="button" class="nav-main-tab" id="tabBtnCompressor">
+                    <i class="fa-solid fa-file-zipper"></i> Nén Dung Lượng (Target MB)
+                </button>
+            </nav>
+
+            <div class="nav-status">
+                <div class="gpu-badge" id="gpuStatusBadge">
+                    <span class="gpu-pulse"></span>
+                    <i class="fa-solid fa-microchip"></i>
+                    <span id="gpuStatusText">NVIDIA GeForce RTX 3060 · 12GB CUDA</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- App Views Wrapper -->
+    <div id="viewEnhancer" class="app-view">
+        <main class="main-container">
+        
+        <!-- Left Panel: Upload & Control Settings -->
+        <aside class="sidebar-panel">
+            
+            <!-- Upload Box -->
+            <div class="glass-card upload-section">
+                <div class="card-header">
+                    <div class="step-badge">1</div>
+                    <h2 class="card-title">Tải Ảnh Lên</h2>
+                </div>
+
+                <div class="drop-zone" id="dropZone">
+                    <input type="file" id="fileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden">
+                    <div class="drop-content" id="dropPrompt">
+                        <div class="upload-icon-circle">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                        </div>
+                        <p class="drop-title">Kéo & thả ảnh vào đây</p>
+                        <p class="drop-sub">hoặc <span class="highlight-link">chọn từ máy tính</span></p>
+                        <div class="paste-hint">
+                            <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp
+                        </div>
+                        <p class="file-limit-text">Hỗ trợ JPG, PNG, WEBP, BMP (Tối đa 32MB)</p>
+                    </div>
+
+                    <!-- Uploaded Image Thumbnail Preview -->
+                    <div class="upload-preview-wrapper hidden" id="uploadPreviewWrapper">
+                        <img src="" alt="Ảnh tải lên" id="uploadThumb" class="upload-thumb">
+                        <div class="upload-file-meta">
+                            <div class="file-name" id="previewFileName">ten_anh.jpg</div>
+                            <div class="file-dims" id="previewFileDims">1080 x 1080 · 1.2 MB</div>
+                        </div>
+                        <button type="button" class="btn-remove-file" id="btnRemoveFile" title="Xóa ảnh">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sample Presets Section -->
+                <div class="sample-presets">
+                    <span class="sample-label"><i class="fa-regular fa-lightbulb"></i> Thử nhanh ảnh mẫu:</span>
+                    <div class="sample-btn-group">
+                        <button type="button" class="btn-sample" data-sample="portrait">
+                            <i class="fa-regular fa-user"></i> Chân dung cũ (mờ & vỡ)
+                        </button>
+                        <button type="button" class="btn-sample" data-sample="anime">
+                            <i class="fa-solid fa-palette"></i> Anime / Tranh 2D
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Selection & Parameters -->
+            <div class="glass-card config-section">
+                <div class="card-header">
+                    <div class="step-badge">2</div>
+                    <h2 class="card-title">Chọn Mô Hình Phục Hồi</h2>
+                </div>
+
+                <!-- Model Radio Cards -->
+                <div class="model-cards-grid">
+                    <label class="model-card active" for="modelCombo">
+                        <input type="radio" name="modelType" id="modelCombo" value="combo" checked>
+                        <div class="model-card-content">
+                            <div class="model-card-header">
+                                <span class="model-name"><i class="fa-solid fa-sparkles text-cyan"></i> Siêu Chân Dung (Real-ESRGAN + GFPGAN)</span>
+                                <span class="rec-badge">Khuyên dùng</span>
+                            </div>
+                            <p class="model-desc">Làm nét toàn bộ cảnh và phục hồi chi tiết mắt, mũi, sợi tóc, khuôn mặt sắc sảo chân thực.</p>
+                        </div>
+                    </label>
+
+                    <label class="model-card" for="modelGeneral">
+                        <input type="radio" name="modelType" id="modelGeneral" value="general">
+                        <div class="model-card-content">
+                            <div class="model-card-header">
+                                <span class="model-name"><i class="fa-solid fa-image text-purple"></i> Real-ESRGAN Đa Dụng (x4plus)</span>
+                            </div>
+                            <p class="model-desc">Tối ưu cho ảnh phong cảnh, vật thể, xe cộ, kiến trúc, đồ họa và tài liệu văn bản bị vỡ hạt.</p>
+                        </div>
+                    </label>
+
+                    <label class="model-card" for="modelAnime">
+                        <input type="radio" name="modelType" id="modelAnime" value="anime">
+                        <div class="model-card-content">
+                            <div class="model-card-header">
+                                <span class="model-name"><i class="fa-solid fa-paintbrush text-pink"></i> Real-ESRGAN Anime 6B</span>
+                            </div>
+                            <p class="model-desc">Chuyên biệt hóa cho nét vẽ anime, manga, truyện tranh, làm mịn viền răng cưa.</p>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Advanced Settings -->
+                <div class="extra-settings">
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label class="setting-label">Mức độ phóng đại (Upscale Factor)</label>
+                            <span class="setting-hint">Tăng kích thước và điểm ảnh gốc</span>
+                        </div>
+                        <div class="scale-toggle-group">
+                            <button type="button" class="btn-scale" data-scale="1" title="Giữ nguyên kích thước pixel gốc, chỉ tái tạo làm nét chi tiết">1X (Giữ nguyên)</button>
+                            <button type="button" class="btn-scale" data-scale="2" title="Phóng to gấp 2 lần, dung lượng vừa phải">2X (Vừa)</button>
+                            <button type="button" class="btn-scale active" data-scale="4" title="Phóng to gấp 4 lần (16x điểm ảnh), siêu nét 4K">4X (Độ nét cao)</button>
+                        </div>
+                    </div>
+
+                    <div class="setting-item" id="faceToggleRow">
+                        <div class="setting-info">
+                            <label class="setting-label">Tăng cường phục hồi khuôn mặt (GFPGAN)</label>
+                            <span class="setting-hint">Tự động nhận diện và tái tạo đường nét mắt, chân mày, da mặt</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="faceEnhanceToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Run Button -->
+                <button type="button" class="btn-enhance" id="btnEnhance" disabled>
+                    <span class="btn-shine"></span>
+                    <i class="fa-solid fa-bolt-lightning"></i>
+                    <span id="btnEnhanceText">Bắt Đầu Làm Nét Chi Tiết</span>
+                </button>
+            </div>
+
+        </aside>
+
+        <!-- Right Panel: Visual Comparison & Results -->
+        <section class="workspace-panel">
+            
+            <!-- Empty State Placeholder -->
+            <div class="glass-card empty-state" id="emptyState">
+                <div class="empty-icon-wrap">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </div>
+                <h3 class="empty-title">Sẵn Sàng Khôi Phục Ảnh</h3>
+                <p class="empty-sub">Hãy tải lên một tấm ảnh bị mờ, vỡ hạt hoặc chọn một ảnh mẫu bên trái để chứng kiến sức mạnh phục hồi chi tiết của mô hình AI chạy trực tiếp trên GPU máy tính của bạn.</p>
+                <div class="feature-bullets">
+                    <div class="feature-pill"><i class="fa-solid fa-check text-cyan"></i> Khử mờ & tái tạo chi tiết hạt vỡ</div>
+                    <div class="feature-pill"><i class="fa-solid fa-check text-cyan"></i> Tăng độ phân giải lên gấp 4 lần</div>
+                    <div class="feature-pill"><i class="fa-solid fa-check text-cyan"></i> Tăng tốc phần cứng RTX 3060 CUDA</div>
+                </div>
+            </div>
+
+            <!-- Processing Loading State -->
+            <div class="glass-card processing-state hidden" id="processingState">
+                <div class="scanner-container">
+                    <div class="scanner-ring ring-1"></div>
+                    <div class="scanner-ring ring-2"></div>
+                    <div class="scanner-core">
+                        <i class="fa-solid fa-microchip text-cyan"></i>
+                    </div>
+                </div>
+                <h3 class="processing-title" id="processingStatusText">Đang xử lý ảnh trên GPU...</h3>
+                <p class="processing-sub" id="processingSubText">Mô hình Real-ESRGAN & GFPGAN đang tái tạo ma trận pixel...</p>
+                
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="progressBarFill"></div>
+                </div>
+
+                <div class="processing-steps">
+                    <div class="step-item active" id="step1"><i class="fa-solid fa-circle-check"></i> Tải ảnh vào VRAM</div>
+                    <div class="step-item active" id="step2"><i class="fa-solid fa-circle-notch fa-spin"></i> Chạy mạng nơ-ron</div>
+                    <div class="step-item" id="step3"><i class="fa-regular fa-circle"></i> Tinh chỉnh chi tiết</div>
+                    <div class="step-item" id="step4"><i class="fa-regular fa-circle"></i> Xuất kết quả 4K</div>
+                </div>
+            </div>
+
+            <!-- Enhanced Result View Area -->
+            <div class="glass-card result-container hidden" id="resultContainer">
+                
+                <!-- Result Toolbar -->
+                <div class="result-header">
+                    <div class="view-mode-tabs">
+                        <button type="button" class="view-tab active" data-mode="slider">
+                            <i class="fa-solid fa-arrows-left-right"></i> Kéo Thanh So Sánh
+                        </button>
+                        <button type="button" class="view-tab" data-mode="side">
+                            <i class="fa-solid fa-table-columns"></i> Đặt Cạnh Nhau
+                        </button>
+                        <button type="button" class="view-tab" data-mode="enhanced">
+                            <i class="fa-solid fa-sparkles"></i> Chỉ Ảnh Đã Làm Nét
+                        </button>
+                        <button type="button" class="view-tab" data-mode="original">
+                            <i class="fa-regular fa-image"></i> Chỉ Ảnh Gốc
+                        </button>
+                    </div>
+
+                    <div class="zoom-controls">
+                        <button type="button" class="btn-icon" id="btnZoomFit" title="Vừa màn hình">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                        <button type="button" class="btn-icon" id="btnZoomToggle" title="Phóng to 100%">
+                            <i class="fa-solid fa-magnifying-glass-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Interactive Comparison Stage -->
+                <div class="comparison-stage" id="comparisonStage">
+                    
+                    <!-- Mode 1: Split Slider -->
+                    <div class="slider-wrapper" id="sliderWrapper">
+                        <img src="" alt="Ảnh sau khi làm nét" id="imgEnhanced" class="comp-img img-enhanced">
+                        
+                        <div class="slider-clip" id="sliderClip">
+                            <img src="" alt="Ảnh gốc" id="imgOriginal" class="comp-img img-original">
+                            <span class="comp-tag tag-before">ẢNH GỐC (BỊ MỜ)</span>
+                        </div>
+                        <span class="comp-tag tag-after">ẢNH ĐÃ LÀM NÉT (AI 4K)</span>
+
+                        <div class="slider-handle" id="sliderHandle">
+                            <div class="handle-line"></div>
+                            <div class="handle-circle">
+                                <i class="fa-solid fa-chevron-left"></i>
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </div>
+                            <div class="handle-line"></div>
+                        </div>
+                    </div>
+
+                    <!-- Mode 2: Side-by-Side (hidden by default) -->
+                    <div class="side-wrapper hidden" id="sideWrapper">
+                        <div class="side-col">
+                            <div class="side-badge">ẢNH GỐC</div>
+                            <div class="side-img-box">
+                                <img src="" alt="Ảnh gốc" id="sideImgOrig" class="side-img">
+                            </div>
+                        </div>
+                        <div class="side-col">
+                            <div class="side-badge highlight">ẢNH ĐÃ LÀM NÉT AI</div>
+                            <div class="side-img-box">
+                                <img src="" alt="Ảnh nét" id="sideImgEnh" class="side-img">
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Stats Bar -->
+                <div class="result-stats-bar" id="resultStatsBar">
+                    <div class="stat-cell">
+                        <span class="stat-title">Độ phân giải</span>
+                        <span class="stat-value" id="statResolution">280x280 ➔ 1120x1120</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-cell">
+                        <span class="stat-title">Điểm ảnh (Pixels)</span>
+                        <span class="stat-value highlight-cyan" id="statPixels">0.08 MP ➔ 1.25 MP (+16x)</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-cell">
+                        <span class="stat-title">Dung lượng</span>
+                        <span class="stat-value" id="statFilesize">45 KB ➔ 1.2 MB</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-cell">
+                        <span class="stat-title">Thời gian GPU RTX 3060</span>
+                        <span class="stat-value highlight-green" id="statDuration">⚡ 1.25 giây</span>
+                    </div>
+                </div>
+
+                <!-- Action Footer -->
+                <div class="result-actions">
+                    <div class="left-actions">
+                        <button type="button" class="btn-secondary" id="btnReset">
+                            <i class="fa-solid fa-rotate-left"></i> Làm Nét Ảnh Khác
+                        </button>
+                    </div>
+                    <div class="right-actions">
+                        <button type="button" class="btn-success" id="btnSaveToDownloads" title="Lưu trực tiếp vào thư mục Downloads của Windows">
+                            <i class="fa-solid fa-folder-arrow-down"></i> Lưu Thẳng Vào Downloads
+                        </button>
+                        <button type="button" class="btn-secondary" id="btnDownloadJpg">
+                            <i class="fa-solid fa-file-image"></i> Tải JPG
+                        </button>
+                        <button type="button" class="btn-primary" id="btnDownload">
+                            <i class="fa-solid fa-download"></i> Tải PNG (Gốc)
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+    </div>
+
+    <!-- Section 2: Aspect Ratio Studio (NEW FEATURE) -->
+    <div id="viewAspect" class="app-view hidden">
+        <main class="main-container">
+            <!-- Left Panel -->
+            <aside class="sidebar-panel">
+                <!-- Upload Box -->
+                <div class="glass-card upload-section">
+                    <div class="card-header">
+                        <div class="step-badge">1</div>
+                        <h2 class="card-title">Chọn Ảnh Để Đổi Tỷ Lệ</h2>
+                    </div>
+
+                    <div class="drop-zone" id="aspectDropZone">
+                        <input type="file" id="aspectFileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden">
+                        <div class="drop-content" id="aspectDropPrompt">
+                            <div class="upload-icon-circle">
+                                <i class="fa-solid fa-arrows-split-up-and-left"></i>
+                            </div>
+                            <p class="drop-title">Kéo & thả ảnh ngang / dọc vào đây</p>
+                            <p class="drop-sub">hoặc <span class="highlight-link">chọn từ máy tính</span></p>
+                            <div class="paste-hint">
+                                <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh
+                            </div>
+                        </div>
+
+                        <!-- Uploaded Image Thumbnail Preview -->
+                        <div class="upload-preview-wrapper hidden" id="aspectPreviewWrapper">
+                            <img src="" alt="Ảnh tải lên" id="aspectThumb" class="upload-thumb">
+                            <div class="upload-file-meta">
+                                <div class="file-name" id="aspectFileName">ten_anh.jpg</div>
+                                <div class="file-dims" id="aspectFileDims">1920 x 1080 (16:9)</div>
+                            </div>
+                            <button type="button" class="btn-remove-file" id="btnRemoveAspectFile" title="Xóa ảnh">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Preset & Reuse section -->
+                    <div class="sample-presets">
+                        <div class="sample-btn-group">
+                            <button type="button" class="btn-sample" id="btnReuseEnhanced" title="Dùng ảnh vừa làm nét ở tab trước">
+                                <i class="fa-solid fa-arrow-rotate-right text-cyan"></i> Dùng ảnh vừa làm nét
+                            </button>
+                            <button type="button" class="btn-sample aspect-sample-btn" data-sample="anime">
+                                <i class="fa-solid fa-image"></i> Ảnh mẫu ngang
+                            </button>
+                            <button type="button" class="btn-sample aspect-sample-btn" data-sample="portrait">
+                                <i class="fa-solid fa-user"></i> Ảnh mẫu vuông
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aspect Ratio & Mode Settings -->
+                <div class="glass-card config-section">
+                    <div class="card-header">
+                        <div class="step-badge">2</div>
+                        <h2 class="card-title">Chọn Tỷ Lệ Đích Cần Đổi</h2>
+                    </div>
+
+                    <!-- Ratio Selection Cards -->
+                    <div class="ratio-cards-grid">
+                        <label class="ratio-card active" for="ratioSquare">
+                            <input type="radio" name="targetRatio" id="ratioSquare" value="1:1" checked>
+                            <div class="ratio-card-box">
+                                <div class="ratio-shape shape-square">1:1</div>
+                                <div class="ratio-text">
+                                    <span class="ratio-title">Ảnh Vuông (1:1)</span>
+                                    <span class="ratio-sub">Instagram · Avatar · Shopee</span>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="ratio-card" for="ratioStory">
+                            <input type="radio" name="targetRatio" id="ratioStory" value="9:16">
+                            <div class="ratio-card-box">
+                                <div class="ratio-shape shape-portrait">9:16</div>
+                                <div class="ratio-text">
+                                    <span class="ratio-title">Khung Dọc (9:16)</span>
+                                    <span class="ratio-sub">TikTok · Facebook Reels · Story</span>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="ratio-card" for="ratioWide">
+                            <input type="radio" name="targetRatio" id="ratioWide" value="16:9">
+                            <div class="ratio-card-box">
+                                <div class="ratio-shape shape-landscape">16:9</div>
+                                <div class="ratio-text">
+                                    <span class="ratio-title">Khung Ngang (16:9)</span>
+                                    <span class="ratio-sub">YouTube · Máy tính · Wallpaper</span>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="card-header" style="margin-top: 20px;">
+                        <div class="step-badge">3</div>
+                        <h2 class="card-title">Cách Xử Lý Mở Rộng / Cắt</h2>
+                    </div>
+
+                    <!-- Mode Options -->
+                    <div class="method-cards-grid">
+                        <label class="method-card active" for="modeAiExpand">
+                            <input type="radio" name="aspectMode" id="modeAiExpand" value="ai_expand" checked>
+                            <div class="method-card-content">
+                                <div class="method-header">
+                                    <span class="method-title"><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> AI Sinh Không Gian Mới (Outpaint AI)</span>
+                                    <span class="rec-badge" style="background: linear-gradient(135deg, #06b6d4, #a855f7); color: white; border: none;">Khuyên dùng · AI</span>
+                                </div>
+                                <p class="method-desc">Mô hình AI phân tích bối cảnh và <strong>tự động vẽ thêm không gian môi trường</strong> (trần nhà, nền đất, cảnh quan...) để vừa khung hình, <strong>giữ trọn 100% ảnh gốc không bị cắt xén</strong>.</p>
+                            </div>
+                        </label>
+
+                        <label class="method-card" for="modeFill">
+                            <input type="radio" name="aspectMode" id="modeFill" value="smart_crop">
+                            <div class="method-card-content">
+                                <div class="method-header">
+                                    <span class="method-title"><i class="fa-solid fa-expand text-purple"></i> Cắt Tràn Khung Hình (Zoom & Crop)</span>
+                                </div>
+                                <p class="method-desc">Phóng to và căn giữa lấp đầy 100% khung hình, loại bỏ viền mờ 2 đầu (chủ thể sẽ to hơn).</p>
+                            </div>
+                        </label>
+
+                        <!-- Align options for Fill mode -->
+                        <div class="extra-settings hidden" id="cropAlignOptions" style="margin-top: -4px; margin-bottom: 4px; padding: 10px 14px;">
+                            <div class="setting-item">
+                                <label class="setting-label" style="font-size: 12px;">Căn vị trí chủ thể</label>
+                                <div class="scale-toggle-group">
+                                    <button type="button" class="btn-align active" data-align="center">🎯 Giữa</button>
+                                    <button type="button" class="btn-align" data-align="top">⬆️ Trên / Trái</button>
+                                    <button type="button" class="btn-align" data-align="bottom">⬇️ Dưới / Phải</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <label class="method-card" for="modeStretch">
+                            <input type="radio" name="aspectMode" id="modeStretch" value="stretch">
+                            <div class="method-card-content">
+                                <div class="method-header">
+                                    <span class="method-title"><i class="fa-solid fa-arrows-up-down-left-right text-purple"></i> Co Giãn Tràn Khung (Stretch)</span>
+                                </div>
+                                <p class="method-desc">Kéo giãn lấp đầy 100% khung hình, không bị cắt xén bất kỳ góc nào của ảnh gốc.</p>
+                            </div>
+                        </label>
+
+                        <label class="method-card" for="modeBlur">
+                            <input type="radio" name="aspectMode" id="modeBlur" value="blur_expand">
+                            <div class="method-card-content">
+                                <div class="method-header">
+                                    <span class="method-title"><i class="fa-solid fa-sparkles text-pink"></i> Mở rộng viền mờ (Ambient Blur)</span>
+                                </div>
+                                <p class="method-desc">Giữ trọn ảnh gốc ở giữa và tự động làm mờ 2 đầu ngoài.</p>
+                            </div>
+                        </label>
+
+                        <label class="method-card" for="modePad">
+                            <input type="radio" name="aspectMode" id="modePad" value="pad_color">
+                            <div class="method-card-content">
+                                <div class="method-header">
+                                    <span class="method-title"><i class="fa-solid fa-border-all text-emerald"></i> Khung viền màu (Fit & Pad)</span>
+                                </div>
+                                <p class="method-desc">Đặt trọn ảnh vào giữa và thêm viền màu Đen, Trắng hoặc Màu tự động.</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Pad Color Options (shown if modePad is active) -->
+                    <div class="extra-settings hidden" id="padColorOptions">
+                        <div class="setting-item">
+                            <label class="setting-label">Màu viền lấp đầy</label>
+                            <div class="scale-toggle-group">
+                                <button type="button" class="btn-color active" data-color="black">Đen</button>
+                                <button type="button" class="btn-color" data-color="white">Trắng</button>
+                                <button type="button" class="btn-color" data-color="auto">Màu chủ đạo ảnh</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Convert Button -->
+                    <button type="button" class="btn-enhance" id="btnConvertAspect" disabled>
+                        <span class="btn-shine"></span>
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                        <span id="btnConvertAspectText">Chuyển Đổi Tỷ Lệ Ngay</span>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Right Workspace -->
+            <section class="workspace-panel">
+                <!-- Empty State -->
+                <div class="glass-card empty-state" id="aspectEmptyState">
+                    <div class="empty-icon-wrap" style="color: #a855f7; border-color: rgba(168, 85, 247, 0.3); background: rgba(168, 85, 247, 0.08);">
+                        <i class="fa-solid fa-crop-simple"></i>
+                    </div>
+                    <h3 class="empty-title">Studio Đổi Tỷ Lệ & Khung Hình</h3>
+                    <p class="empty-sub">Biến ảnh ngang bất kỳ thành ảnh vuông 1:1 đăng Instagram, hoặc ảnh dọc 9:16 làm Reels/TikTok, hoặc ảnh ngang 16:9 với hiệu ứng mở rộng viền mờ nghệ thuật không làm mất chi tiết.</p>
+                    <div class="feature-bullets">
+                        <div class="feature-pill"><i class="fa-solid fa-check text-cyan"></i> Đổi tự do giữa 1:1, 9:16 và 16:9</div>
+                        <div class="feature-pill"><i class="fa-solid fa-check text-cyan"></i> Không bóp méo hay biến dạng chủ thể</div>
+                        <div class="feature-pill"><i class="fa-solid fa-check text-cyan"></i> Xử lý tức thì dưới 0.1 giây</div>
+                    </div>
+                </div>
+
+                <!-- Processing State -->
+                <div class="glass-card processing-state hidden" id="aspectProcessingState">
+                    <div class="scanner-container">
+                        <div class="scanner-ring ring-1"></div>
+                        <div class="scanner-core">
+                            <i class="fa-solid fa-crop-simple text-purple"></i>
+                        </div>
+                    </div>
+                    <h3 class="processing-title">Đang chuyển đổi tỷ lệ khung hình...</h3>
+                    <p class="processing-sub">Đang tính toán ma trận tỷ lệ và tạo dải viền mờ nghệ thuật...</p>
+                </div>
+
+                <!-- Result Container -->
+                <div class="glass-card result-container hidden" id="aspectResultContainer">
+                    <div class="result-header">
+                        <div class="ratio-badge-info" id="aspectRatioBadgeInfo">
+                            <span class="tag-badge-ratio" id="aspectRatioTag">1:1 Vuông</span>
+                            <span class="ratio-dims-text" id="aspectRatioDimsText">1920x1080 ➔ 1080x1080</span>
+                        </div>
+                    </div>
+
+                    <div class="comparison-stage" id="aspectComparisonStage" style="min-height: 500px; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at center, #151d30 0%, #090d16 100%); padding: 24px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px;">
+                        <img src="" alt="Ảnh sau khi đổi tỷ lệ" id="aspectResultImg" style="max-width: 100%; max-height: 560px; object-fit: contain; border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.18);">
+                    </div>
+
+                    <!-- Stats Bar -->
+                    <div class="result-stats-bar">
+                        <div class="stat-cell">
+                            <span class="stat-title">Tỷ lệ mới</span>
+                            <span class="stat-value highlight-cyan" id="aspectStatRatio">1:1</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-cell">
+                            <span class="stat-title">Độ phân giải mới</span>
+                            <span class="stat-value" id="aspectStatResolution">1080 x 1080</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-cell">
+                            <span class="stat-title">Phương pháp</span>
+                            <span class="stat-value highlight-green" id="aspectStatMode">Mở rộng nền mờ</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Footer -->
+                    <div class="result-actions">
+                        <div class="left-actions">
+                            <button type="button" class="btn-secondary" id="btnResetAspect">
+                                <i class="fa-solid fa-rotate-left"></i> Chọn Ảnh Khác
+                            </button>
+                        </div>
+                        <div class="right-actions">
+                            <button type="button" class="btn-success" id="btnSaveAspectToDownloads" title="Lưu trực tiếp vào thư mục Downloads của Windows">
+                                <i class="fa-solid fa-folder-arrow-down"></i> Lưu Thẳng Vào Downloads
+                            </button>
+                            <button type="button" class="btn-secondary" id="btnDownloadAspectJpg">
+                                <i class="fa-solid fa-file-image"></i> Tải JPG
+                            </button>
+                            <button type="button" class="btn-primary" id="btnDownloadAspectPng">
+                                <i class="fa-solid fa-download"></i> Tải PNG (Gốc)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Section 3: Batch Resize Studio (NEW SEPARATE FEATURE) -->
+    <div id="viewBatchResize" class="app-view hidden">
+        <main class="main-container">
+            <!-- Left Panel: Multi-Upload & Dimension Controls -->
+            <aside class="sidebar-panel">
+                <!-- Step 1: Upload Multiple Photos -->
+                <div class="glass-card upload-section">
+                    <div class="card-header">
+                        <div class="step-badge">1</div>
+                        <h2 class="card-title">Tải Lên Nhiều Ảnh</h2>
+                        <span class="file-counter-badge hidden" id="batchFileCountBadge">0 ảnh</span>
+                    </div>
+
+                    <div class="drop-zone" id="batchDropZone">
+                        <input type="file" id="batchFileInput" accept="image/png, image/jpeg, image/webp, image/bmp, image/jfif" multiple class="file-input-hidden">
+                        <div class="drop-content" id="batchDropPrompt">
+                            <div class="upload-icon-circle">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                            <p class="drop-title">Kéo & thả nhiều ảnh vào đây</p>
+                            <p class="drop-sub">hoặc <span class="highlight-link">chọn nhiều tệp từ máy tính</span></p>
+                            <div class="paste-hint">
+                                <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh
+                            </div>
+                            <p class="file-limit-text">Hỗ trợ JPG, PNG, WEBP, BMP (Được chọn nhiều ảnh cùng lúc)</p>
+                        </div>
+                    </div>
+
+                    <!-- Selected Files Grid Preview -->
+                    <div class="batch-files-list-wrapper hidden" id="batchFilesListWrapper">
+                        <div class="batch-list-header">
+                            <span class="batch-list-title">
+                                <i class="fa-solid fa-list-check text-cyan"></i> Đã chọn: <strong id="batchSelectedCount">0</strong> ảnh
+                            </span>
+                            <button type="button" class="btn-clear-batch" id="btnClearBatchFiles" title="Xóa toàn bộ ảnh đã chọn">
+                                <i class="fa-solid fa-trash-can"></i> Xóa tất cả
+                            </button>
+                        </div>
+                        <div class="batch-files-grid" id="batchFilesGrid">
+                            <!-- Populated dynamically with mini cards -->
+                        </div>
+                        <div class="batch-add-more">
+                            <button type="button" class="btn-add-more-files" id="btnAddMoreFiles">
+                                <i class="fa-solid fa-plus"></i> Chọn thêm ảnh khác...
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Target Dimensions & Resize Settings -->
+                <div class="glass-card config-section">
+                    <div class="card-header">
+                        <div class="step-badge">2</div>
+                        <h2 class="card-title">Kích Thước Đích (Pixel)</h2>
+                    </div>
+
+                    <!-- Dimension Inputs Form -->
+                    <div class="dimension-inputs-group">
+                        <div class="dim-input-col">
+                            <label for="batchTargetWidth" class="dim-label">
+                                <i class="fa-solid fa-arrows-left-right text-cyan"></i> Chiều Rộng (Width)
+                            </label>
+                            <div class="dim-input-wrapper">
+                                <input type="number" id="batchTargetWidth" value="1080" min="16" max="12000" step="1" class="dim-number-input">
+                                <span class="dim-unit">px</span>
+                            </div>
+                        </div>
+
+                        <div class="dim-swap-btn-col">
+                            <button type="button" class="btn-swap-dims" id="btnSwapDims" title="Đổi chỗ Rộng ⇄ Cao">
+                                <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                            </button>
+                        </div>
+
+                        <div class="dim-input-col">
+                            <label for="batchTargetHeight" class="dim-label">
+                                <i class="fa-solid fa-arrows-up-down text-purple"></i> Chiều Cao (Height)
+                            </label>
+                            <div class="dim-input-wrapper">
+                                <input type="number" id="batchTargetHeight" value="1080" min="16" max="12000" step="1" class="dim-number-input">
+                                <span class="dim-unit">px</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Dimensions -->
+                    <div class="quick-preset-container">
+                        <span class="preset-title"><i class="fa-solid fa-bolt text-cyan"></i> Kích thước chuẩn gợi ý nhanh:</span>
+                        <div class="preset-tags-grid">
+                            <button type="button" class="preset-tag active" data-w="1080" data-h="1080">1080 x 1080 (1:1 Vuông)</button>
+                            <button type="button" class="preset-tag" data-w="1080" data-h="1920">1080 x 1920 (9:16 TikTok/Reels)</button>
+                            <button type="button" class="preset-tag" data-w="1920" data-h="1080">1920 x 1080 (16:9 Full HD)</button>
+                            <button type="button" class="preset-tag" data-w="512" data-h="512">512 x 512 (Icon / Avatar)</button>
+                            <button type="button" class="preset-tag" data-w="1440" data-h="1080">1440 x 1080 (4:3 Tiêu chuẩn)</button>
+                            <button type="button" class="preset-tag" data-w="820" data-h="312">820 x 312 (Cover Facebook)</button>
+                        </div>
+                    </div>
+
+                    <!-- Resize Mode Options -->
+                    <div class="resize-mode-section">
+                        <span class="preset-title"><i class="fa-solid fa-sliders text-cyan"></i> Cơ chế làm khớp khung:</span>
+                        <div class="resize-mode-options">
+                            <label class="resize-mode-card active" for="modeStretch">
+                                <input type="radio" name="batchResizeMode" id="modeStretch" value="stretch" checked>
+                                <div class="mode-card-content">
+                                    <div class="mode-header">
+                                        <i class="fa-solid fa-up-right-and-down-left-from-center text-cyan"></i>
+                                        <span class="mode-name">Giãn Vừa Khít (Stretch)</span>
+                                        <span class="mode-badge-rec">Không Viền Đen</span>
+                                    </div>
+                                    <p class="mode-hint">Co giãn ảnh vừa khít 100% kích thước mới, <strong>tuyệt đối không viền đen</strong>.</p>
+                                </div>
+                            </label>
+
+                            <label class="resize-mode-card" for="modeCrop">
+                                <input type="radio" name="batchResizeMode" id="modeCrop" value="crop">
+                                <div class="mode-card-content">
+                                    <div class="mode-header">
+                                        <i class="fa-solid fa-crop text-purple"></i>
+                                        <span class="mode-name">Cắt Giữa Tràn Viền (Center Crop)</span>
+                                    </div>
+                                    <p class="mode-hint">Không viền đen, giữ nguyên tỷ lệ không méo bằng cách cắt bớt phần biên thừa.</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Output Format Notice -->
+                    <div class="batch-format-badge">
+                        <i class="fa-solid fa-file-shield text-green"></i>
+                        <span>Định dạng xuất xưởng: <strong>100% PNG</strong> (Giữ độ sắc nét và màu sắc gốc).</span>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button type="button" class="btn-enhance-main" id="btnRunBatchResize" disabled>
+                        <i class="fa-solid fa-layer-group"></i>
+                        <span id="btnRunBatchResizeText">Bắt Đầu Resize Hàng Loạt (0 ảnh)</span>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Processing & Batch Result Gallery -->
+            <section class="workspace-panel">
+                <!-- Empty State -->
+                <div class="empty-state" id="batchEmptyState">
+                    <div class="empty-glow"></div>
+                    <div class="empty-icon-wrap">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                    <h3 class="empty-title">Trung Tâm Resize Ảnh Hàng Loạt Sang PNG</h3>
+                    <p class="empty-desc">Tải lên nhiều ảnh cùng lúc, đặt kích thước mong muốn. Hệ thống sẽ tự động resize khít khung (không viền đen), xuất file PNG và đóng gói thành 1 tệp ZIP tải về tiện lợi.</p>
+                    <div class="empty-features-pills">
+                        <span class="feat-pill"><i class="fa-solid fa-check text-cyan"></i> 100% Không viền đen</span>
+                        <span class="feat-pill"><i class="fa-solid fa-check text-cyan"></i> Chuẩn nén PNG cao cấp</span>
+                        <span class="feat-pill"><i class="fa-solid fa-check text-cyan"></i> 1-Click Tải file ZIP trọn bộ</span>
+                    </div>
+                </div>
+
+                <!-- Processing State -->
+                <div class="processing-state hidden" id="batchProcessingState">
+                    <div class="processing-card">
+                        <div class="spinner-core">
+                            <div class="spinner-ring"></div>
+                            <div class="spinner-ring-inner"></div>
+                            <i class="fa-solid fa-gear spinner-icon"></i>
+                        </div>
+                        <h3 class="processing-title" id="batchProcessTitle">Đang Resize Hàng Loạt...</h3>
+                        <p class="processing-sub" id="batchProcessSub">Đang chuyển đổi tất cả ảnh sang chuẩn PNG theo kích thước mới và đóng gói ZIP.</p>
+                        
+                        <div class="batch-progress-bar-wrap">
+                            <div class="batch-progress-bar" id="batchProgressBar" style="width: 60%;"></div>
+                        </div>
+                        <span class="batch-progress-percent" id="batchProgressPercent">Đang xử lý...</span>
+                    </div>
+                </div>
+
+                <!-- Result Container -->
+                <div class="result-container hidden" id="batchResultContainer">
+                    <!-- Top Action Bar: ZIP Download Highlight -->
+                    <div class="batch-zip-action-card">
+                        <div class="zip-card-info">
+                            <div class="zip-icon-box">
+                                <i class="fa-solid fa-file-zipper"></i>
+                            </div>
+                            <div class="zip-meta">
+                                <h3 class="zip-title" id="batchZipTitle">ClarityAI_Batch_1080x1080.zip</h3>
+                                <div class="zip-tags">
+                                    <span class="zip-tag highlight"><i class="fa-solid fa-images"></i> <strong id="batchResultCount">0</strong> ảnh PNG</span>
+                                    <span class="zip-tag"><i class="fa-solid fa-arrows-split-up-and-left"></i> <strong id="batchResultDims">1080 x 1080 px</strong></span>
+                                    <span class="zip-tag"><i class="fa-solid fa-weight-hanging"></i> <strong id="batchResultZipSize">0 MB</strong></span>
+                                    <span class="zip-tag success"><i class="fa-solid fa-circle-check"></i> Hoàn tất 100%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="zip-actions-group">
+                            <button type="button" class="btn-success" id="btnSaveBatchZipToDownloads" title="Lưu trực tiếp file ZIP vào thư mục Downloads của Windows">
+                                <i class="fa-solid fa-folder-arrow-down"></i> Lưu ZIP Vào Downloads
+                            </button>
+                            <button type="button" class="btn-primary-large" id="btnDownloadBatchZip">
+                                <i class="fa-solid fa-download"></i> Tải Về Trọn Bộ (File ZIP)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Processed Images Grid Gallery -->
+                    <div class="batch-results-header">
+                        <h4 class="batch-gallery-title">
+                            <i class="fa-regular fa-images text-cyan"></i> Danh sách ảnh kết quả (<span id="batchResultCountText">0</span> ảnh PNG):
+                        </h4>
+                        <button type="button" class="btn-secondary-sm" id="btnResetBatch">
+                            <i class="fa-solid fa-rotate-left"></i> Resize Đợt Ảnh Khác
+                        </button>
+                    </div>
+
+                    <div class="batch-results-grid" id="batchResultsGrid">
+                        <!-- Populated dynamically with individual cards -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Section 4: Smart Target-MB Compressor Studio (NEW SEPARATE FEATURE) -->
+    <div id="viewCompressor" class="app-view hidden">
+        <main class="main-container">
+            <!-- Left Panel: Upload & Target MB Settings -->
+            <aside class="sidebar-panel">
+                <!-- Step 1: Upload Photo -->
+                <div class="glass-card upload-section">
+                    <div class="card-header">
+                        <div class="step-badge">1</div>
+                        <h2 class="card-title">Chọn Ảnh Để Nén</h2>
+                    </div>
+
+                    <div class="drop-zone" id="compressDropZone">
+                        <input type="file" id="compressFileInput" accept="image/png, image/jpeg, image/webp, image/bmp, image/jfif" class="file-input-hidden" multiple>
+                        <div class="drop-content" id="compressDropPrompt">
+                            <div class="upload-icon-circle">
+                                <i class="fa-solid fa-file-zipper"></i>
+                            </div>
+                            <p class="drop-title">Kéo & thả một hoặc nhiều ảnh vào đây</p>
+                            <p class="drop-sub">hoặc <span class="highlight-link">chọn nhiều tệp từ máy tính</span></p>
+                            <div class="paste-hint">
+                                <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp
+                            </div>
+                            <p class="file-limit-text">Hỗ trợ JPG, PNG, WEBP, BMP (Được chọn nhiều ảnh cùng lúc)</p>
+                        </div>
+
+                        <!-- Uploaded Single Image Thumbnail Preview -->
+                        <div class="upload-preview-wrapper hidden" id="compressPreviewWrapper">
+                            <img src="" alt="Ảnh tải lên" id="compressThumb" class="upload-thumb">
+                            <div class="upload-file-meta">
+                                <div class="file-name" id="compressFileName">ten_anh.jpg</div>
+                                <div class="file-dims" id="compressFileDims">3840 x 2160 · 14.8 MB</div>
+                            </div>
+                            <button type="button" class="btn-remove-file" id="btnRemoveCompressFile" title="Xóa ảnh">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Multi-image Selected Preview Grid -->
+                    <div class="batch-files-list-wrapper hidden" id="compressFilesListWrapper">
+                        <div class="batch-list-header">
+                            <span class="batch-list-title">
+                                <i class="fa-solid fa-list-check text-cyan"></i> Đã chọn: <strong id="compressSelectedCount">0</strong> ảnh
+                            </span>
+                            <button type="button" class="btn-clear-batch" id="btnClearCompressFiles" title="Xóa toàn bộ ảnh đã chọn">
+                                <i class="fa-solid fa-trash-can"></i> Xóa tất cả
+                            </button>
+                        </div>
+                        <div class="batch-files-grid" id="compressFilesGrid">
+                            <!-- Populated dynamically with mini cards -->
+                        </div>
+                        <div class="batch-add-more">
+                            <button type="button" class="btn-add-more-files" id="btnAddMoreCompressFiles">
+                                <i class="fa-solid fa-plus"></i> Chọn thêm ảnh khác...
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Preset & Reuse section -->
+                    <div class="sample-presets">
+                        <div class="sample-btn-group">
+                            <button type="button" class="btn-sample" id="btnReuseForCompress" title="Dùng ảnh vừa xử lý ở tab trước">
+                                <i class="fa-solid fa-arrow-rotate-right text-cyan"></i> Dùng ảnh vừa xử lý
+                            </button>
+                            <button type="button" class="btn-sample compress-sample-btn" data-sample="portrait">
+                                <i class="fa-solid fa-user"></i> Ảnh mẫu chân dung
+                            </button>
+                            <button type="button" class="btn-sample compress-sample-btn" data-sample="anime">
+                                <i class="fa-solid fa-image"></i> Ảnh mẫu phong cảnh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Target Size in MB & Quality Settings -->
+                <div class="glass-card config-section">
+                    <div class="card-header">
+                        <div class="step-badge">2</div>
+                        <h2 class="card-title">Mức Dung Lượng Mục Tiêu</h2>
+                    </div>
+
+                    <!-- Target MB Input -->
+                    <div class="target-mb-input-wrapper">
+                        <label for="targetMbInput" class="target-mb-label">
+                            <i class="fa-solid fa-weight-hanging text-cyan"></i> Giới hạn dung lượng tối đa (MB):
+                        </label>
+                        <div class="target-mb-box">
+                            <input type="number" id="targetMbInput" value="1.0" min="0.05" max="100.0" step="0.1" class="target-mb-number">
+                            <span class="target-mb-unit">MB</span>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset MB Buttons -->
+                    <div class="quick-preset-container">
+                        <span class="preset-title"><i class="fa-solid fa-bolt text-cyan"></i> Mức dung lượng gợi ý nhanh:</span>
+                        <div class="preset-tags-grid">
+                            <button type="button" class="preset-tag-mb" data-mb="0.3">0.3 MB (Siêu nhẹ Web)</button>
+                            <button type="button" class="preset-tag-mb" data-mb="0.5">0.5 MB (Zalo / Chat)</button>
+                            <button type="button" class="preset-tag-mb active" data-mb="1.0">1.0 MB (Chuẩn Web/Shopee)</button>
+                            <button type="button" class="preset-tag-mb" data-mb="2.0">2.0 MB (Facebook/Mạng XH)</button>
+                            <button type="button" class="preset-tag-mb" data-mb="3.0">3.0 MB (Sắc nét HD)</button>
+                            <button type="button" class="preset-tag-mb" data-mb="5.0">5.0 MB (Chất lượng cao)</button>
+                        </div>
+                    </div>
+
+                    <!-- Output Format Choice -->
+                    <div class="compress-format-section">
+                        <span class="preset-title"><i class="fa-solid fa-file-image text-cyan"></i> Định dạng xuất ra:</span>
+                        <div class="compress-format-grid">
+                            <label class="compress-fmt-card active" for="fmtAuto">
+                                <input type="radio" name="compressFormat" id="fmtAuto" value="auto" checked>
+                                <div class="fmt-card-inner">
+                                    <div class="fmt-card-title-row">
+                                        <span class="fmt-name">WebP (Siêu nét)</span>
+                                        <span class="fmt-badge-rec">Khuyên dùng</span>
+                                    </div>
+                                    <p class="fmt-desc">Bảo vệ 100% chi tiết, không vỡ hạt, không loang màu.</p>
+                                </div>
+                            </label>
+
+                            <label class="compress-fmt-card" for="fmtJpg">
+                                <input type="radio" name="compressFormat" id="fmtJpg" value="jpg">
+                                <div class="fmt-card-inner">
+                                    <div class="fmt-card-title-row">
+                                        <span class="fmt-name">JPG (Chroma 4:4:4)</span>
+                                    </div>
+                                    <p class="fmt-desc">Khử loang màu viền chữ, tương thích mọi thiết bị.</p>
+                                </div>
+                            </label>
+
+                            <label class="compress-fmt-card" for="fmtPng">
+                                <input type="radio" name="compressFormat" id="fmtPng" value="png">
+                                <div class="fmt-card-inner">
+                                    <div class="fmt-card-title-row">
+                                        <span class="fmt-name">PNG (Trong Suốt)</span>
+                                    </div>
+                                    <p class="fmt-desc">Bảo toàn nền trong suốt (Alpha), đường nét sắc cạnh.</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Quality Protection Badges -->
+                    <div class="fidelity-protection-badge">
+                        <div class="fidelity-badge-item">
+                            <i class="fa-solid fa-lock text-cyan"></i>
+                            <span><strong>100% Giữ nguyên kích thước:</strong> Không làm co nhỏ hay thay đổi pixel ảnh.</span>
+                        </div>
+                        <div class="fidelity-badge-item">
+                            <i class="fa-solid fa-tag text-purple"></i>
+                            <span><strong>Giữ nguyên tên tệp ảnh:</strong> Lưu trùng tên ảnh gốc kèm định dạng xuất.</span>
+                        </div>
+                        <div class="fidelity-badge-item">
+                            <i class="fa-solid fa-shield-halved text-green"></i>
+                            <span><strong>Chống Loang Màu (Chroma 4:4:4):</strong> Giữ sắc nét từng đường viền và bảo toàn Alpha.</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button type="button" class="btn-enhance-main" id="btnRunCompress" disabled>
+                        <i class="fa-solid fa-bolt"></i>
+                        <span id="btnRunCompressText">Bắt Đầu Nén Xuống 1.0 MB</span>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Processing & Before/After Comparison -->
+            <section class="workspace-panel">
+                <!-- Empty State -->
+                <div class="empty-state" id="compressEmptyState">
+                    <div class="empty-glow"></div>
+                    <div class="empty-icon-wrap">
+                        <i class="fa-solid fa-file-zipper"></i>
+                    </div>
+                    <h3 class="empty-title">Nén Dung Lượng Ảnh Thông Minh</h3>
+                    <p class="empty-desc">Nén ảnh chính xác xuống mức Megabyte (MB) bạn mong muốn mà vẫn giữ được độ sắc nét và màu sắc trung thực tuyệt đối. Hỗ trợ thanh trượt so sánh Before/After chi tiết.</p>
+                    <div class="empty-features-pills">
+                        <span class="feat-pill"><i class="fa-solid fa-check text-cyan"></i> Đạt chuẩn mức MB</span>
+                        <span class="feat-pill"><i class="fa-solid fa-check text-cyan"></i> Không loang màu (Full Chroma)</span>
+                        <span class="feat-pill"><i class="fa-solid fa-check text-cyan"></i> Thanh so sánh trực quan</span>
+                    </div>
+                </div>
+
+                <!-- Processing State -->
+                <div class="processing-state hidden" id="compressProcessingState">
+                    <div class="processing-card">
+                        <div class="spinner-core">
+                            <div class="spinner-ring"></div>
+                            <div class="spinner-ring-inner"></div>
+                            <i class="fa-solid fa-sliders spinner-icon"></i>
+                        </div>
+                        <h3 class="processing-title" id="compressProcessTitle">Đang Tối Ưu Nén Ảnh...</h3>
+                        <p class="processing-sub" id="compressProcessSub">Thuật toán đang tính toán lượng tử hóa chất lượng và bảo toàn đường nét để đạt mức MB mục tiêu.</p>
+                    </div>
+                </div>
+
+                <!-- Result Container -->
+                <div class="glass-card result-container hidden" id="compressResultContainer">
+                    <!-- Result Toolbar -->
+                    <div class="result-header">
+                        <div class="view-mode-tabs">
+                            <button type="button" class="view-tab active" data-compress-mode="slider">
+                                <i class="fa-solid fa-arrows-left-right"></i> Kéo Thanh So Sánh
+                            </button>
+                            <button type="button" class="view-tab" data-compress-mode="compressed">
+                                <i class="fa-solid fa-file-circle-check"></i> Ảnh Đã Nén
+                            </button>
+                            <button type="button" class="view-tab" data-compress-mode="original">
+                                <i class="fa-regular fa-image"></i> Ảnh Gốc
+                            </button>
+                        </div>
+
+                        <div class="zoom-controls">
+                            <button type="button" class="btn-icon" id="btnCompressZoomFit" title="Vừa màn hình">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <button type="button" class="btn-icon" id="btnCompressZoomToggle" title="Phóng to 150%">
+                                <i class="fa-solid fa-magnifying-glass-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Comparison Stage -->
+                    <div class="comparison-stage" id="compressComparisonStage">
+                        <div class="slider-wrapper" id="compressSliderWrapper">
+                            <img src="" alt="Ảnh đã nén" id="compressImgResult" class="comp-img img-enhanced">
+                            <div class="slider-clip" id="compressSliderClip">
+                                <img src="" alt="Ảnh gốc" id="compressImgOriginal" class="comp-img img-original">
+                                <span class="comp-tag tag-before" id="compressTagBefore">ẢNH GỐC</span>
+                            </div>
+                            <span class="comp-tag tag-after" id="compressTagAfter">ẢNH ĐÃ NÉN</span>
+
+                            <div class="slider-handle" id="compressSliderHandle">
+                                <div class="handle-line"></div>
+                                <div class="handle-circle">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </div>
+                                <div class="handle-line"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Comparison Stats Bar -->
+                    <div class="result-stats-bar" id="compressStatsBar">
+                        <div class="stat-cell">
+                            <span class="stat-title">Dung lượng gốc</span>
+                            <span class="stat-value text-muted" id="compressStatOrigSize">5.4 MB</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-cell">
+                            <span class="stat-title">Dung lượng sau nén</span>
+                            <span class="stat-value highlight-cyan" id="compressStatNewSize">0.95 MB</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-cell">
+                            <span class="stat-title">Mức độ giảm</span>
+                            <span class="stat-value highlight-green" id="compressStatReduction">-82.4%</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-cell">
+                            <span class="stat-title">Độ phân giải</span>
+                            <span class="stat-value" id="compressStatQuality">3840x2160 · Q=92</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-cell">
+                            <span class="stat-title">Thời gian</span>
+                            <span class="stat-value highlight-green" id="compressStatDuration">⚡ 0.25s</span>
+                        </div>
+                    </div>
+
+                    <!-- Actions Footer -->
+                    <div class="result-actions">
+                        <div class="left-actions">
+                            <button type="button" class="btn-secondary" id="btnResetCompress">
+                                <i class="fa-solid fa-rotate-left"></i> Nén Ảnh Khác
+                            </button>
+                        </div>
+                        <div class="right-actions">
+                            <button type="button" class="btn-success" id="btnSaveCompressToDownloads" title="Lưu trực tiếp vào thư mục Downloads của Windows">
+                                <i class="fa-solid fa-folder-arrow-down"></i> Lưu Thẳng Vào Downloads
+                            </button>
+                            <button type="button" class="btn-primary" id="btnDownloadCompressed">
+                                <i class="fa-solid fa-download"></i> Tải Ảnh Đã Nén
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Batch Compress Result Container -->
+                <div class="result-container hidden" id="compressBatchResultContainer">
+                    <!-- Top Action Bar: ZIP Download Highlight -->
+                    <div class="batch-zip-action-card">
+                        <div class="zip-card-info">
+                            <div class="zip-icon-box">
+                                <i class="fa-solid fa-file-zipper"></i>
+                            </div>
+                            <div class="zip-meta">
+                                <h3 class="zip-title" id="compressZipTitle">ClarityAI_Compressed_1.0MB.zip</h3>
+                                <div class="zip-tags">
+                                    <span class="zip-tag highlight"><i class="fa-solid fa-images"></i> <strong id="compressBatchResultCount">0</strong> ảnh</span>
+                                    <span class="zip-tag"><i class="fa-solid fa-lock"></i> <strong>100% Kích thước gốc</strong></span>
+                                    <span class="zip-tag"><i class="fa-solid fa-weight-hanging"></i> Giảm <strong id="compressBatchReduction">0%</strong> (<strong id="compressBatchZipSize">0 MB</strong>)</span>
+                                    <span class="zip-tag success"><i class="fa-solid fa-circle-check"></i> Hoàn tất 100%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="zip-actions-group">
+                            <button type="button" class="btn-success" id="btnSaveCompressZipToDownloads" title="Lưu trực tiếp file ZIP vào thư mục Downloads của Windows">
+                                <i class="fa-solid fa-folder-arrow-down"></i> Lưu ZIP Vào Downloads
+                            </button>
+                            <button type="button" class="btn-primary-large" id="btnDownloadCompressZip">
+                                <i class="fa-solid fa-download"></i> Tải Về Trọn Bộ (File ZIP)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Processed Images Grid Gallery -->
+                    <div class="batch-results-header">
+                        <h4 class="batch-gallery-title">
+                            <i class="fa-regular fa-images text-cyan"></i> Danh sách ảnh kết quả (<span id="compressBatchCountText">0</span> ảnh đã nén):
+                        </h4>
+                        <button type="button" class="btn-secondary-sm" id="btnResetCompressBatch">
+                            <i class="fa-solid fa-rotate-left"></i> Nén Đợt Ảnh Khác
+                        </button>
+                    </div>
+
+                    <div class="batch-results-grid" id="compressResultsGrid">
+                        <!-- Populated dynamically with individual cards -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW 5: AI IMAGE GENERATOR (T2I & I2I)     -->
+    <!-- ========================================== -->
+    <div id="viewGenerator" class="app-view hidden">
+        <main class="main-container">
+
+            <!-- Left Panel: Generator Controls -->
+            <aside class="sidebar-panel">
+
+                <!-- 1. Mode Selector (T2I vs I2I) -->
+                <div class="glass-card">
+                    <div class="card-header">
+                        <div class="step-badge">1</div>
+                        <h2 class="card-title">Chế Độ Tạo Ảnh</h2>
+                    </div>
+
+                    <div class="gen-mode-toggle-group">
+                        <button type="button" class="gen-mode-btn active" id="btnModeT2I" data-mode="t2i">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>Text-to-Image (T2I)</span>
+                        </button>
+                        <button type="button" class="gen-mode-btn" id="btnModeI2I" data-mode="i2i">
+                            <i class="fa-solid fa-image"></i>
+                            <span>Image-to-Image (I2I)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. Source Image Upload (Image-to-Image Only) -->
+                <div class="glass-card hidden" id="genI2iSection">
+                    <div class="card-header">
+                        <div class="step-badge">2</div>
+                        <h2 class="card-title">Ảnh Nguồn Cho Image-to-Image</h2>
+                    </div>
+
+                    <div class="drop-zone" id="genDropZone">
+                        <input type="file" id="genFileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden">
+                        <div class="drop-content" id="genDropPrompt">
+                            <div class="upload-icon-circle">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                            <p class="drop-title">Kéo & thả ảnh vào đây</p>
+                            <p class="drop-sub">hoặc <span class="highlight-link">chọn từ máy tính</span></p>
+                            <div class="paste-hint">
+                                <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh
+                            </div>
+                        </div>
+
+                        <!-- Uploaded Thumbnail Preview -->
+                        <div class="upload-preview-wrapper hidden" id="genUploadPreviewWrapper">
+                            <img src="" alt="Ảnh nguồn I2I" id="genThumb" class="upload-thumb">
+                            <div class="upload-file-meta">
+                                <div class="file-name" id="genFileName">anh_nguon.jpg</div>
+                                <div class="file-dims" id="genFileDims">1080 x 1080 · 1.2 MB</div>
+                            </div>
+                            <button type="button" class="btn-remove-file" id="btnRemoveGenFile" title="Xóa ảnh">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Reuse from Other Views -->
+                    <div class="reuse-btn-wrapper hidden" id="genReuseWrapper">
+                        <button type="button" class="btn-reuse" id="btnReuseEnhancedForI2i">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Dùng ảnh vừa làm nét gần nhất
+                        </button>
+                    </div>
+
+                    <!-- Sample Presets for I2I -->
+                    <div class="sample-presets">
+                        <span class="sample-label"><i class="fa-regular fa-lightbulb"></i> Thử nhanh ảnh mẫu:</span>
+                        <div class="sample-btn-group">
+                            <button type="button" class="btn-sample gen-sample-btn" data-sample="portrait">
+                                <i class="fa-regular fa-user"></i> Chân dung
+                            </button>
+                            <button type="button" class="btn-sample gen-sample-btn" data-sample="anime">
+                                <i class="fa-solid fa-palette"></i> Anime
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Denoising Strength Slider -->
+                    <div class="param-group" style="margin-top: 16px;">
+                        <div class="param-header">
+                            <label class="param-label" for="genStrength">
+                                <i class="fa-solid fa-sliders text-cyan"></i> Mức độ biến đổi ảnh gốc (Strength):
+                            </label>
+                            <span class="param-value-badge" id="genStrengthVal">0.65</span>
+                        </div>
+                        <input type="range" id="genStrength" min="0.1" max="0.95" step="0.05" value="0.65" class="custom-range">
+                        <div class="param-hint-text" id="genStrengthHint">
+                            <b>0.65 (Cân bằng)</b>: Giữ bố cục & dáng vẻ tổng thể, biến đổi phong cách và chi tiết theo Prompt.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Prompt & Style Selection -->
+                <div class="glass-card">
+                    <div class="card-header">
+                        <div class="step-badge" id="genPromptStepBadge">2</div>
+                        <h2 class="card-title">Mô Tả & Phong Cách Ảnh</h2>
+                    </div>
+
+                    <!-- Prompt Input Area -->
+                    <div class="form-group">
+                        <div class="prompt-header-row">
+                            <label class="form-label" for="genPrompt">
+                                <i class="fa-solid fa-feather-pointed text-purple"></i> Lời nhắc (Prompt):
+                            </label>
+                            <div class="prompt-action-btns">
+                                <button type="button" class="btn-prompt-action" id="btnRandomPrompt" title="Lấy ý tưởng ngẫu nhiên">
+                                    <i class="fa-solid fa-dice"></i> Gợi Ý Prompt Hay
+                                </button>
+                                <button type="button" class="btn-prompt-action text-muted" id="btnClearPrompt" title="Xóa văn bản">
+                                    <i class="fa-solid fa-trash-can"></i> Xóa
+                                </button>
+                            </div>
+                        </div>
+                        <textarea id="genPrompt" class="custom-textarea" rows="3" placeholder="Nhập ý tưởng bằng tiếng Việt hoặc tiếng Anh (Ví dụ: Chân dung hiệp sĩ mèo máy trong bộ giáp Cyberpunk phát sáng neon tím, chi tiết 8k, kiệt tác...)"></textarea>
+                    </div>
+
+                    <!-- Quick Inspiration Pills -->
+                    <div class="inspiration-chips-row">
+                        <span class="chip-label">Thử nhanh:</span>
+                        <button type="button" class="prompt-chip" data-prompt="Chân dung phi hành gia mèo máy trong bộ giáp không gian phát sáng neon tím, bồng bềnh giữa dải ngân hà lấp lánh" data-style="cyberpunk">🐱 Mèo Cyberpunk</button>
+                        <button type="button" class="prompt-chip" data-prompt="Cô gái anime ngồi đọc sách bên cửa sổ quán cà phê ngắm mưa rơi ngoài phố Tokyo, ánh đèn vàng ấm áp" data-style="anime">🌸 Anime Tokyo</button>
+                        <button type="button" class="prompt-chip" data-prompt="Siêu xe thể thao tương lai chạy trên đường cao tốc ven biển lúc hoàng hôn đỏ rực, mặt đường phản chiếu ánh nước" data-style="cinematic">🏎️ Siêu Xe Hoàng Hôn</button>
+                        <button type="button" class="prompt-chip" data-prompt="Chú rồng con tí hon dễ thương màu ngọc bích ôm viên pha lê phát sáng trong hang động thạch nhũ kỳ ảo" data-style="pixar3d">🐉 Rồng Con 3D</button>
+                    </div>
+
+                    <!-- Inline AI Prompt Optimizer Bar (Tiếng Việt -> Prompt Chuẩn SD) -->
+                    <div class="ai-prompt-opt-box">
+                        <div class="ai-opt-header">
+                            <span class="ai-opt-badge"><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> AI Tối Ưu Prompt Local</span>
+                            <span class="ai-opt-hint">Nhập ngôn ngữ tự nhiên ➔ AI phân tích thành Prompt 8K</span>
+                        </div>
+                        <div class="ai-opt-input-row">
+                            <input type="text" id="optNaturalInput" class="custom-input ai-opt-input" placeholder="Ví dụ: cô gái áo dài trắng bên hồ gươm buổi sớm sương mù...">
+                            <button type="button" class="btn-ai-opt" id="btnRunPromptOpt">
+                                <i class="fa-solid fa-bolt"></i> Tối Ưu
+                            </button>
+                        </div>
+                        <div class="ai-opt-result-preview hidden" id="aiOptResultPreview">
+                            <div class="ai-opt-preview-header">
+                                <span class="badge-success-sm"><i class="fa-solid fa-check"></i> Đã nâng cấp</span>
+                                <span class="ai-opt-style-tag" id="aiOptStyleTag">Điện ảnh 8K</span>
+                                <button type="button" class="btn-use-opt-prompt" id="btnApplyOptimizedPrompt">
+                                    <i class="fa-solid fa-arrow-down"></i> Áp Dụng Ngay
+                                </button>
+                            </div>
+                            <div class="ai-opt-preview-text" id="aiOptPreviewText"></div>
+                        </div>
+                    </div>
+
+                    <!-- Style Preset Dropdown -->
+                    <div class="form-group" style="margin-top: 14px;">
+                        <label class="form-label" for="genStylePreset">
+                            <i class="fa-solid fa-paint-roller text-cyan"></i> Phong cách nghệ thuật:
+                        </label>
+                        <select id="genStylePreset" class="custom-select">
+                            <option value="none">Tự do (Không áp dụng phong cách bổ sung)</option>
+                            <option value="cinematic" selected>🎬 Điện Ảnh 8K (Cinematic Movie)</option>
+                            <option value="photorealistic">📸 Nhiếp Ảnh Đời Thực (Photorealistic DSLR)</option>
+                            <option value="anime">🌸 Anime Makoto Shinkai (Hoạt Hình Nhật Bản)</option>
+                            <option value="cyberpunk">🌃 Cyberpunk Neon (Khoa Học Viễn Tưởng)</option>
+                            <option value="pixar3d">🧸 3D Hoạt Hình Pixar / Disney</option>
+                            <option value="fantasy">🏰 Thần Thoại & Giả Tưởng (Epic Fantasy)</option>
+                            <option value="vintage">🎞️ Phim Cổ Điển Retro (Vintage 1970s)</option>
+                        </select>
+                    </div>
+
+                    <!-- Negative Prompt Accordion -->
+                    <details class="advanced-accordion" style="margin-top: 12px;">
+                        <summary class="advanced-summary">
+                            <i class="fa-solid fa-shield-halved text-muted"></i> Tiêu cực / Lọc chi tiết xấu (Negative Prompt)
+                        </summary>
+                        <div class="advanced-content" style="padding-top: 10px;">
+                            <textarea id="genNegativePrompt" class="custom-textarea text-small" rows="2" placeholder="Những chi tiết KHÔNG muốn xuất hiện trong ảnh (Mặc định: loại bỏ méo mó, mờ, thừa chi tiết, watermark...)"></textarea>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- 4. Model & Aspect Ratio Settings -->
+                <div class="glass-card">
+                    <div class="card-header">
+                        <div class="step-badge" id="genSettingsStepBadge">3</div>
+                        <h2 class="card-title">Mô Hình & Tỷ Lệ Khung Hình</h2>
+                    </div>
+
+                    <!-- Model Selector -->
+                    <div class="form-group">
+                        <label class="form-label" for="genModelSelect">
+                            <i class="fa-solid fa-microchip text-purple"></i> Mô hình AI (Local CUDA):
+                        </label>
+                        <select id="genModelSelect" class="custom-select">
+                            <option value="runwayml/stable-diffusion-v1-5" selected>⚡ Stable Diffusion v1.5 (Local RTX 3060 · Siêu Nhanh ~2.5s)</option>
+                            <option value="Lykon/dreamshaper-8">🎨 DreamShaper v8 (Tranh 3D, Nghệ Thuật & Concept)</option>
+                            <option value="SG161222/Realistic_Vision_V5.1_noVAE">📸 Realistic Vision v5.1 (Chân Dung & Nhiếp Ảnh Thực Tế)</option>
+                            <option value="prompthero/openjourney">🌌 Openjourney v4 (Phong Cách Midjourney)</option>
+                        </select>
+                    </div>
+
+                    <!-- Aspect Ratio Grid -->
+                    <div class="form-group" style="margin-top: 14px;">
+                        <label class="form-label">
+                            <i class="fa-solid fa-crop-simple text-cyan"></i> Tỷ lệ & Kích thước ảnh:
+                        </label>
+                        <div class="aspect-ratio-selector-grid">
+                            <label class="ratio-pill active" for="genRatio11">
+                                <input type="radio" name="genAspectRatio" id="genRatio11" value="1:1" checked>
+                                <div class="ratio-pill-inner">
+                                    <span class="ratio-pill-name">1:1 Vuông</span>
+                                    <span class="ratio-pill-dims">512 x 512</span>
+                                </div>
+                            </label>
+
+                            <label class="ratio-pill" for="genRatio916">
+                                <input type="radio" name="genAspectRatio" id="genRatio916" value="9:16">
+                                <div class="ratio-pill-inner">
+                                    <span class="ratio-pill-name">9:16 Dọc</span>
+                                    <span class="ratio-pill-dims">512 x 896</span>
+                                </div>
+                            </label>
+
+                            <label class="ratio-pill" for="genRatio169">
+                                <input type="radio" name="genAspectRatio" id="genRatio169" value="16:9">
+                                <div class="ratio-pill-inner">
+                                    <span class="ratio-pill-name">16:9 Ngang</span>
+                                    <span class="ratio-pill-dims">896 x 512</span>
+                                </div>
+                            </label>
+
+                            <label class="ratio-pill" for="genRatio43">
+                                <input type="radio" name="genAspectRatio" id="genRatio43" value="4:3">
+                                <div class="ratio-pill-inner">
+                                    <span class="ratio-pill-name">4:3 Cổ Điển</span>
+                                    <span class="ratio-pill-dims">640 x 480</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Parameters (Steps, CFG, Seed) -->
+                    <details class="advanced-accordion" style="margin-top: 14px;">
+                        <summary class="advanced-summary">
+                            <i class="fa-solid fa-gear text-muted"></i> Tham số nâng cao (Steps, CFG, Seed)
+                        </summary>
+                        <div class="advanced-content" style="padding-top: 12px;">
+                            <div class="param-row-flex">
+                                <div class="param-col">
+                                    <div class="param-header">
+                                        <label class="param-label" for="genSteps">Số bước (Steps):</label>
+                                        <span class="param-value-badge" id="genStepsVal">20</span>
+                                    </div>
+                                    <input type="range" id="genSteps" min="15" max="50" step="1" value="20" class="custom-range">
+                                </div>
+
+                                <div class="param-col">
+                                    <div class="param-header">
+                                        <label class="param-label" for="genCfg">Độ bám Prompt (CFG):</label>
+                                        <span class="param-value-badge" id="genCfgVal">7.5</span>
+                                    </div>
+                                    <input type="range" id="genCfg" min="1.0" max="15.0" step="0.5" value="7.5" class="custom-range">
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 10px;">
+                                <label class="param-label" for="genSeed">Hạt ngẫu nhiên (Seed, -1 = Random):</label>
+                                <input type="number" id="genSeed" class="custom-input text-small" value="-1" placeholder="-1 để tạo ngẫu nhiên">
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Submit Hero Button -->
+                <button type="button" class="btn-primary-hero" id="btnGenerate">
+                    <span class="btn-spinner hidden" id="genSpinner"></span>
+                    <i class="fa-solid fa-wand-magic-sparkles" id="genBtnIcon"></i>
+                    <span id="btnGenerateText">BẮT ĐẦU TẠO ẢNH AI (GPU RTX 3060)</span>
+                </button>
+            </aside>
+
+            <!-- Right Panel: Output Workspace -->
+            <section class="workspace-panel">
+
+                <!-- 1. Empty State Placeholder -->
+                <div class="glass-card workspace-card empty-state" id="genEmptyState">
+                    <div class="empty-icon-circle">
+                        <i class="fa-solid fa-palette text-cyan"></i>
+                    </div>
+                    <h3 class="empty-title">Khởi Nguồn Sáng Tạo Nghệ Thuật Với AI</h3>
+                    <p class="empty-sub">
+                        Nhập lời nhắc (Prompt) hoặc chọn ảnh mẫu bên trái để sinh tác phẩm ảnh hoàn toàn mới chỉ trong <b>2-3 giây</b> với GPU NVIDIA GeForce RTX 3060 (12GB VRAM CUDA).
+                    </p>
+                    <div class="empty-feature-tags">
+                        <span class="feat-tag"><i class="fa-solid fa-bolt text-cyan"></i> Siêu tốc ~2.5s</span>
+                        <span class="feat-tag"><i class="fa-solid fa-image text-purple"></i> Hỗ trợ T2I & I2I</span>
+                        <span class="feat-tag"><i class="fa-solid fa-arrow-up-right-dots text-emerald"></i> Liên hoàn Siêu Làm Nét 4K</span>
+                    </div>
+                </div>
+
+                <!-- 2. Processing State -->
+                <div class="glass-card workspace-card processing-state hidden" id="genProcessingState">
+                    <div class="processing-orb-container">
+                        <div class="processing-orb"></div>
+                        <div class="processing-ring"></div>
+                        <i class="fa-solid fa-microchip processing-center-icon"></i>
+                    </div>
+                    <h3 class="processing-title" id="genProcessingStatusText">Đang Nạp Mô Hình & Khởi Tạo Mạng Khuếch Tán...</h3>
+                    <p class="processing-sub" id="genProcessingSubText">Tính toán trên nhân CUDA FP16 (RTX 3060) · Dự kiến 2-4 giây...</p>
+                    <div class="progress-meta">
+                        <span class="timer-badge"><i class="fa-regular fa-clock"></i> <span id="genProcessingTimer">0.0s</span></span>
+                        <span class="hardware-indicator-badge"><i class="fa-solid fa-bolt text-yellow"></i> CUDA RTX 3060</span>
+                    </div>
+                </div>
+
+                <!-- 3. Result Display Stage -->
+                <div class="glass-card workspace-card result-container hidden" id="genResultContainer">
+                    <div class="stage-header">
+                        <div class="result-title-group">
+                            <span class="badge-success" id="genResultBadge"><i class="fa-solid fa-check"></i> Đã Tạo Thành Công</span>
+                            <span class="meta-tag" id="genResultModeTag">T2I</span>
+                            <span class="meta-tag" id="genResultDimsTag">512 x 512</span>
+                        </div>
+                        <div class="view-controls">
+                            <button type="button" class="btn-ctrl-icon" id="btnGenZoomToggle" title="Phóng to chi tiết (Zoom)">
+                                <i class="fa-solid fa-magnifying-glass-plus"></i>
+                            </button>
+                            <button type="button" class="btn-ctrl-icon" id="btnGenReset" title="Tạo tác phẩm khác">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Image Display Stage -->
+                    <div class="gen-image-stage" id="genImageStage">
+                        <img src="" alt="Ảnh tạo bởi AI" id="genResultImg" class="gen-result-image">
+                    </div>
+
+                    <!-- Generation Meta Stats Bar -->
+                    <div class="stats-bar" style="margin-top: 14px;">
+                        <div class="stat-item">
+                            <span class="stat-label"><i class="fa-solid fa-expand"></i> Độ phân giải:</span>
+                            <span class="stat-val" id="genStatResolution">512 x 512</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label"><i class="fa-solid fa-weight-scale"></i> Dung lượng:</span>
+                            <span class="stat-val" id="genStatFilesize">-- KB</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label"><i class="fa-solid fa-stopwatch"></i> Thời gian tạo:</span>
+                            <span class="stat-val highlight" id="genStatDuration">--s</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label"><i class="fa-solid fa-fingerprint"></i> Seed:</span>
+                            <span class="stat-val" id="genStatSeed">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Bar & Workflow Integration Card -->
+                    <div class="gen-export-card">
+                        <!-- Direct Download Actions -->
+                        <div class="export-actions-row">
+                            <a href="#" class="btn-export-primary" id="btnDownloadGenPng" download>
+                                <i class="fa-solid fa-download"></i> Tải File PNG Gốc
+                            </a>
+                            <a href="#" class="btn-export-secondary" id="btnDownloadGenJpg" download>
+                                <i class="fa-regular fa-file-image"></i> Tải File JPG
+                            </a>
+                            <button type="button" class="btn-export-secondary" id="btnSaveGenToDownloads">
+                                <i class="fa-solid fa-folder-arrow-down text-cyan"></i> Lưu Thẳng Vào Downloads
+                            </button>
+                        </div>
+
+                        <!-- Workflow Pipeline Actions -->
+                        <div class="workflow-transfer-section">
+                            <div class="workflow-label">
+                                <i class="fa-solid fa-arrow-right-arrow-left text-purple"></i> Chuyển tiếp ảnh sang công cụ khác (Seamless Workflow):
+                            </div>
+                            <div class="workflow-buttons-grid">
+                                <button type="button" class="btn-workflow" id="btnSendToEnhancer">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-cyan"></i>
+                                    <span>Siêu Làm Nét (Upscale 2x / 4K)</span>
+                                </button>
+                                <button type="button" class="btn-workflow" id="btnSendToAspect">
+                                    <i class="fa-solid fa-crop-simple text-purple"></i>
+                                    <span>Đổi Khung Hình AI (Outpaint)</span>
+                                </button>
+                                <button type="button" class="btn-workflow" id="btnSendToCompressor">
+                                    <i class="fa-solid fa-file-zipper text-emerald"></i>
+                                    <span>Nén Dung Lượng (Target MB)</span>
+                                </button>
+                                <button type="button" class="btn-workflow" id="btnUseForNextI2i">
+                                    <i class="fa-solid fa-rotate text-yellow"></i>
+                                    <span>Dùng Làm Ảnh Nguồn Cho I2I</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW 6: AI CHATBOT & PROMPT CONSULTANT     -->
+    <!-- ========================================== -->
+    <div id="viewChatbot" class="app-view hidden">
+        <main class="main-container chatbot-container">
+
+            <!-- Left Panel: Model Hub & Knowledge Shortcuts -->
+            <aside class="sidebar-panel">
+
+                <!-- 1. Local LLM Model Hub -->
+                <div class="glass-card">
+                    <div class="card-header">
+                        <div class="step-badge"><i class="fa-solid fa-microchip"></i></div>
+                        <h2 class="card-title">Bộ Não AI (Local Model Hub)</h2>
+                    </div>
+
+                    <div class="llm-provider-card">
+                        <div class="llm-provider-status">
+                            <span class="pulse-indicator-green" id="llmStatusDot"></span>
+                            <span class="llm-status-title" id="llmStatusTitle">⚡ Clarity Local Engine</span>
+                            <span class="badge-free">100% FREE</span>
+                        </div>
+                        <p class="llm-provider-desc" id="llmProviderDesc">Chạy trực tiếp trong hệ thống với từ điển chuyên gia và phân tích Computer Vision, không cần cài đặt thêm.</p>
+
+                        <div class="form-group" style="margin-top: 12px;">
+                            <label class="form-label" for="llmProviderSelect">
+                                <i class="fa-solid fa-server text-cyan"></i> Nguồn mô hình AI:
+                            </label>
+                            <select id="llmProviderSelect" class="custom-select">
+                                <option value="built_in" selected>⚡ Clarity Local Engine (Tích hợp sẵn - Siêu Tốc 0.05s)</option>
+                                <option value="local_qwen">🤖 Qwen 2.5 Instruct Local GPU (RTX 3060 - 100% Offline)</option>
+                                <option value="ollama">🦙 Ollama Local (localhost:11434)</option>
+                                <option value="lm_studio">🖥️ LM Studio / OpenAI API (localhost:1234)</option>
+                            </select>
+                        </div>
+
+                        <!-- Ollama / LM Studio Model Selector & Ping (Conditional) -->
+                        <div class="llm-external-config hidden" id="llmExternalConfig">
+                            <div class="form-group" style="margin-top: 10px;">
+                                <label class="form-label" for="llmModelSelect">
+                                    <i class="fa-solid fa-cube text-purple"></i> Chọn Model:
+                                </label>
+                                <select id="llmModelSelect" class="custom-select">
+                                    <option value="">Đang tìm kiếm mô hình...</option>
+                                </select>
+                            </div>
+                            <div class="llm-ping-row">
+                                <button type="button" class="btn-secondary-sm" id="btnTestLLMConnection">
+                                    <i class="fa-solid fa-satellite-dish"></i> Kiểm tra kết nối
+                                </button>
+                                <span class="llm-ping-result text-muted" id="llmPingResult">Chưa kiểm tra</span>
+                            </div>
+                            <div class="llm-setup-hint" id="llmSetupHint">
+                                <i class="fa-regular fa-lightbulb"></i> Mở terminal và chạy <code>ollama run llama3.2</code> hoặc <code>ollama run qwen2.5:3b</code> để kích hoạt.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Fast Topic Shortcuts -->
+                <div class="glass-card">
+                    <div class="card-header">
+                        <div class="step-badge"><i class="fa-solid fa-lightbulb"></i></div>
+                        <h2 class="card-title">Chủ Đề Khám Phá Nhanh</h2>
+                    </div>
+
+                    <div class="chat-topic-chips">
+                        <button type="button" class="chat-topic-btn" data-query="Phối màu Cyberpunk gồm những tone nào?">
+                            <i class="fa-solid fa-city text-cyan"></i>
+                            <span>Phối màu Cyberpunk Neon</span>
+                        </button>
+                        <button type="button" class="chat-topic-btn" data-query="Bí quyết chụp chân dung xóa phông bokeh đẹp với ống kính 85mm f/1.4?">
+                            <i class="fa-solid fa-camera text-pink"></i>
+                            <span>Chân dung Bokeh 85mm</span>
+                        </button>
+                        <button type="button" class="chat-topic-btn" data-query="Phong cách nghệ thuật Makoto Shinkai và cách vẽ bầu trời anime?">
+                            <i class="fa-solid fa-cloud-sun text-yellow"></i>
+                            <span>Bầu trời Anime Shinkai</span>
+                        </button>
+                        <button type="button" class="chat-topic-btn" data-query="Gợi ý bảng màu pastel ấm áp cho phong cảnh mùa thu?">
+                            <i class="fa-solid fa-palette text-orange"></i>
+                            <span>Bảng màu Pastel Mùa Thu</span>
+                        </button>
+                        <button type="button" class="chat-topic-btn" data-query="Làm sao để làm nét ảnh chân dung cũ bị mờ nặng trên Clarity AI Studio?">
+                            <i class="fa-solid fa-wand-magic-sparkles text-emerald"></i>
+                            <span>Mẹo phục hồi ảnh chân dung cũ</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. Image-to-Prompt Hint Card -->
+                <div class="glass-card chat-hint-card">
+                    <div class="hint-card-inner">
+                        <i class="fa-solid fa-photo-film hint-icon text-cyan"></i>
+                        <div class="hint-text">
+                            <strong>Biến Ảnh Thành Prompt:</strong>
+                            <p>Tải ảnh lên hoặc nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh. AI sẽ bóc tách bảng màu HEX, ánh sáng và tạo prompt chuẩn để bạn tái tạo ảnh tương tự!</p>
+                        </div>
+                    </div>
+                </div>
+
+            </aside>
+
+            <!-- Right Panel: Interactive Chat & Visual Workspace -->
+            <section class="workspace-panel chatbot-workspace">
+                <div class="glass-card chat-window-card">
+                    <!-- Chat Header Bar -->
+                    <div class="chat-window-header">
+                        <div class="chat-header-info">
+                            <div class="chat-bot-avatar">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </div>
+                            <div class="chat-bot-meta">
+                                <h3 class="chat-title">Trợ Lý AI Nhiếp Ảnh, Màu Sắc & Biến Ảnh Thành Prompt</h3>
+                                <div class="chat-status-subtitle">
+                                    <span class="chat-online-dot"></span>
+                                    <span id="chatActiveEngineText">Clarity AI Hybrid Engine (Local & Free)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="chat-window-actions">
+                            <button type="button" class="btn-chat-action" id="btnClearChatHistory" title="Xóa toàn bộ cuộc trò chuyện">
+                                <i class="fa-solid fa-trash-can"></i> Xóa Chat
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Chat Messages Flow Container -->
+                    <div class="chat-messages-container" id="chatMessagesContainer">
+                        <!-- Initial Welcome Message -->
+                        <div class="chat-bubble-row bot">
+                            <div class="chat-avatar bot-avatar">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </div>
+                            <div class="chat-bubble bot-bubble">
+                                <div class="chat-bubble-content">
+                                    <p>Xin chào! Tôi là <strong>Trợ lý AI Nhiếp Ảnh, Màu Sắc & Tối Ưu Prompt</strong> của Clarity AI Studio. ✨</p>
+                                    <p>Tôi có thể giúp bạn:</p>
+                                    <ul>
+                                        <li>🎨 <strong>Tối ưu Prompt:</strong> Gõ ý tưởng tự nhiên (tiếng Việt hoặc tiếng Anh), tôi sẽ mở rộng thành Prompt 8K chuẩn Stable Diffusion & Midjourney.</li>
+                                        <li>📸 <strong>Biến Ảnh Thành Prompt:</strong> Đính kèm hoặc dán ảnh (<kbd>Ctrl+V</kbd>), tôi sẽ trích xuất bảng màu HEX, giải phẫu ánh sáng và tạo prompt tái tạo phong cách ảnh.</li>
+                                        <li>🌈 <strong>Tư vấn màu sắc & Nhiếp ảnh:</strong> Hỏi đáp về bảng màu Cyberpunk, Pastel mùa thu, ánh sáng Rembrandt, tiêu cự ống kính và cách dùng studio.</li>
+                                    </ul>
+                                    <p><em>Hãy thử nhập câu hỏi hoặc kéo thả một tấm ảnh vào khung bên dưới để bắt đầu!</em></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attached Image Preview Bar (Appears when image is selected) -->
+                    <div class="chat-attached-image-bar hidden" id="chatAttachedImageBar">
+                        <div class="attached-img-thumb-wrap">
+                            <img src="" alt="Ảnh đính kèm" id="chatAttachedThumb" class="attached-img-thumb">
+                            <div class="attached-img-info">
+                                <span class="attached-img-name" id="chatAttachedName">anh_mau.jpg</span>
+                                <span class="attached-img-size" id="chatAttachedSize">-- KB</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-remove-attached-img" id="btnRemoveAttachedImg" title="Hủy đính kèm ảnh">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- Chat Input Controls -->
+                    <div class="chat-input-wrapper">
+                        <div class="chat-input-box" id="chatDropTarget">
+                            <input type="file" id="chatFileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden">
+                            
+                            <button type="button" class="btn-attach-image" id="btnAttachChatImage" title="Tải ảnh lên để biến thành Prompt (hoặc dán Ctrl+V)">
+                                <i class="fa-solid fa-image"></i>
+                                <span class="attach-label">Đính Kèm Ảnh</span>
+                            </button>
+
+                            <textarea id="chatInputText" class="chat-textarea" rows="1" placeholder="Hỏi về màu sắc, nhiếp ảnh, hoặc nhập ý tưởng tự nhiên... (Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+
+                            <button type="button" class="btn-send-message" id="btnSendChatMessage" title="Gửi tin nhắn">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </div>
+                        <div class="chat-input-hints">
+                            <span><i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp</span>
+                            <span><i class="fa-solid fa-bolt text-cyan"></i> 100% Chạy Offline trên máy tính</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Session History Drawer / Bottom Bar -->
+    <section class="history-section hidden" id="historySection">
+        <div class="history-container">
+            <h4 class="history-title"><i class="fa-solid fa-clock-rotate-left"></i> Ảnh Đã Xử Lý Gần Đây</h4>
+            <div class="history-list" id="historyList">
+                <!-- Dynamically filled thumbnails -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Toast Notification -->
+    <div class="toast-notification hidden" id="toast">
+        <i class="fa-solid fa-circle-info" id="toastIcon"></i>
+        <span id="toastMsg">Thông báo</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/app.js?v={{ v }}"></script>
+</body>
+</html>

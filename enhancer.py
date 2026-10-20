@@ -1,0 +1,227 @@
+"""
+AI Image Enhancer Engine
+Utilizes Real-ESRGAN and GFPGAN with CUDA acceleration.
+Tuned for NVIDIA RTX 3060 GPU with 12GB VRAM.
+"""
+
+import os
+import sys
+import time
+import torch  # type: ignore
+import cv2  # type: ignore
+import numpy as np  # type: ignore
+from typing import Any
+from PIL import Image  # type: ignore
+
+# Import Real-ESRGAN
+from realesrgan import RealESRGANer  # type: ignore
+from basicsr.archs.rrdbnet_arch import RRDBNet  # type: ignore
+from realesrgan.archs.srvgg_arch import SRVGGNetCompact  # type: ignore
+
+# Import GFPGAN
+GFPGANer: Any = None
+try:
+    from gfpgan import GFPGANer as _GFPGANer  # type: ignore
+    GFPGANer = _GFPGANer
+    HAS_GFPGAN = True
+except Exception:
+    HAS_GFPGAN = False
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELS_DIR = os.path.join(BASE_DIR, 'models')
+
+# Model file paths
+MODEL_PATHS = {
+    'general': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus.pth'),
+    'anime': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus_anime_6B.pth'),
+    'face': os.path.join(MODELS_DIR, 'GFPGANv1.4.pth')
+}
+
+
+class ImageEnhancer:
+    def __init__(self):
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.half = (self.device == 'cuda')  # fp16 for speed and memory efficiency on RTX 3060
+        self.cached_models = {}
+        print(f"[Enhancer] Initialized on device: {self.device.upper()} (FP16: {self.half})")
+
+    def get_system_info(self):
+        info = {
+            'device': self.device,
+            'gpu_name': torch.cuda.get_device_name(0) if self.device == 'cuda' else 'CPU',
+            'vram_total_gb': round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2) if self.device == 'cuda' else 0,
+            'vram_allocated_gb': round(torch.cuda.memory_allocated(0) / (1024**3), 2) if self.device == 'cuda' else 0,
+            'vram_reserved_gb': round(torch.cuda.memory_reserved(0) / (1024**3), 2) if self.device == 'cuda' else 0,
+            'models_available': {
+                'realesrgan_general': os.path.exists(MODEL_PATHS['general']),
+                'realesrgan_anime': os.path.exists(MODEL_PATHS['anime']),
+                'gfpgan_face': os.path.exists(MODEL_PATHS['face']) and HAS_GFPGAN,
+            }
+        }
+        return info
+
+    def _load_realesrgan_general(self):
+        if 'general' not in self.cached_models:
+            print("[Enhancer] Loading RealESRGAN_x4plus model...")
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+            upsampler = RealESRGANer(
+                scale=4,
+                model_path=MODEL_PATHS['general'],
+                model=model,
+                tile=400,
+                tile_pad=10,
+                pre_pad=0,
+                half=self.half,
+                device=self.device
+            )
+            self.cached_models['general'] = upsampler
+            print("[Enhancer] RealESRGAN_x4plus loaded!")
+        return self.cached_models['general']
+
+    def _load_realesrgan_anime(self):
+        if 'anime' not in self.cached_models:
+            print("[Enhancer] Loading RealESRGAN_x4plus_anime_6B model...")
+            # RealESRGAN_x4plus_anime_6B uses RRDBNet with 6 blocks
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
+            upsampler = RealESRGANer(
+                scale=4,
+                model_path=MODEL_PATHS['anime'],
+                model=model,
+                tile=400,
+                tile_pad=10,
+                pre_pad=0,
+                half=self.half,
+                device=self.device
+            )
+            self.cached_models['anime'] = upsampler
+            print("[Enhancer] RealESRGAN_x4plus_anime_6B loaded!")
+        return self.cached_models['anime']
+
+    def _load_gfpgan(self, upscale=2):
+        key = f'gfpgan_{upscale}'
+        if key not in self.cached_models:
+            if not HAS_GFPGAN or GFPGANer is None or not os.path.exists(MODEL_PATHS['face']):
+                raise RuntimeError("GFPGAN library or model weights not available.")
+            print(f"[Enhancer] Loading GFPGANv1.4 model (scale {upscale})...")
+            face_restorer = GFPGANer(
+                model_path=MODEL_PATHS['face'],
+                upscale=upscale,
+                arch='clean',
+                channel_multiplier=2,
+                bg_upsampler=None,
+                device=self.device
+            )
+            self.cached_models[key] = face_restorer
+            print(f"[Enhancer] GFPGANv1.4 loaded (scale {upscale})!")
+        return self.cached_models[key]
+
+    def enhance_image(self, input_path, output_path, model_type='general', outscale=4, face_enhance=False):
+        """
+        Enhance an image using the selected model.
+        
+        Args:
+            input_path: Path to input image
+            output_path: Path to save enhanced image
+            model_type: 'general', 'anime', 'face_only', or 'combo'
+            outscale: Desired upscale factor (usually 2 or 4)
+            face_enhance: Whether to apply GFPGAN face restoration on top
+        """
+        start_time = time.time()
+        
+        # Read image with OpenCV (handles BGR and Alpha)
+        img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            raise ValueError(f"Failed to read image from {input_path}")
+            
+        orig_h, orig_w = img.shape[:2]
+        has_alpha = (len(img.shape) == 3 and img.shape[2] == 4)
+        
+        alpha_channel = None
+        if has_alpha:
+            alpha_channel = img[:, :, 3]
+            img = img[:, :, :3]
+            
+        print(f"[Enhancer] Processing {os.path.basename(input_path)}: {orig_w}x{orig_h} with model '{model_type}', scale={outscale}, face_enhance={face_enhance}")
+
+        output_img = None
+
+        if model_type == 'face_only':
+            # Run GFPGAN directly
+            restorer = self._load_gfpgan(upscale=outscale)
+            # GFPGAN expects BGR
+            cropped_faces, restored_faces, restored_img = restorer.enhance(
+                img,
+                has_aligned=False,
+                only_center_face=False,
+                paste_back=True
+            )
+            output_img = restored_img
+
+        elif model_type == 'anime':
+            # Run Anime model
+            upsampler = self._load_realesrgan_anime()
+            output_img, _ = upsampler.enhance(img, outscale=outscale)
+            if face_enhance and HAS_GFPGAN and os.path.exists(MODEL_PATHS['face']):
+                restorer = self._load_gfpgan(upscale=1)
+                _, _, output_img = restorer.enhance(output_img, has_aligned=False, only_center_face=False, paste_back=True)
+
+        elif model_type == 'combo':
+            # Combo: Real-ESRGAN General + GFPGAN Face Restoration
+            upsampler = self._load_realesrgan_general()
+            enhanced_bg, _ = upsampler.enhance(img, outscale=outscale)
+            
+            if HAS_GFPGAN and os.path.exists(MODEL_PATHS['face']):
+                restorer = self._load_gfpgan(upscale=1)
+                _, _, output_img = restorer.enhance(
+                    enhanced_bg,
+                    has_aligned=False,
+                    only_center_face=False,
+                    paste_back=True
+                )
+            else:
+                output_img = enhanced_bg
+
+        else:  # default 'general'
+            upsampler = self._load_realesrgan_general()
+            output_img, _ = upsampler.enhance(img, outscale=outscale)
+            
+            if face_enhance and HAS_GFPGAN and os.path.exists(MODEL_PATHS['face']):
+                restorer = self._load_gfpgan(upscale=1)
+                _, _, output_img = restorer.enhance(
+                    output_img,
+                    has_aligned=False,
+                    only_center_face=False,
+                    paste_back=True
+                )
+
+        # Handle alpha channel restore if original had transparency
+        if has_alpha and alpha_channel is not None:
+            new_h, new_w = output_img.shape[:2]
+            resized_alpha = cv2.resize(alpha_channel, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+            output_img = cv2.merge([output_img[:, :, 0], output_img[:, :, 1], output_img[:, :, 2], resized_alpha])
+
+        # Save output image
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        cv2.imwrite(output_path, output_img)
+        
+        # Clean GPU memory cache
+        if self.device == 'cuda':
+            torch.cuda.empty_cache()
+
+        duration = time.time() - start_time
+        final_h, final_w = output_img.shape[:2]
+
+        stats = {
+            'duration_sec': round(duration, 2),
+            'orig_width': orig_w,
+            'orig_height': orig_h,
+            'orig_mp': round((orig_w * orig_h) / 1_000_000, 2),
+            'final_width': final_w,
+            'final_height': final_h,
+            'final_mp': round((final_w * final_h) / 1_000_000, 2),
+            'model_type': model_type,
+            'outscale': outscale,
+            'face_enhance': face_enhance
+        }
+        print(f"[Enhancer] Done in {duration:.2f}s: {orig_w}x{orig_h} -> {final_w}x{final_h} ({stats['final_mp']} MP)")
+        return stats
