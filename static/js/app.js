@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (animeRadio) {
                 animeRadio.checked = true;
                 updateActiveModelCard();
-                showToast('💡 Đã tự động chọn mô hình AnimeSharp (Tối ưu sắc nét viền vẽ 2D / sticker)!');
+                showToast('💡 Đã tự động chọn mô hình Anime Cel Art (Tối ưu sắc nét viền vẽ 2D / sticker)!');
             }
         }
 
@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (batchEnhanceZipTitle) batchEnhanceZipTitle.textContent = data.zip_filename;
         if (batchEnhanceResultCount) batchEnhanceResultCount.textContent = data.total_files;
         if (batchEnhanceResultCountText) batchEnhanceResultCountText.textContent = data.total_files;
-        if (batchEnhanceResultModel) batchEnhanceResultModel.textContent = data.model_used === 'anime' ? 'ANIMESHARP' : data.model_used.toUpperCase();
+        if (batchEnhanceResultModel) batchEnhanceResultModel.textContent = data.model_used === 'anime' ? 'ANIME (CEL ART)' : data.model_used.toUpperCase();
         if (batchEnhanceResultTime) batchEnhanceResultTime.textContent = `${data.total_duration_sec}s (tb: ${data.avg_duration_sec}s/ảnh)`;
 
         if (btnDownloadBatchEnhanceZip) {

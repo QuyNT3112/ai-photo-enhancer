@@ -33,8 +33,8 @@ MODELS_DIR = os.path.join(BASE_DIR, 'models')
 # Model file paths
 MODEL_PATHS = {
     'general': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus.pth'),
-    'anime': os.path.join(MODELS_DIR, '4x-AnimeSharp.pth'),
-    'anime_legacy': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus_anime_6B.pth'),
+    'anime': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus_anime_6B.pth'),
+    'anime_v3': os.path.join(MODELS_DIR, 'realesr-animevideov3.pth'),
     'face': os.path.join(MODELS_DIR, 'GFPGANv1.4.pth'),
     'scunet': os.path.join(MODELS_DIR, 'scunet_color_real_gan.pth')
 }
@@ -56,8 +56,7 @@ class ImageEnhancer:
             'vram_reserved_gb': round(torch.cuda.memory_reserved(0) / (1024**3), 2) if self.device == 'cuda' else 0,
             'models_available': {
                 'realesrgan_general': os.path.exists(MODEL_PATHS['general']),
-                'realesrgan_anime': os.path.exists(MODEL_PATHS['anime']) or os.path.exists(MODEL_PATHS['anime_legacy']),
-                'animesharp': os.path.exists(MODEL_PATHS['anime']),
+                'realesrgan_anime': os.path.exists(MODEL_PATHS['anime']),
                 'gfpgan_face': os.path.exists(MODEL_PATHS['face']) and HAS_GFPGAN,
                 'scunet_real': os.path.exists(MODEL_PATHS['scunet']),
             }
@@ -83,86 +82,55 @@ class ImageEnhancer:
         return self.cached_models['general']
 
     def _load_realesrgan_anime(self):
-        if 'anime_legacy' not in self.cached_models:
-            print("[Enhancer] Loading RealESRGAN_x4plus_anime_6B model...")
+        if 'anime' not in self.cached_models:
+            print("[Enhancer] Loading RealESRGAN_x4plus_anime_6B model (tile=0)...")
             # RealESRGAN_x4plus_anime_6B uses RRDBNet with 6 blocks
             model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
-            path = MODEL_PATHS['anime_legacy'] if os.path.exists(MODEL_PATHS['anime_legacy']) else MODEL_PATHS['anime']
             upsampler = RealESRGANer(
                 scale=4,
-                model_path=path,
+                model_path=MODEL_PATHS['anime'],
                 model=model,
-                tile=0,  # 0 disables tiling to eliminate horizontal/vertical seam lines
+                tile=0,  # 0 disables tiling on RTX 3060 to completely eliminate seam lines
                 tile_pad=10,
                 pre_pad=0,
                 half=self.half,
                 device=self.device
             )
-            self.cached_models['anime_legacy'] = upsampler
-            print("[Enhancer] RealESRGAN_x4plus_anime_6B loaded!")
-        return self.cached_models['anime_legacy']
+            self.cached_models['anime'] = upsampler
+            print("[Enhancer] RealESRGAN_x4plus_anime_6B loaded with tile=0!")
+        return self.cached_models['anime']
 
-    def _load_animesharp(self):
-        if 'animesharp' not in self.cached_models:
-            path = MODEL_PATHS['anime']
-            if not os.path.exists(path):
-                print("[Enhancer] Downloading 4x-AnimeSharp model (~67MB)...")
-                import urllib.request
-                url = 'https://huggingface.co/Kim2091/AnimeSharp/resolve/main/4x-AnimeSharp.pth'
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                urllib.request.urlretrieve(url, path)
-                print("[Enhancer] 4x-AnimeSharp downloaded successfully!")
-            import spandrel
-            model = spandrel.ModelLoader().load_from_file(path).to(self.device).eval()
-            if self.half:
-                model = model.half()
-            self.cached_models['animesharp'] = model
-            print(f"[Enhancer] 4x-AnimeSharp loaded on {self.device.upper()} (FP16: {self.half})!")
-        return self.cached_models['animesharp']
-
-    def _enhance_animesharp(self, img_bgr):
-        model = self._load_animesharp()
-        h, w = img_bgr.shape[:2]
-
-        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        tensor = torch.from_numpy(img_rgb).permute(2, 0, 1).unsqueeze(0).float() / 255.0
-        if self.half:
-            tensor = tensor.half()
-        tensor = tensor.to(self.device)
-
-        # On RTX 3060 (12GB VRAM), run directly without tiling up to 1600x1600 for 100% seam-free output
-        if h <= 1600 and w <= 1600:
-            with torch.no_grad():
-                out_tensor = model(tensor)
-        else:
-            # Seamless sliding window tiling with smooth overlap blending for massive images
-            tile_size = 800
-            tile_pad = 64
-            out_h, out_w = h * 4, w * 4
-            out_tensor = torch.zeros((1, 3, out_h, out_w), device=self.device, dtype=tensor.dtype)
-            weights = torch.zeros((1, 1, out_h, out_w), device=self.device, dtype=tensor.dtype)
-            stride = tile_size - 2 * tile_pad
-
-            y_starts = list(range(0, max(1, h - tile_size + 1), stride))
-            if y_starts[-1] + tile_size < h:
-                y_starts.append(h - tile_size)
-            x_starts = list(range(0, max(1, w - tile_size + 1), stride))
-            if x_starts[-1] + tile_size < w:
-                x_starts.append(w - tile_size)
-
-            tile_mask = torch.ones((1, 1, tile_size * 4, tile_size * 4), device=self.device, dtype=tensor.dtype)
-            for y in y_starts:
-                for x in x_starts:
-                    tile = tensor[:, :, y:y+tile_size, x:x+tile_size]
-                    with torch.no_grad():
-                        out_tile = model(tile)
-                    out_tensor[:, :, y*4:(y+tile_size)*4, x*4:(x+tile_size)*4] += out_tile
-                    weights[:, :, y*4:(y+tile_size)*4, x*4:(x+tile_size)*4] += tile_mask
-            out_tensor = out_tensor / weights
-
-        res_rgb = (out_tensor.squeeze(0).permute(1, 2, 0).clamp(0, 1).cpu().float().numpy() * 255.0).astype(np.uint8)
-        res_bgr = cv2.cvtColor(res_rgb, cv2.COLOR_RGB2BGR)
-        return res_bgr
+    def _clarify_vector_lineart(self, img_bgr):
+        """
+        Enhance and solidify faint pencil/cartoon lines into crisp, bold vector outlines
+        (similar to clean cel-shading anime/sticker art) without introducing noise or grit into flat fills.
+        """
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        
+        # Multi-scale black top-hat filter detects thin and medium stroke contours
+        k1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        k2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        tophat1 = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, k1)
+        tophat2 = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, k2)
+        tophat = np.maximum(tophat1, tophat2)
+        
+        # Exclude colored areas (e.g., mouth, tongue, colored effects) so only line strokes are darkened
+        lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
+        L, A, B = cv2.split(lab)
+        chroma = np.sqrt((A.astype(float) - 128)**2 + (B.astype(float) - 128)**2)
+        is_neutral_or_line = (chroma < 35)
+        
+        line_strength = np.clip((tophat.astype(float) - 8.0) / 28.0, 0, 1.0) * is_neutral_or_line.astype(float)
+        
+        # Deepen lines towards solid black (charcoal/ink)
+        darkened = img_bgr.astype(float) * (1.0 - line_strength[:, :, None] * 0.75)
+        darkened = np.clip(darkened, 0, 255).astype(np.uint8)
+        
+        # Anti-aliased edge sharpening on the stroke contours
+        blur = cv2.GaussianBlur(darkened, (0, 0), 1.0)
+        sharp = cv2.addWeighted(darkened, 1.35, blur, -0.35, 0)
+        final_bgr = np.where(line_strength[:, :, None] > 0.08, sharp, darkened)
+        return final_bgr
 
     def _load_gfpgan(self, upscale=2):
         key = f'gfpgan_{upscale}'
@@ -299,18 +267,22 @@ class ImageEnhancer:
             output_img = restored_img
 
         elif model_type in ['anime', 'animesharp']:
-            # Run state-of-the-art AnimeSharp model (sharp lines, no blur/fading)
-            if os.path.exists(MODEL_PATHS['anime']):
-                out_4x = self._enhance_animesharp(img)
-                if outscale != 4:
-                    target_w = max(1, int(orig_w * outscale))
-                    target_h = max(1, int(orig_h * outscale))
-                    output_img = cv2.resize(out_4x, (target_w, target_h), interpolation=cv2.INTER_AREA)
-                else:
-                    output_img = out_4x
+            # Run clean RealESRGAN Anime 6B model with tile=0 (silky smooth, zero noise)
+            upsampler = self._load_realesrgan_anime()
+            out_4x, _ = upsampler.enhance(img, outscale=4)
+
+            # If 1X scale requested (keep exact original dimension), downsample first then clarify lines
+            if outscale == 1:
+                target_img = cv2.resize(out_4x, (orig_w, orig_h), interpolation=cv2.INTER_AREA)
+            elif outscale != 4:
+                target_w = max(1, int(orig_w * outscale))
+                target_h = max(1, int(orig_h * outscale))
+                target_img = cv2.resize(out_4x, (target_w, target_h), interpolation=cv2.INTER_AREA)
             else:
-                upsampler = self._load_realesrgan_anime()
-                output_img, _ = upsampler.enhance(img, outscale=outscale)
+                target_img = out_4x
+
+            # Apply Vector Cel Line Art Clarification (deepen & sharpen outlines without any noise)
+            output_img = self._clarify_vector_lineart(target_img)
 
             if face_enhance and HAS_GFPGAN and os.path.exists(MODEL_PATHS['face']):
                 restorer = self._load_gfpgan(upscale=1)
@@ -349,8 +321,8 @@ class ImageEnhancer:
         if (outscale == 1 or model_type == 'scunet') and (output_img.shape[0] != orig_h or output_img.shape[1] != orig_w):
             output_img = cv2.resize(output_img, (orig_w, orig_h), interpolation=cv2.INTER_AREA)
 
-        # Subtle adaptive edge clarity boost for 1X scale to preserve razor sharpness
-        if outscale == 1:
+        # Subtle adaptive edge clarity boost for 1X scale (non-anime only, anime is already clarified)
+        if outscale == 1 and model_type not in ['anime', 'animesharp']:
             try:
                 bgr_part = output_img[:, :, :3]
                 blur = cv2.GaussianBlur(bgr_part, (0, 0), 1.2)
@@ -361,7 +333,11 @@ class ImageEnhancer:
         # Handle alpha channel restore if original had transparency
         if has_alpha and alpha_channel is not None:
             new_h, new_w = output_img.shape[:2]
-            resized_alpha = cv2.resize(alpha_channel, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+            if new_h == orig_h and new_w == orig_w:
+                resized_alpha = alpha_channel.copy()
+            else:
+                resized_alpha = cv2.resize(alpha_channel, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+
             # Protect dark line art / strokes from alpha erosion in transparent stickers
             if model_type in ['anime', 'animesharp']:
                 gray = cv2.cvtColor(output_img[:, :, :3], cv2.COLOR_BGR2GRAY)

@@ -375,7 +375,7 @@ QA_KNOWLEDGE_BASE = [
             "**Hướng dẫn tối ưu chất lượng phục hồi ảnh trên Clarity AI Studio:**\n"
             "1. **Ảnh Chân Dung Người:** Chọn mô hình `⚡ Siêu Chân Dung (Real-ESRGAN + GFPGAN)`. GFPGAN sẽ sử dụng mạng neural để tái tạo lại hoàn toàn từng sợi lông mi, con ngươi, khóe môi và kết cấu da tự nhiên.\n"
             "2. **Ảnh Phong Cảnh, Xe Cộ, Văn Bản:** Chọn `Real-ESRGAN Đa Dụng (x4plus)` để giữ nguyên hình khối vật thể, khử nhiễu hạt ISO mà không biến dạng chữ.\n"
-            "3. **Ảnh Hoạt Hình / Anime / Tranh Vẽ 2D / Sticker:** Chọn `Siêu Nét Vector & AnimeSharp` để tái tạo đường viền đen sắc sảo, chống mờ nhạt nét chì, khử răng cưa và bảo toàn 100% nền trong suốt không bị cắt gãy viền.\n"
+            "3. **Ảnh Hoạt Hình / Anime / Tranh Vẽ 2D / Sticker:** Chọn `Siêu Nét Vector & Nét Vẽ 2D (Anime Cel Art)` để tái tạo đường nét đen đậm sắc sảo như nét vẽ vector mực đen, giữ mảng màu phẳng và da mịn màng tuyệt đối không nhiễu hạt, hỗ trợ giữ nguyên 1X gốc.\n"
             "4. **Đổi tỷ lệ:** Dùng tính năng `Đổi Tỷ Lệ Ảnh` với chế độ `AI Sinh Không Gian (LaMa)` để mở rộng khung hình sang 16:9 hoặc 9:16 mà không bị cắt xén ảnh gốc!"
         )
     },
