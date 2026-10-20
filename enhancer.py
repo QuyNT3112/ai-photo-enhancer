@@ -33,7 +33,8 @@ MODELS_DIR = os.path.join(BASE_DIR, 'models')
 # Model file paths
 MODEL_PATHS = {
     'general': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus.pth'),
-    'anime': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus_anime_6B.pth'),
+    'anime': os.path.join(MODELS_DIR, '4x-AnimeSharp.pth'),
+    'anime_legacy': os.path.join(MODELS_DIR, 'RealESRGAN_x4plus_anime_6B.pth'),
     'face': os.path.join(MODELS_DIR, 'GFPGANv1.4.pth'),
     'scunet': os.path.join(MODELS_DIR, 'scunet_color_real_gan.pth')
 }
@@ -55,7 +56,8 @@ class ImageEnhancer:
             'vram_reserved_gb': round(torch.cuda.memory_reserved(0) / (1024**3), 2) if self.device == 'cuda' else 0,
             'models_available': {
                 'realesrgan_general': os.path.exists(MODEL_PATHS['general']),
-                'realesrgan_anime': os.path.exists(MODEL_PATHS['anime']),
+                'realesrgan_anime': os.path.exists(MODEL_PATHS['anime']) or os.path.exists(MODEL_PATHS['anime_legacy']),
+                'animesharp': os.path.exists(MODEL_PATHS['anime']),
                 'gfpgan_face': os.path.exists(MODEL_PATHS['face']) and HAS_GFPGAN,
                 'scunet_real': os.path.exists(MODEL_PATHS['scunet']),
             }
@@ -70,7 +72,7 @@ class ImageEnhancer:
                 scale=4,
                 model_path=MODEL_PATHS['general'],
                 model=model,
-                tile=400,
+                tile=0,  # 0 disables tiling on RTX 3060 12GB to completely avoid tile cut seam artifacts
                 tile_pad=10,
                 pre_pad=0,
                 half=self.half,
@@ -81,23 +83,86 @@ class ImageEnhancer:
         return self.cached_models['general']
 
     def _load_realesrgan_anime(self):
-        if 'anime' not in self.cached_models:
+        if 'anime_legacy' not in self.cached_models:
             print("[Enhancer] Loading RealESRGAN_x4plus_anime_6B model...")
             # RealESRGAN_x4plus_anime_6B uses RRDBNet with 6 blocks
             model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
+            path = MODEL_PATHS['anime_legacy'] if os.path.exists(MODEL_PATHS['anime_legacy']) else MODEL_PATHS['anime']
             upsampler = RealESRGANer(
                 scale=4,
-                model_path=MODEL_PATHS['anime'],
+                model_path=path,
                 model=model,
-                tile=400,
+                tile=0,  # 0 disables tiling to eliminate horizontal/vertical seam lines
                 tile_pad=10,
                 pre_pad=0,
                 half=self.half,
                 device=self.device
             )
-            self.cached_models['anime'] = upsampler
+            self.cached_models['anime_legacy'] = upsampler
             print("[Enhancer] RealESRGAN_x4plus_anime_6B loaded!")
-        return self.cached_models['anime']
+        return self.cached_models['anime_legacy']
+
+    def _load_animesharp(self):
+        if 'animesharp' not in self.cached_models:
+            path = MODEL_PATHS['anime']
+            if not os.path.exists(path):
+                print("[Enhancer] Downloading 4x-AnimeSharp model (~67MB)...")
+                import urllib.request
+                url = 'https://huggingface.co/Kim2091/AnimeSharp/resolve/main/4x-AnimeSharp.pth'
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                urllib.request.urlretrieve(url, path)
+                print("[Enhancer] 4x-AnimeSharp downloaded successfully!")
+            import spandrel
+            model = spandrel.ModelLoader().load_from_file(path).to(self.device).eval()
+            if self.half:
+                model = model.half()
+            self.cached_models['animesharp'] = model
+            print(f"[Enhancer] 4x-AnimeSharp loaded on {self.device.upper()} (FP16: {self.half})!")
+        return self.cached_models['animesharp']
+
+    def _enhance_animesharp(self, img_bgr):
+        model = self._load_animesharp()
+        h, w = img_bgr.shape[:2]
+
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        tensor = torch.from_numpy(img_rgb).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+        if self.half:
+            tensor = tensor.half()
+        tensor = tensor.to(self.device)
+
+        # On RTX 3060 (12GB VRAM), run directly without tiling up to 1600x1600 for 100% seam-free output
+        if h <= 1600 and w <= 1600:
+            with torch.no_grad():
+                out_tensor = model(tensor)
+        else:
+            # Seamless sliding window tiling with smooth overlap blending for massive images
+            tile_size = 800
+            tile_pad = 64
+            out_h, out_w = h * 4, w * 4
+            out_tensor = torch.zeros((1, 3, out_h, out_w), device=self.device, dtype=tensor.dtype)
+            weights = torch.zeros((1, 1, out_h, out_w), device=self.device, dtype=tensor.dtype)
+            stride = tile_size - 2 * tile_pad
+
+            y_starts = list(range(0, max(1, h - tile_size + 1), stride))
+            if y_starts[-1] + tile_size < h:
+                y_starts.append(h - tile_size)
+            x_starts = list(range(0, max(1, w - tile_size + 1), stride))
+            if x_starts[-1] + tile_size < w:
+                x_starts.append(w - tile_size)
+
+            tile_mask = torch.ones((1, 1, tile_size * 4, tile_size * 4), device=self.device, dtype=tensor.dtype)
+            for y in y_starts:
+                for x in x_starts:
+                    tile = tensor[:, :, y:y+tile_size, x:x+tile_size]
+                    with torch.no_grad():
+                        out_tile = model(tile)
+                    out_tensor[:, :, y*4:(y+tile_size)*4, x*4:(x+tile_size)*4] += out_tile
+                    weights[:, :, y*4:(y+tile_size)*4, x*4:(x+tile_size)*4] += tile_mask
+            out_tensor = out_tensor / weights
+
+        res_rgb = (out_tensor.squeeze(0).permute(1, 2, 0).clamp(0, 1).cpu().float().numpy() * 255.0).astype(np.uint8)
+        res_bgr = cv2.cvtColor(res_rgb, cv2.COLOR_RGB2BGR)
+        return res_bgr
 
     def _load_gfpgan(self, upscale=2):
         key = f'gfpgan_{upscale}'
@@ -233,10 +298,20 @@ class ImageEnhancer:
             )
             output_img = restored_img
 
-        elif model_type == 'anime':
-            # Run Anime model
-            upsampler = self._load_realesrgan_anime()
-            output_img, _ = upsampler.enhance(img, outscale=outscale)
+        elif model_type in ['anime', 'animesharp']:
+            # Run state-of-the-art AnimeSharp model (sharp lines, no blur/fading)
+            if os.path.exists(MODEL_PATHS['anime']):
+                out_4x = self._enhance_animesharp(img)
+                if outscale != 4:
+                    target_w = max(1, int(orig_w * outscale))
+                    target_h = max(1, int(orig_h * outscale))
+                    output_img = cv2.resize(out_4x, (target_w, target_h), interpolation=cv2.INTER_AREA)
+                else:
+                    output_img = out_4x
+            else:
+                upsampler = self._load_realesrgan_anime()
+                output_img, _ = upsampler.enhance(img, outscale=outscale)
+
             if face_enhance and HAS_GFPGAN and os.path.exists(MODEL_PATHS['face']):
                 restorer = self._load_gfpgan(upscale=1)
                 _, _, output_img = restorer.enhance(output_img, has_aligned=False, only_center_face=False, paste_back=True)
@@ -287,6 +362,11 @@ class ImageEnhancer:
         if has_alpha and alpha_channel is not None:
             new_h, new_w = output_img.shape[:2]
             resized_alpha = cv2.resize(alpha_channel, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+            # Protect dark line art / strokes from alpha erosion in transparent stickers
+            if model_type in ['anime', 'animesharp']:
+                gray = cv2.cvtColor(output_img[:, :, :3], cv2.COLOR_BGR2GRAY)
+                dark_lines = (gray < 90) & (resized_alpha > 25)
+                resized_alpha[dark_lines] = np.maximum(resized_alpha[dark_lines], 250)
             output_img = cv2.merge([output_img[:, :, 0], output_img[:, :, 1], output_img[:, :, 2], np.clip(resized_alpha, 0, 255).astype(np.uint8)])
 
         # Save output image

@@ -18,6 +18,11 @@ MODELS = [
         "desc": "Real-ESRGAN General Super-Resolution 4x Model (~67MB)"
     },
     {
+        "name": "4x-AnimeSharp.pth",
+        "url": "https://huggingface.co/Kim2091/AnimeSharp/resolve/main/4x-AnimeSharp.pth",
+        "desc": "AnimeSharp Ultra-Crisp Line Art & 2D Vector Super-Resolution Model (~67MB)"
+    },
+    {
         "name": "RealESRGAN_x4plus_anime_6B.pth",
         "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
         "desc": "Real-ESRGAN Anime & 2D Illustration 4x Model (~18MB)"

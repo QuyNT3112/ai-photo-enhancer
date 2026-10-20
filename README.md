@@ -29,7 +29,7 @@
 
 ### 1. 🔍 Siêu Làm Nét & Phục Hồi Chi Tiết (AI Super-Resolution & Batch Enhance)
 - **⚡ Làm Nét Hàng Loạt (Batch Multi-Image Enhance)**: Hỗ trợ chọn hoặc kéo thả **nhiều ảnh cùng lúc**, hệ thống tự động xử lý song song trên GPU CUDA, đóng gói toàn bộ thành **1 file ZIP tải về tiện lợi** hoặc **Lưu Thẳng Vào Downloads** của Windows chỉ với 1 click, kèm Gallery xem trước và nút so sánh Before/After cho từng ảnh.
-- **🎨 Siêu Nét Vector & Tranh 2D (Real-ESRGAN Anime 6B)**: Khắc tinh của ảnh vẽ vỡ nét, truyện tranh manga, anime, sticker, logo. Tái tạo đường viền sắc lẹm, khử răng cưa và bảo toàn 100% nền trong suốt (Alpha PNG) không bị lem viền đen (Hỗ trợ cả **1X giữ nguyên kích thước**, 2X và 4X).
+- **🎨 Siêu Nét Vector & Tranh 2D (AnimeSharp ESRGAN)**: Đột phá làm nét tranh vẽ chì, hoạt hình 2D, truyện tranh manga, anime, sticker, logo. Tái tạo đường viền đen đậm nét, sắc sảo, chống hiện tượng mờ nhạt hoặc đứt gãy nét, loại bỏ triệt để vết cắt viền gạch (zero tiling seams) và bảo toàn 100% nền trong suốt (Alpha PNG) không bị lem viền (Hỗ trợ **1X giữ nguyên kích thước**, 2X và 4X).
 - **⚡ Siêu Chân Dung (Combo Real-ESRGAN x4plus + GFPGAN v1.4)**: Tái tạo chi tiết mắt, mũi, chân mày, làn da và từng sợi tóc siêu thực cho ảnh chân dung cũ hoặc mờ (1X, 2X, 4X).
 - **🖼️ Real-ESRGAN Đa Dụng (x4plus)**: Phục hồi ảnh phong cảnh, công trình kiến trúc, xe cộ, tài liệu, vật thể bị vỡ hạt do nén ảnh (1X, 2X, 4X).
 - **🛡️ Siêu Khôi Phục Nhiễu Hạt (SCUNet Swin-Conv-UNet GAN)**: Chuyên trị ảnh chụp thực tế bị hạt muỗi, nhiễu nén JPEG ở tỷ lệ 1X gốc.
@@ -275,7 +275,7 @@ Giao diện ứng dụng gồm 2 tab chính ở thanh điều hướng trên cù
    - **Siêu Khôi Phục 1X (SCUNet Swin-Conv-UNet GAN)**: Lựa chọn hàng đầu cho **ảnh vỡ hạt nặng, nhiễu nén JPEG, ảnh mờ vỡ điểm ảnh**. Giữ nguyên 100% kích thước pixel gốc (1x), không làm tăng kích thước ảnh.
    - **Siêu Chân Dung (Real-ESRGAN + GFPGAN)**: Phù hợp nhất cho ảnh có người, ảnh thẻ, ảnh gia đình, ảnh chân dung cổ điển (phóng đại 2x / 4x).
    - **Real-ESRGAN Đa Dụng**: Phù hợp cho phong cảnh, chữ viết, đồ vật, kiến trúc (2x / 4x).
-   - **Real-ESRGAN Anime 6B**: Phù hợp cho hình vẽ 2D, truyện tranh, hoạt hình (2x / 4x).
+   - **Siêu Nét Vector & AnimeSharp**: Phù hợp cho hình vẽ 2D, truyện tranh, hoạt hình, tranh nét chì, sticker, logo (tái tạo nét viền đen đậm sắc, không bị mờ đứt, 1x / 2x / 4x).
    - Chọn độ phóng đại: `1x` (Tự động khi chọn SCUNet), `2x` hoặc `4x`.
    - Tùy chọn `Phục hồi chi tiết khuôn mặt (GFPGAN)`: Tích chọn để AI tập trung làm nét mắt, mũi, miệng (hỗ trợ cả ở 1x lẫn 2x/4x).
 3. **Bước 3 - Xử lý & Xem kết quả**:
