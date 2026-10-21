@@ -4441,7 +4441,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let converterFiles = [];
     let selectedTargetFormat = 'png';
     let selectedQualityMode = 'lossless';
-    let selectedBgColor = 'white';
+    let converterSelectedBgColor = 'white';
 
     // Format selection click handler
     if (converterFormatCardsGrid) {
@@ -4483,17 +4483,17 @@ document.addEventListener('DOMContentLoaded', () => {
         btnConverterBgWhite.addEventListener('click', () => {
             btnConverterBgWhite.classList.add('active');
             btnConverterBgBlack.classList.remove('active');
-            selectedBgColor = 'white';
+            converterSelectedBgColor = 'white';
         });
         btnConverterBgBlack.addEventListener('click', () => {
             btnConverterBgBlack.classList.add('active');
             btnConverterBgWhite.classList.remove('active');
-            selectedBgColor = 'black';
+            converterSelectedBgColor = 'black';
         });
         converterCustomColor.addEventListener('input', (e) => {
             btnConverterBgWhite.classList.remove('active');
             btnConverterBgBlack.classList.remove('active');
-            selectedBgColor = e.target.value;
+            converterSelectedBgColor = e.target.value;
         });
     }
 
@@ -4717,7 +4717,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const fd = new FormData();
             fd.append('target_format', selectedTargetFormat);
             fd.append('quality_mode', selectedQualityMode);
-            fd.append('bg_color', selectedBgColor);
+            fd.append('bg_color', converterSelectedBgColor);
 
             converterFiles.forEach(f => {
                 fd.append('images', f);
