@@ -22,6 +22,7 @@ from compressor import ImageCompressor
 from generator import ImageGenerator
 from llm_engine import LLMEngine
 from bg_remover import BackgroundRemover
+from format_converter import FormatConverter
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
@@ -47,9 +48,10 @@ compressor = ImageCompressor()
 image_generator = ImageGenerator()
 llm_engine = LLMEngine()
 bg_remover = BackgroundRemover()
+format_converter = FormatConverter()
 print("[Server] AI & Media Engines ready!")
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp', 'jfif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp', 'jfif', 'tiff', 'tif', 'ico', 'pdf', 'avif', 'gif'}
 
 # In-memory history for current session
 session_history = []
@@ -205,6 +207,12 @@ def api_download(filename):
         '.jpeg': 'image/jpeg',
         '.webp': 'image/webp',
         '.bmp': 'image/bmp',
+        '.tiff': 'image/tiff',
+        '.tif': 'image/tiff',
+        '.ico': 'image/x-icon',
+        '.pdf': 'application/pdf',
+        '.avif': 'image/avif',
+        '.gif': 'image/gif',
         '.zip': 'application/zip'
     }
     mimetype = mimetypes_map.get(ext, 'application/octet-stream')
@@ -1446,6 +1454,194 @@ def api_save_compress_item_to_downloads():
             'saved_path': dst_path,
             'filename': safe_file,
             'message': f'Đã lưu ảnh {safe_file} vào thư mục Downloads'
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ==========================================
+# Image Format Converter Endpoints
+# ==========================================
+
+@app.route('/api/convert-format', methods=['POST'])
+def api_convert_format():
+    try:
+        files = request.files.getlist('images')
+        if not files or files[0].filename == '':
+            files = request.files.getlist('image')
+        if not files or files[0].filename == '':
+            return jsonify({'status': 'error', 'message': 'Chưa chọn tệp ảnh nào!'}), 400
+
+        target_format = request.form.get('target_format', 'png').lower().strip()
+        quality_mode = request.form.get('quality_mode', 'lossless').lower().strip()
+        bg_color = request.form.get('bg_color', 'white').strip()
+
+        fmt_info = format_converter.SUPPORTED_TARGET_FORMATS.get(target_format, format_converter.SUPPORTED_TARGET_FORMATS['png'])
+        out_ext = fmt_info['ext']
+
+        if len(files) == 1:
+            file = files[0]
+            if not file.filename or not allowed_file(file.filename):
+                return jsonify({'status': 'error', 'message': 'Định dạng tệp đầu vào không được hỗ trợ'}), 400
+
+            file_uuid = uuid.uuid4().hex[:10]
+            orig_filename = secure_filename(file.filename)
+            orig_stem, _ = os.path.splitext(orig_filename)
+            if not orig_stem:
+                orig_stem = "image"
+
+            # Output filename maintains original stem with new extension
+            clean_filename = f"{orig_stem}{out_ext}"
+
+            in_ext = os.path.splitext(orig_filename)[1].lower() or '.jpg'
+            input_name = f"input_conv_{file_uuid}{in_ext}"
+            input_path = os.path.join(UPLOAD_DIR, input_name)
+            file.save(input_path)
+
+            output_name = f"conv_{file_uuid}{out_ext}"
+            output_path = os.path.join(OUTPUT_DIR, output_name)
+
+            stats = format_converter.convert(
+                input_path=input_path,
+                output_path=output_path,
+                target_format=target_format,
+                quality_mode=quality_mode,
+                bg_color=bg_color
+            )
+
+            result_data = {
+                'id': file_uuid,
+                'timestamp': datetime.now().strftime('%H:%M:%S - %d/%m/%Y'),
+                'original_filename': orig_filename,
+                'clean_filename': clean_filename,
+                'target_format': target_format.upper(),
+                'original_url': f"/uploads/{input_name}",
+                'result_url': f"/outputs/{output_name}",
+                'download_url': f"/api/download/{output_name}?name={clean_filename}",
+                'filename': output_name,
+                'stats': stats
+            }
+            return jsonify({'status': 'success', 'batch': False, 'data': result_data})
+
+        else:
+            # Batch conversion
+            batch_uuid = uuid.uuid4().hex[:10]
+            zip_filename = f"Converted_{target_format.upper()}_{batch_uuid}.zip"
+            zip_path = os.path.join(OUTPUT_DIR, zip_filename)
+
+            results = []
+            files_to_zip = []
+            used_names = {}
+
+            for i, file in enumerate(files):
+                if not file.filename or not allowed_file(file.filename):
+                    continue
+
+                f_uuid = uuid.uuid4().hex[:10]
+                orig_filename = secure_filename(file.filename)
+                orig_stem, _ = os.path.splitext(orig_filename)
+                if not orig_stem:
+                    orig_stem = f"image_{i+1}"
+
+                # Deduplicate if duplicate names exist in the batch
+                count = used_names.get(orig_stem, 0)
+                used_names[orig_stem] = count + 1
+                if count > 0:
+                    clean_filename = f"{orig_stem}_{count}{out_ext}"
+                else:
+                    clean_filename = f"{orig_stem}{out_ext}"
+
+                in_ext = os.path.splitext(orig_filename)[1].lower() or '.jpg'
+                in_name = f"input_batch_conv_{f_uuid}{in_ext}"
+                in_path = os.path.join(UPLOAD_DIR, in_name)
+                file.save(in_path)
+
+                out_name = f"conv_batch_{f_uuid}{out_ext}"
+                out_path = os.path.join(OUTPUT_DIR, out_name)
+
+                try:
+                    st = format_converter.convert(
+                        input_path=in_path,
+                        output_path=out_path,
+                        target_format=target_format,
+                        quality_mode=quality_mode,
+                        bg_color=bg_color
+                    )
+                    results.append({
+                        'filename': out_name,
+                        'original_filename': orig_filename,
+                        'clean_filename': clean_filename,
+                        'result_url': f"/outputs/{out_name}",
+                        'download_url': f"/api/download/{out_name}?name={clean_filename}",
+                        'stats': st
+                    })
+                    files_to_zip.append((out_path, clean_filename))
+                except Exception as ex:
+                    print(f"[FormatConverter] Error converting {orig_filename}: {ex}")
+
+            if not results:
+                return jsonify({'status': 'error', 'message': 'Không có ảnh nào chuyển đổi thành công!'}), 500
+
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for fpath, arcname in files_to_zip:
+                    zf.write(fpath, arcname)
+
+            return jsonify({
+                'status': 'success',
+                'batch': True,
+                'count': len(results),
+                'target_format': target_format.upper(),
+                'results': results,
+                'zip_url': f"/outputs/{zip_filename}",
+                'zip_filename': zip_filename,
+                'download_url': f"/api/download/{zip_filename}"
+            })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/save-batch-convert-to-downloads', methods=['POST'])
+def api_save_batch_convert_to_downloads():
+    try:
+        import shutil
+        data = request.get_json(silent=True) or {}
+        items = data.get('items', [])
+        if not items:
+            return jsonify({'status': 'error', 'message': 'Không có tệp nào để lưu'}), 400
+
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        os.makedirs(downloads_dir, exist_ok=True)
+
+        saved_files = []
+        for it in items:
+            filename = secure_filename(it.get('filename', ''))
+            custom_name = it.get('clean_filename') or it.get('original_filename', '')
+            if not filename:
+                continue
+            src_path = os.path.join(OUTPUT_DIR, filename)
+            if not os.path.exists(src_path):
+                continue
+
+            ext = os.path.splitext(filename)[1]
+            if custom_name:
+                stem = os.path.splitext(custom_name)[0]
+                target_name = f"{secure_filename(stem)}{ext}"
+                if not target_name or target_name == ext:
+                    target_name = filename
+            else:
+                target_name = filename
+
+            dst_path = os.path.join(downloads_dir, target_name)
+            shutil.copy2(src_path, dst_path)
+            saved_files.append(target_name)
+
+        return jsonify({
+            'status': 'success',
+            'count': len(saved_files),
+            'saved_files': saved_files,
+            'message': f'Đã lưu thành công {len(saved_files)} ảnh đã chuyển đổi vào thư mục Downloads!'
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500

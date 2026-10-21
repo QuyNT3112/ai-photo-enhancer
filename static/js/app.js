@@ -977,7 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.showToast = showToast;
 
     // ==========================================
-    // 10. TOP NAV TAB SWITCHER (Enhance vs Aspect vs Batch vs Compress vs Generator vs Chatbot)
+    // 10. TOP NAV TAB SWITCHER (Enhance vs Aspect vs Batch vs Compress vs Generator vs Chatbot vs BgRemover vs Converter)
     // ==========================================
     const tabBtnEnhancer = document.getElementById('tabBtnEnhancer');
     const tabBtnAspect = document.getElementById('tabBtnAspect');
@@ -986,6 +986,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabBtnChatbot = document.getElementById('tabBtnChatbot');
     const tabBtnCompressor = document.getElementById('tabBtnCompressor');
     const tabBtnBgRemover = document.getElementById('tabBtnBgRemover');
+    const tabBtnConverter = document.getElementById('tabBtnConverter');
 
     const viewEnhancer = document.getElementById('viewEnhancer');
     const viewAspect = document.getElementById('viewAspect');
@@ -994,6 +995,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewChatbot = document.getElementById('viewChatbot');
     const viewCompressor = document.getElementById('viewCompressor');
     const viewBgRemover = document.getElementById('viewBgRemover');
+    const viewConverter = document.getElementById('viewConverter');
 
     function switchAppTab(activeTab) {
         // Tab buttons
@@ -1004,6 +1006,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabBtnChatbot) tabBtnChatbot.classList.toggle('active', activeTab === 'chatbot');
         if (tabBtnCompressor) tabBtnCompressor.classList.toggle('active', activeTab === 'compress');
         if (tabBtnBgRemover) tabBtnBgRemover.classList.toggle('active', activeTab === 'bgremover');
+        if (tabBtnConverter) tabBtnConverter.classList.toggle('active', activeTab === 'converter');
 
         // Views
         viewEnhancer.classList.toggle('hidden', activeTab !== 'enhancer');
@@ -1013,6 +1016,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (viewChatbot) viewChatbot.classList.toggle('hidden', activeTab !== 'chatbot');
         if (viewCompressor) viewCompressor.classList.toggle('hidden', activeTab !== 'compress');
         if (viewBgRemover) viewBgRemover.classList.toggle('hidden', activeTab !== 'bgremover');
+        if (viewConverter) viewConverter.classList.toggle('hidden', activeTab !== 'converter');
 
         // Auto scroll to chat bottom if opening chatbot
         if (activeTab === 'chatbot') {
@@ -1041,6 +1045,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (tabBtnBgRemover) {
         tabBtnBgRemover.addEventListener('click', () => switchAppTab('bgremover'));
+    }
+    if (tabBtnConverter) {
+        tabBtnConverter.addEventListener('click', () => switchAppTab('converter'));
     }
 
     // ==========================================
@@ -4374,6 +4381,541 @@ document.addEventListener('DOMContentLoaded', () => {
             bgResultOnlyContainer.classList.add('hidden');
             bgBeforeWrapper.style.width = '100%';
             bgCompareHandle.style.left = '100%';
+        });
+    }
+
+    // ==========================================
+    // 16. IMAGE FORMAT CONVERTER CLIENT LOGIC
+    // ==========================================
+    const converterDropZone = document.getElementById('converterDropZone');
+    const converterFileInput = document.getElementById('converterFileInput');
+    const converterDropPrompt = document.getElementById('converterDropPrompt');
+    const converterFileCountBadge = document.getElementById('converterFileCountBadge');
+
+    const converterSinglePreviewWrapper = document.getElementById('converterSinglePreviewWrapper');
+    const converterSingleThumb = document.getElementById('converterSingleThumb');
+    const converterSingleFileName = document.getElementById('converterSingleFileName');
+    const converterSingleFileMeta = document.getElementById('converterSingleFileMeta');
+    const btnRemoveConverterSingle = document.getElementById('btnRemoveConverterSingle');
+
+    const converterBatchListWrapper = document.getElementById('converterBatchListWrapper');
+    const converterBatchSelectedCount = document.getElementById('converterBatchSelectedCount');
+    const btnClearConverterFiles = document.getElementById('btnClearConverterFiles');
+    const converterBatchFilesGrid = document.getElementById('converterBatchFilesGrid');
+    const btnAddMoreConverterFiles = document.getElementById('btnAddMoreConverterFiles');
+
+    const btnSampleConverterPng = document.getElementById('btnSampleConverterPng');
+    const btnSampleConverterJpg = document.getElementById('btnSampleConverterJpg');
+    const btnSampleConverterWebp = document.getElementById('btnSampleConverterWebp');
+
+    const converterFormatCardsGrid = document.getElementById('converterFormatCardsGrid');
+    const btnQualityLossless = document.getElementById('btnQualityLossless');
+    const btnQualityHigh = document.getElementById('btnQualityHigh');
+    const converterBgColorGroup = document.getElementById('converterBgColorGroup');
+    const btnConverterBgWhite = document.getElementById('btnConverterBgWhite');
+    const btnConverterBgBlack = document.getElementById('btnConverterBgBlack');
+    const converterCustomColor = document.getElementById('converterCustomColor');
+    const btnRunConvert = document.getElementById('btnRunConvert');
+
+    const converterStatusBadge = document.getElementById('converterStatusBadge');
+    const converterEmptyState = document.getElementById('converterEmptyState');
+    const converterProcessingState = document.getElementById('converterProcessingState');
+    const converterProcessingTitle = document.getElementById('converterProcessingTitle');
+    const converterProcessingSub = document.getElementById('converterProcessingSub');
+
+    const converterSingleResult = document.getElementById('converterSingleResult');
+    const converterResultImg = document.getElementById('converterResultImg');
+    const converterMetaName = document.getElementById('converterMetaName');
+    const converterMetaDims = document.getElementById('converterMetaDims');
+    const converterMetaSize = document.getElementById('converterMetaSize');
+    const converterMetaTime = document.getElementById('converterMetaTime');
+    const btnDownloadConvertedSingle = document.getElementById('btnDownloadConvertedSingle');
+    const btnSaveConvertedSingleDownloads = document.getElementById('btnSaveConvertedSingleDownloads');
+
+    const converterBatchResultsContainer = document.getElementById('converterBatchResultsContainer');
+    const converterBatchSuccessCount = document.getElementById('converterBatchSuccessCount');
+    const btnDownloadConverterZip = document.getElementById('btnDownloadConverterZip');
+    const btnSaveBatchConverterToDownloads = document.getElementById('btnSaveBatchConverterToDownloads');
+    const converterBatchResultsGrid = document.getElementById('converterBatchResultsGrid');
+
+    let converterFiles = [];
+    let selectedTargetFormat = 'png';
+    let selectedQualityMode = 'lossless';
+    let selectedBgColor = 'white';
+
+    // Format selection click handler
+    if (converterFormatCardsGrid) {
+        const cards = converterFormatCardsGrid.querySelectorAll('.format-card');
+        cards.forEach(card => {
+            card.addEventListener('click', () => {
+                cards.forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                const radio = card.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+                selectedTargetFormat = card.dataset.fmt || 'png';
+
+                // Show background color picker if target format has no alpha support
+                if (['jpg', 'bmp', 'pdf'].includes(selectedTargetFormat)) {
+                    if (converterBgColorGroup) converterBgColorGroup.classList.remove('hidden');
+                } else {
+                    if (converterBgColorGroup) converterBgColorGroup.classList.add('hidden');
+                }
+            });
+        });
+    }
+
+    // Quality buttons
+    if (btnQualityLossless && btnQualityHigh) {
+        btnQualityLossless.addEventListener('click', () => {
+            btnQualityLossless.classList.add('active');
+            btnQualityHigh.classList.remove('active');
+            selectedQualityMode = 'lossless';
+        });
+        btnQualityHigh.addEventListener('click', () => {
+            btnQualityHigh.classList.add('active');
+            btnQualityLossless.classList.remove('active');
+            selectedQualityMode = 'high';
+        });
+    }
+
+    // Background color presets for non-alpha formats
+    if (btnConverterBgWhite && btnConverterBgBlack && converterCustomColor) {
+        btnConverterBgWhite.addEventListener('click', () => {
+            btnConverterBgWhite.classList.add('active');
+            btnConverterBgBlack.classList.remove('active');
+            selectedBgColor = 'white';
+        });
+        btnConverterBgBlack.addEventListener('click', () => {
+            btnConverterBgBlack.classList.add('active');
+            btnConverterBgWhite.classList.remove('active');
+            selectedBgColor = 'black';
+        });
+        converterCustomColor.addEventListener('input', (e) => {
+            btnConverterBgWhite.classList.remove('active');
+            btnConverterBgBlack.classList.remove('active');
+            selectedBgColor = e.target.value;
+        });
+    }
+
+    // Helper: update file upload views
+    function updateConverterFilesUI() {
+        if (!converterFiles || converterFiles.length === 0) {
+            if (converterDropPrompt) converterDropPrompt.classList.remove('hidden');
+            if (converterSinglePreviewWrapper) converterSinglePreviewWrapper.classList.add('hidden');
+            if (converterBatchListWrapper) converterBatchListWrapper.classList.add('hidden');
+            if (converterFileCountBadge) converterFileCountBadge.classList.add('hidden');
+            return;
+        }
+
+        if (converterFiles.length === 1) {
+            // Single file
+            if (converterDropPrompt) converterDropPrompt.classList.add('hidden');
+            if (converterBatchListWrapper) converterBatchListWrapper.classList.add('hidden');
+            if (converterSinglePreviewWrapper) converterSinglePreviewWrapper.classList.remove('hidden');
+            if (converterFileCountBadge) {
+                converterFileCountBadge.classList.remove('hidden');
+                converterFileCountBadge.textContent = '1 ảnh';
+            }
+
+            const f = converterFiles[0];
+            if (converterSingleFileName) converterSingleFileName.textContent = f.name;
+            const sizeKb = Math.round(f.size / 1024);
+            const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(2)} MB` : `${sizeKb} KB`;
+
+            const r = new FileReader();
+            r.onload = (e) => {
+                if (converterSingleThumb) converterSingleThumb.src = e.target.result;
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    if (converterSingleFileMeta) converterSingleFileMeta.textContent = `${tempImg.naturalWidth} x ${tempImg.naturalHeight} · ${sizeStr}`;
+                };
+                tempImg.src = e.target.result;
+            };
+            r.readAsDataURL(f);
+        } else {
+            // Multi-file batch
+            if (converterDropPrompt) converterDropPrompt.classList.add('hidden');
+            if (converterSinglePreviewWrapper) converterSinglePreviewWrapper.classList.add('hidden');
+            if (converterBatchListWrapper) converterBatchListWrapper.classList.remove('hidden');
+            if (converterFileCountBadge) {
+                converterFileCountBadge.classList.remove('hidden');
+                converterFileCountBadge.textContent = `${converterFiles.length} ảnh`;
+            }
+            if (converterBatchSelectedCount) converterBatchSelectedCount.textContent = converterFiles.length;
+
+            renderConverterBatchGrid();
+        }
+    }
+
+    function renderConverterBatchGrid() {
+        if (!converterBatchFilesGrid) return;
+        converterBatchFilesGrid.innerHTML = '';
+
+        converterFiles.forEach((file, idx) => {
+            const card = document.createElement('div');
+            card.className = 'batch-file-card';
+            const sizeKb = Math.round(file.size / 1024);
+            const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`;
+
+            card.innerHTML = `
+                <div class="batch-file-thumb-box">
+                    <img src="" alt="${file.name}" class="batch-file-thumb" id="convThumb_${idx}">
+                    <button type="button" class="btn-remove-batch-item" title="Xóa ảnh này" data-idx="${idx}">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="batch-file-info">
+                    <div class="batch-file-name" title="${file.name}">${file.name}</div>
+                    <div class="batch-file-meta">#${idx + 1} · ${sizeStr}</div>
+                </div>
+            `;
+
+            const imgEl = card.querySelector(`#convThumb_${idx}`);
+            const fr = new FileReader();
+            fr.onload = (ev) => { if (imgEl) imgEl.src = ev.target.result; };
+            fr.readAsDataURL(file);
+
+            const btnRemove = card.querySelector('.btn-remove-batch-item');
+            btnRemove.addEventListener('click', (e) => {
+                e.stopPropagation();
+                converterFiles.splice(idx, 1);
+                updateConverterFilesUI();
+            });
+
+            converterBatchFilesGrid.appendChild(card);
+        });
+    }
+
+    function handleConverterFiles(newFiles) {
+        if (!newFiles || newFiles.length === 0) return;
+        const valid = Array.from(newFiles).filter(f => f.type.startsWith('image/') || f.name.match(/\.(png|jpe?g|webp|bmp|tiff?|ico|pdf|avif|gif)$/i));
+        if (valid.length === 0) {
+            window.showToast('⚠️ Vui lòng chọn tệp ảnh hợp lệ');
+            return;
+        }
+
+        if (converterFiles.length === 0) {
+            converterFiles = valid;
+        } else {
+            converterFiles = converterFiles.concat(valid);
+        }
+        updateConverterFilesUI();
+    }
+
+    // Dropzone events
+    if (converterDropZone && converterFileInput) {
+        converterDropZone.addEventListener('click', (e) => {
+            if (e.target.closest('#btnRemoveConverterSingle')) return;
+            converterFileInput.click();
+        });
+
+        converterFileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                handleConverterFiles(e.target.files);
+            }
+        });
+
+        ['dragenter', 'dragover'].forEach(name => {
+            converterDropZone.addEventListener(name, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                converterDropZone.classList.add('drag-active');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(name => {
+            converterDropZone.addEventListener(name, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                converterDropZone.classList.remove('drag-active');
+            });
+        });
+
+        converterDropZone.addEventListener('drop', (e) => {
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleConverterFiles(e.dataTransfer.files);
+            }
+        });
+    }
+
+    if (btnRemoveConverterSingle) {
+        btnRemoveConverterSingle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            converterFiles = [];
+            if (converterFileInput) converterFileInput.value = '';
+            updateConverterFilesUI();
+        });
+    }
+
+    if (btnClearConverterFiles) {
+        btnClearConverterFiles.addEventListener('click', () => {
+            converterFiles = [];
+            if (converterFileInput) converterFileInput.value = '';
+            updateConverterFilesUI();
+        });
+    }
+
+    if (btnAddMoreConverterFiles && converterFileInput) {
+        btnAddMoreConverterFiles.addEventListener('click', () => {
+            converterFileInput.click();
+        });
+    }
+
+    // Sample loading helper
+    async function loadConverterSample(url, defaultName) {
+        try {
+            window.showToast('📥 Đang tải ảnh mẫu...');
+            const r = await fetch(url);
+            const blob = await r.blob();
+            const f = new File([blob], defaultName, { type: blob.type });
+            converterFiles = [f];
+            updateConverterFilesUI();
+            window.showToast(`✨ Đã nạp ảnh mẫu: ${defaultName}`);
+        } catch (err) {
+            window.showToast(`❌ Lỗi tải ảnh mẫu: ${err.message}`);
+        }
+    }
+
+    if (btnSampleConverterPng) {
+        btnSampleConverterPng.addEventListener('click', () => {
+            loadConverterSample('/static/samples/sample_anime_lowres.jpg', 'sample_anime_art.jpg');
+        });
+    }
+    if (btnSampleConverterJpg) {
+        btnSampleConverterJpg.addEventListener('click', () => {
+            loadConverterSample('/static/samples/sample_portrait_lowres.jpg', 'sample_portrait_hd.jpg');
+        });
+    }
+    if (btnSampleConverterWebp) {
+        btnSampleConverterWebp.addEventListener('click', () => {
+            loadConverterSample('/static/samples/sample_anime_lowres.jpg', 'sample_sticker.png');
+        });
+    }
+
+    // Run Conversion Action
+    if (btnRunConvert) {
+        btnRunConvert.addEventListener('click', async () => {
+            if (!converterFiles || converterFiles.length === 0) {
+                window.showToast('⚠️ Vui lòng chọn hoặc kéo thả ít nhất 1 ảnh để chuyển đổi!');
+                return;
+            }
+
+            btnRunConvert.disabled = true;
+            const originalBtnHtml = btnRunConvert.innerHTML;
+            btnRunConvert.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang Chuyển Đổi Định Dạng...';
+
+            // Show processing UI
+            if (converterEmptyState) converterEmptyState.classList.add('hidden');
+            if (converterSingleResult) converterSingleResult.classList.add('hidden');
+            if (converterBatchResultsContainer) converterBatchResultsContainer.classList.add('hidden');
+            if (converterProcessingState) converterProcessingState.classList.remove('hidden');
+            if (converterStatusBadge) {
+                converterStatusBadge.textContent = 'Đang xử lý';
+                converterStatusBadge.className = 'preview-badge badge-processing';
+            }
+
+            const fd = new FormData();
+            fd.append('target_format', selectedTargetFormat);
+            fd.append('quality_mode', selectedQualityMode);
+            fd.append('bg_color', selectedBgColor);
+
+            converterFiles.forEach(f => {
+                fd.append('images', f);
+            });
+
+            try {
+                const res = await fetch('/api/convert-format', {
+                    method: 'POST',
+                    body: fd
+                });
+                const result = await res.json();
+
+                if (converterProcessingState) converterProcessingState.classList.add('hidden');
+
+                if (result.status === 'success') {
+                    if (converterStatusBadge) {
+                        converterStatusBadge.textContent = 'Hoàn tất';
+                        converterStatusBadge.className = 'preview-badge badge-success';
+                    }
+                    window.showToast(`🎉 Chuyển đổi thành công sang ${result.target_format || selectedTargetFormat.toUpperCase()}!`);
+
+                    if (result.batch) {
+                        // Multi-image batch result
+                        if (converterBatchResultsContainer) converterBatchResultsContainer.classList.remove('hidden');
+                        if (converterBatchSuccessCount) converterBatchSuccessCount.textContent = result.count;
+
+                        // Setup ZIP download button
+                        if (btnDownloadConverterZip) {
+                            const zipUrl = result.download_url || `/api/download/${result.zip_filename}`;
+                            btnDownloadConverterZip.href = zipUrl;
+                            btnDownloadConverterZip.setAttribute('download', result.zip_filename || `Converted_${selectedTargetFormat.toUpperCase()}.zip`);
+                            btnDownloadConverterZip.onclick = async () => {
+                                try {
+                                    const sfd = new FormData();
+                                    sfd.append('filename', result.zip_filename);
+                                    await fetch('/api/save-to-downloads', { method: 'POST', body: sfd });
+                                } catch (_) {}
+                                window.showToast(`📦 Đang tải file ZIP chung và lưu vào Downloads: ${result.zip_filename}`);
+                            };
+                        }
+
+                        // Setup Save All to Downloads button
+                        if (btnSaveBatchConverterToDownloads) {
+                            btnSaveBatchConverterToDownloads.onclick = async () => {
+                                btnSaveBatchConverterToDownloads.disabled = true;
+                                const oldHtml = btnSaveBatchConverterToDownloads.innerHTML;
+                                btnSaveBatchConverterToDownloads.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang lưu...';
+
+                                try {
+                                    const saveRes = await fetch('/api/save-batch-convert-to-downloads', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            items: result.results.map(r => ({
+                                                filename: r.filename,
+                                                clean_filename: r.clean_filename,
+                                                original_filename: r.original_filename
+                                            }))
+                                        })
+                                    });
+                                    const saveJson = await saveRes.json();
+                                    if (saveJson.status === 'success') {
+                                        window.showToast(`💾 ${saveJson.message || 'Đã lưu tất cả ảnh vào Downloads!'}`);
+
+                                        // Trigger browser downloads with stagger
+                                        result.results.forEach((item, idx) => {
+                                            setTimeout(() => {
+                                                const a = document.createElement('a');
+                                                a.href = `/api/download/${item.filename}?name=${encodeURIComponent(item.clean_filename)}`;
+                                                a.download = item.clean_filename;
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                document.body.removeChild(a);
+                                            }, idx * 250);
+                                        });
+                                    } else {
+                                        window.showToast(`⚠️ Lỗi: ${saveJson.message || 'Không thể lưu vào Downloads'}`);
+                                    }
+                                } catch (err) {
+                                    window.showToast(`❌ Lỗi mạng: ${err.message}`);
+                                } finally {
+                                    btnSaveBatchConverterToDownloads.disabled = false;
+                                    btnSaveBatchConverterToDownloads.innerHTML = oldHtml;
+                                }
+                            };
+                        }
+
+                        // Populate batch grid
+                        if (converterBatchResultsGrid) {
+                            converterBatchResultsGrid.innerHTML = '';
+                            result.results.forEach(item => {
+                                const card = document.createElement('div');
+                                card.className = 'batch-result-card';
+                                const cardDlUrl = `/api/download/${item.filename}?name=${encodeURIComponent(item.clean_filename)}`;
+
+                                card.innerHTML = `
+                                    <div class="batch-result-img-box checkerboard-bg">
+                                        <img src="${item.result_url}" alt="result" class="batch-result-img">
+                                    </div>
+                                    <div class="batch-result-info">
+                                        <div class="batch-result-filename" title="${item.clean_filename}">${item.clean_filename}</div>
+                                        <div class="batch-result-dims">
+                                            <i class="fa-solid fa-check"></i> ${item.stats.new_size_kb} KB (${item.stats.percent_diff > 0 ? '+' : ''}${item.stats.percent_diff}%) · ${item.stats.duration_sec}s
+                                        </div>
+                                        <div class="batch-result-bottom" style="width: 100%; margin-top: 6px;">
+                                            <a href="${cardDlUrl}" download="${item.clean_filename}" class="btn-card-download-png" title="Tải ảnh và lưu vào Downloads">
+                                                <i class="fa-solid fa-download"></i> Tải Về (Downloads)
+                                            </a>
+                                        </div>
+                                    </div>
+                                `;
+
+                                const dlLink = card.querySelector('.btn-card-download-png');
+                                if (dlLink) {
+                                    dlLink.onclick = async () => {
+                                        try {
+                                            const sfd = new FormData();
+                                            sfd.append('filename', item.filename);
+                                            sfd.append('custom_name', item.clean_filename);
+                                            await fetch('/api/save-to-downloads', { method: 'POST', body: sfd });
+                                        } catch (_) {}
+                                        window.showToast(`💾 Đã lưu và tải ảnh: ${item.clean_filename}`);
+                                    };
+                                }
+
+                                converterBatchResultsGrid.appendChild(card);
+                            });
+                        }
+                    } else {
+                        // Single file result
+                        if (converterSingleResult) converterSingleResult.classList.remove('hidden');
+
+                        const d = result.data;
+                        if (converterResultImg) converterResultImg.src = d.result_url;
+                        if (converterMetaName) converterMetaName.textContent = d.clean_filename;
+                        if (converterMetaDims) converterMetaDims.textContent = `${d.stats.new_width} x ${d.stats.new_height}`;
+                        if (converterMetaSize) {
+                            converterMetaSize.textContent = `${d.stats.orig_size_kb} KB → ${d.stats.new_size_kb} KB (${d.stats.percent_diff > 0 ? '+' : ''}${d.stats.percent_diff}%)`;
+                        }
+                        if (converterMetaTime) converterMetaTime.textContent = `${d.stats.duration_sec}s`;
+
+                        // Single download link
+                        if (btnDownloadConvertedSingle) {
+                            const singleDlUrl = `/api/download/${d.filename}?name=${encodeURIComponent(d.clean_filename)}`;
+                            btnDownloadConvertedSingle.href = singleDlUrl;
+                            btnDownloadConvertedSingle.setAttribute('download', d.clean_filename);
+                            btnDownloadConvertedSingle.innerHTML = `<i class="fa-solid fa-download"></i> Tải Ảnh (${d.clean_filename})`;
+                            btnDownloadConvertedSingle.onclick = async () => {
+                                try {
+                                    const sfd = new FormData();
+                                    sfd.append('filename', d.filename);
+                                    sfd.append('custom_name', d.clean_filename);
+                                    await fetch('/api/save-to-downloads', { method: 'POST', body: sfd });
+                                } catch (_) {}
+                                window.showToast(`💾 Đã lưu và tải ảnh: ${d.clean_filename}`);
+                            };
+                        }
+
+                        // Single save to Downloads button
+                        if (btnSaveConvertedSingleDownloads) {
+                            btnSaveConvertedSingleDownloads.onclick = async () => {
+                                try {
+                                    const sfd = new FormData();
+                                    sfd.append('filename', d.filename);
+                                    sfd.append('custom_name', d.clean_filename);
+                                    const r = await fetch('/api/save-to-downloads', { method: 'POST', body: sfd });
+                                    const j = await r.json();
+                                    if (j.status === 'success') {
+                                        window.showToast(`💾 ${j.message || 'Đã lưu vào thư mục Downloads!'}`);
+                                    } else {
+                                        window.showToast(`⚠️ ${j.message}`);
+                                    }
+                                } catch (e) {
+                                    window.showToast(`❌ Lỗi lưu tệp: ${e.message}`);
+                                }
+                            };
+                        }
+                    }
+                } else {
+                    if (converterStatusBadge) {
+                        converterStatusBadge.textContent = 'Lỗi xử lý';
+                        converterStatusBadge.className = 'preview-badge badge-error';
+                    }
+                    if (converterEmptyState) converterEmptyState.classList.remove('hidden');
+                    window.showToast(`❌ Lỗi: ${result.message || 'Không thể chuyển đổi định dạng'}`);
+                }
+            } catch (err) {
+                if (converterProcessingState) converterProcessingState.classList.add('hidden');
+                if (converterEmptyState) converterEmptyState.classList.remove('hidden');
+                if (converterStatusBadge) {
+                    converterStatusBadge.textContent = 'Lỗi kết nối';
+                    converterStatusBadge.className = 'preview-badge badge-error';
+                }
+                window.showToast(`❌ Lỗi mạng: ${err.message}`);
+            } finally {
+                btnRunConvert.disabled = false;
+                btnRunConvert.innerHTML = originalBtnHtml;
+            }
         });
     }
 });

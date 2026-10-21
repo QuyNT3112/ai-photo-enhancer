@@ -3876,5 +3876,160 @@ input:checked + .slider:before {
     pointer-events: none;
 }
 
+/* ==========================================
+   FORMAT CONVERTER STYLES
+   ========================================== */
+.format-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.format-card {
+    position: relative;
+    background: rgba(18, 22, 34, 0.7);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+}
+
+.format-card:hover {
+    border-color: rgba(6, 182, 212, 0.5);
+    background: rgba(22, 30, 48, 0.85);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.format-card.active {
+    border-color: #06b6d4;
+    background: linear-gradient(145deg, rgba(6, 182, 212, 0.16) 0%, rgba(59, 130, 246, 0.12) 100%);
+    box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.4), 0 8px 24px rgba(6, 182, 212, 0.25);
+    transform: translateY(-2px);
+}
+
+.fmt-card-icon {
+    font-size: 24px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.25s ease;
+}
+
+.format-card:hover .fmt-card-icon {
+    transform: scale(1.15);
+}
+
+.fmt-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+}
+
+.fmt-name {
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.3px;
+}
+
+.format-card.active .fmt-name {
+    color: #38bdf8;
+}
+
+.fmt-desc {
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+.fmt-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 8.5px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.fmt-badge.popular {
+    background: rgba(6, 182, 212, 0.2);
+    color: #38bdf8;
+    border-color: rgba(6, 182, 212, 0.4);
+}
+
+.fmt-badge.highlight {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+/* Quality Segmented Control */
+.segmented-control {
+    display: flex;
+    background: rgba(10, 14, 23, 0.8);
+    border: 1px solid var(--border-glass);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.segment-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.segment-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.segment-btn.active {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(59, 130, 246, 0.25));
+    border: 1px solid rgba(6, 182, 212, 0.5);
+    color: #38bdf8;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn-color-preset {
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-color-preset.active {
+    background: rgba(6, 182, 212, 0.25) !important;
+    border-color: #06b6d4 !important;
+    color: #38bdf8 !important;
+}
+
 
 

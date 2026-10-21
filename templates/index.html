@@ -61,6 +61,10 @@
                     <i class="fa-solid fa-eraser"></i> Xóa Nền AI (RMBG)
                     <span class="badge-tab-new">MỚI</span>
                 </button>
+                <button type="button" class="nav-main-tab" id="tabBtnConverter">
+                    <i class="fa-solid fa-repeat"></i> Đổi Định Dạng Ảnh
+                    <span class="badge-tab-new">MỚI</span>
+                </button>
             </nav>
 
             <div class="nav-status">
@@ -1642,6 +1646,303 @@
                             </div>
                         </div>
                         <div class="batch-results-grid" id="bgBatchResultsGrid"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW: IMAGE FORMAT CONVERTER               -->
+    <!-- ========================================== -->
+    <div id="viewConverter" class="app-view hidden">
+        <main class="main-container">
+            <!-- Left Panel: Upload & Format Settings -->
+            <aside class="sidebar-panel">
+                <!-- Step 1: Upload Photo -->
+                <div class="glass-card upload-section">
+                    <div class="card-header">
+                        <div class="step-badge">1</div>
+                        <h2 class="card-title">Tải Ảnh Cần Đổi Định Dạng</h2>
+                        <span class="file-counter-badge hidden" id="converterFileCountBadge">0 ảnh</span>
+                    </div>
+
+                    <div class="drop-zone" id="converterDropZone">
+                        <input type="file" id="converterFileInput" accept="image/*, .png, .jpg, .jpeg, .webp, .bmp, .tiff, .tif, .ico, .pdf, .avif, .gif" class="file-input-hidden" multiple>
+                        <div class="drop-content" id="converterDropPrompt">
+                            <div class="upload-icon-circle">
+                                <i class="fa-solid fa-repeat"></i>
+                            </div>
+                            <p class="drop-title">Kéo & thả ảnh vào đây để đổi định dạng</p>
+                            <p class="drop-sub">hoặc <span class="highlight-link">chọn tệp từ máy tính</span></p>
+                            <div class="paste-hint">
+                                <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp
+                            </div>
+                            <p class="file-limit-text">Hỗ trợ PNG, JPG, WEBP, BMP, TIFF, ICO, PDF, AVIF, GIF (Đơn lẻ & Hàng loạt)</p>
+                        </div>
+
+                        <!-- Single Upload Preview -->
+                        <div class="upload-preview-wrapper hidden" id="converterSinglePreviewWrapper">
+                            <img src="" alt="Thumbnail" id="converterSingleThumb" class="upload-thumb">
+                            <div class="upload-file-meta">
+                                <div class="file-name" id="converterSingleFileName">anh_mau.png</div>
+                                <div class="file-dims" id="converterSingleFileMeta">1920 x 1080 · 2.4 MB</div>
+                            </div>
+                            <button type="button" class="btn-remove-file" id="btnRemoveConverterSingle" title="Xóa ảnh">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Multi-Image Batch List -->
+                    <div class="batch-files-list-wrapper hidden" id="converterBatchListWrapper">
+                        <div class="batch-list-header">
+                            <span class="batch-list-title">
+                                <i class="fa-solid fa-list-check text-cyan"></i> Đã chọn: <strong id="converterBatchSelectedCount">0</strong> ảnh
+                            </span>
+                            <button type="button" class="btn-clear-batch" id="btnClearConverterFiles" title="Xóa tất cả">
+                                <i class="fa-solid fa-trash-can"></i> Xóa tất cả
+                            </button>
+                        </div>
+                        <div class="batch-files-grid" id="converterBatchFilesGrid"></div>
+                        <div class="batch-add-more">
+                            <button type="button" class="btn-add-more-files" id="btnAddMoreConverterFiles">
+                                <i class="fa-solid fa-plus"></i> Chọn thêm ảnh khác...
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Samples -->
+                    <div class="sample-presets">
+                        <span class="sample-label"><i class="fa-regular fa-lightbulb"></i> Thử nhanh ảnh mẫu:</span>
+                        <div class="sample-btn-group">
+                            <button type="button" class="btn-sample" id="btnSampleConverterPng">
+                                <i class="fa-solid fa-image text-cyan"></i> Mẫu PNG Trong Suốt
+                            </button>
+                            <button type="button" class="btn-sample" id="btnSampleConverterJpg">
+                                <i class="fa-solid fa-camera text-amber"></i> Mẫu JPG Sắc Nét
+                            </button>
+                            <button type="button" class="btn-sample" id="btnSampleConverterWebp">
+                                <i class="fa-solid fa-bolt text-violet"></i> Mẫu WEBP
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Target Format Selection -->
+                <div class="glass-card config-section">
+                    <div class="card-header">
+                        <div class="step-badge">2</div>
+                        <h2 class="card-title">Chọn Định Dạng Đích</h2>
+                    </div>
+
+                    <div class="format-cards-grid" id="converterFormatCardsGrid">
+                        <!-- PNG -->
+                        <label class="format-card active" data-fmt="png">
+                            <input type="radio" name="targetFormat" value="png" checked class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-file-image text-cyan"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">PNG</span>
+                                <span class="fmt-desc">Trong suốt RGBA · Không nén</span>
+                            </div>
+                            <span class="fmt-badge popular">Phổ Biến</span>
+                        </label>
+
+                        <!-- JPG / JPEG -->
+                        <label class="format-card" data-fmt="jpg">
+                            <input type="radio" name="targetFormat" value="jpg" class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-camera text-emerald"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">JPG / JPEG</span>
+                                <span class="fmt-desc">Siêu nét 100% Quality · 4:4:4</span>
+                            </div>
+                            <span class="fmt-badge">Chuẩn Web</span>
+                        </label>
+
+                        <!-- WEBP -->
+                        <label class="format-card" data-fmt="webp">
+                            <input type="radio" name="targetFormat" value="webp" class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-bolt text-amber"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">WEBP</span>
+                                <span class="fmt-desc">Thế hệ mới · Nhẹ & Sắc Nét</span>
+                            </div>
+                            <span class="fmt-badge highlight">Khuyên Dùng</span>
+                        </label>
+
+                        <!-- BMP -->
+                        <label class="format-card" data-fmt="bmp">
+                            <input type="radio" name="targetFormat" value="bmp" class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-cubes text-blue"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">BMP</span>
+                                <span class="fmt-desc">Bitmap Windows nguyên bản</span>
+                            </div>
+                        </label>
+
+                        <!-- TIFF -->
+                        <label class="format-card" data-fmt="tiff">
+                            <input type="radio" name="targetFormat" value="tiff" class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-print text-indigo"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">TIFF</span>
+                                <span class="fmt-desc">In ấn chuyên nghiệp LZW</span>
+                            </div>
+                        </label>
+
+                        <!-- ICO -->
+                        <label class="format-card" data-fmt="ico">
+                            <input type="radio" name="targetFormat" value="ico" class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-icons text-purple"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">ICO</span>
+                                <span class="fmt-desc">Favicon & Biểu tượng app</span>
+                            </div>
+                        </label>
+
+                        <!-- PDF -->
+                        <label class="format-card" data-fmt="pdf">
+                            <input type="radio" name="targetFormat" value="pdf" class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-file-pdf text-rose"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">PDF</span>
+                                <span class="fmt-desc">Tài liệu trang ảnh chuẩn sắc</span>
+                            </div>
+                        </label>
+
+                        <!-- AVIF -->
+                        <label class="format-card" data-fmt="avif">
+                            <input type="radio" name="targetFormat" value="avif" class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-wand-magic text-teal"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">AVIF</span>
+                                <span class="fmt-desc">Chuẩn nén hiện đại cao cấp</span>
+                            </div>
+                        </label>
+
+                        <!-- GIF -->
+                        <label class="format-card" data-fmt="gif">
+                            <input type="radio" name="targetFormat" value="gif" class="hidden-radio">
+                            <div class="fmt-card-icon"><i class="fa-solid fa-film text-pink"></i></div>
+                            <div class="fmt-card-info">
+                                <span class="fmt-name">GIF</span>
+                                <span class="fmt-desc">Ảnh đồ họa 256 màu palette</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Sub Options: Quality Mode & Non-Alpha Background -->
+                    <div class="converter-sub-options" style="margin-top: 14px;">
+                        <div class="form-group">
+                            <label class="form-label" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block;">
+                                <i class="fa-solid fa-sliders text-cyan"></i> Chế độ chất lượng (Fidelity):
+                            </label>
+                            <div class="segmented-control">
+                                <button type="button" class="segment-btn active" data-quality="lossless" id="btnQualityLossless">
+                                    <i class="fa-solid fa-gem"></i> Giữ Nguyên 100% (Lossless)
+                                </button>
+                                <button type="button" class="segment-btn" data-quality="high" id="btnQualityHigh">
+                                    <i class="fa-solid fa-star"></i> Chất Lượng Cao (95%)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Background color for non-alpha formats (JPG, BMP, PDF) -->
+                        <div class="form-group hidden" id="converterBgColorGroup" style="margin-top: 12px;">
+                            <label class="form-label" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block;">
+                                <i class="fa-solid fa-palette text-cyan"></i> Màu nền thay thế (khi chuyển từ ảnh trong suốt sang JPG/BMP/PDF):
+                            </label>
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <button type="button" class="btn-color-preset active" data-bg="white" id="btnConverterBgWhite" style="padding: 6px 12px; border-radius: 6px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); color: #fff; cursor: pointer;">
+                                    ⚪ Nền Trắng (Chuẩn)
+                                </button>
+                                <button type="button" class="btn-color-preset" data-bg="black" id="btnConverterBgBlack" style="padding: 6px 12px; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: #aaa; cursor: pointer;">
+                                    ⚫ Nền Đen
+                                </button>
+                                <input type="color" id="converterCustomColor" value="#ffffff" title="Chọn màu nền tự do" style="width: 34px; height: 34px; border: none; border-radius: 6px; cursor: pointer; background: none;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button type="button" class="btn-run-enhancement" id="btnRunConvert" style="margin-top: 18px; width: 100%; background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%);">
+                        <i class="fa-solid fa-repeat"></i> Chuyển Đổi Định Dạng Ngay
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Results & Preview -->
+            <section class="preview-panel">
+                <div class="glass-card preview-card">
+                    <div class="preview-header">
+                        <div class="preview-title-group">
+                            <h2 class="card-title">Kết Quả Chuyển Đổi Định Dạng</h2>
+                            <span class="preview-badge badge-idle" id="converterStatusBadge">Chờ xử lý</span>
+                        </div>
+                    </div>
+
+                    <!-- Empty state -->
+                    <div class="preview-empty-state" id="converterEmptyState">
+                        <div class="empty-icon-circle">
+                            <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                        </div>
+                        <h3 class="empty-title">Chưa Có Ảnh Nào Được Chuyển Đổi</h3>
+                        <p class="empty-desc">Tải ảnh lên ở cột bên trái, chọn định dạng đích và bấm "Chuyển Đổi Định Dạng Ngay". Tên gốc của ảnh sẽ được giữ nguyên 100%.</p>
+                    </div>
+
+                    <!-- Processing state -->
+                    <div class="preview-empty-state hidden" id="converterProcessingState">
+                        <div class="ai-processing-ring">
+                            <div class="ring-spinner"></div>
+                            <i class="fa-solid fa-repeat ring-icon"></i>
+                        </div>
+                        <h3 class="empty-title" id="converterProcessingTitle">Đang Chuyển Đổi Định Dạng...</h3>
+                        <p class="empty-desc" id="converterProcessingSub">Bảo toàn nguyên vẹn 100% chất lượng và tên gốc của ảnh</p>
+                    </div>
+
+                    <!-- Single Result View -->
+                    <div class="converter-single-result hidden" id="converterSingleResult">
+                        <div class="converter-preview-box checkerboard-bg" style="position: relative; max-height: 520px; overflow: hidden; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #0b0f19;">
+                            <img src="" alt="Converted Result" id="converterResultImg" style="max-width: 100%; max-height: 500px; object-fit: contain; border-radius: 8px;">
+                        </div>
+
+                        <div class="preview-meta-chips" style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+                            <div class="chip"><i class="fa-solid fa-file-signature text-cyan"></i> <span id="converterMetaName">photo.webp</span></div>
+                            <div class="chip"><i class="fa-solid fa-maximize text-cyan"></i> <span id="converterMetaDims">1920 x 1080</span></div>
+                            <div class="chip"><i class="fa-solid fa-hard-drive text-cyan"></i> <span id="converterMetaSize">1.2 MB → 450 KB (-62%)</span></div>
+                            <div class="chip"><i class="fa-solid fa-clock text-cyan"></i> <span id="converterMetaTime">0.05s</span></div>
+                        </div>
+
+                        <div class="download-action-group" style="margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+                            <a href="#" download id="btnDownloadConvertedSingle" class="btn-download-primary" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none;">
+                                <i class="fa-solid fa-download"></i> Tải Ảnh Về Máy (Giữ Tên Gốc)
+                            </a>
+                            <button type="button" id="btnSaveConvertedSingleDownloads" class="btn-download-secondary" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                                <i class="fa-solid fa-folder-arrow-down text-cyan"></i> Lưu Vào Thư Mục Downloads
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Batch Results View -->
+                    <div class="batch-results-container hidden" id="converterBatchResultsContainer">
+                        <div class="batch-results-header">
+                            <h3 class="batch-results-title">
+                                <i class="fa-solid fa-circle-check text-success"></i> Đã Chuyển Đổi Xong <span id="converterBatchSuccessCount">0</span> Ảnh
+                            </h3>
+                            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                <!-- Tải File ZIP Chung -->
+                                <a href="#" download id="btnDownloadConverterZip" class="btn-batch-action btn-zip" title="Tải toàn bộ ảnh nén trong 1 tệp .ZIP duy nhất">
+                                    <i class="fa-solid fa-file-zipper"></i>
+                                    <span>Tải File ZIP Chung</span>
+                                </a>
+                                <!-- Lưu Tất Cả Vào Downloads -->
+                                <button type="button" id="btnSaveBatchConverterToDownloads" class="btn-batch-action btn-downloads" title="Lưu toàn bộ ảnh vào thư mục Downloads của máy tính">
+                                    <i class="fa-solid fa-folder-arrow-down"></i>
+                                    <span>Lưu Tất Cả Vào Downloads</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="batch-results-grid" id="converterBatchResultsGrid"></div>
                     </div>
                 </div>
             </section>
