@@ -110,7 +110,38 @@
   - 🦙 **Ollama Local Hub**: Kết nối linh hoạt tới Ollama chạy cục bộ (`localhost:11434` - Llama 3.2, Qwen 2.5, Llava).
   - 🖥️ **LM Studio / Local OpenAI API**: Tương thích chuẩn OpenAI chạy qua cổng `localhost:1234`.
 
-### 7. 🎨 Trải Nghiệm Giao Diện Người Dùng Đỉnh Cao (Dark Glassmorphism)
+### 7. ✂️ Tách Nền AI Chuyên Nghiệp (AI Background Remover - RMBG-1.4 & BiRefNet)
+- **Mô hình AI chuyên dụng**: Tích hợp mô hình SOTA **RMBG-1.4** và **BiRefNet**, tối ưu hóa chạy trực tiếp trên GPU CUDA cho tốc độ bóc tách nền siêu tốc (chỉ ~0.2s - 0.5s / bức ảnh).
+- **Chế độ làm sạch sâu (Deep Clean & Edge De-Fringe)**:
+  - Quét sạch các mảng màu nền cũ, chống lem viền và vệt sáng viền cũ (Halo Artifacts).
+  - Khử răng cưa và làm mượt biên nét viền vẽ với công nghệ Sub-pixel Matting.
+- **Tùy chọn phông nền mới linh hoạt**:
+  - **Trong suốt (PNG Alpha 32-bit chuẩn)**: Tách sạch tuyệt đối, lý tưởng làm sticker, logo, tài nguyên thiết kế.
+  - **Nền Trắng**: Chuẩn ảnh thẻ, thương mại điện tử (Shopee, Amazon).
+  - **Nền Đen**: Phong cách studio nghệ thuật.
+  - **Phông Xanh (Chroma Key)**: Dành cho dựng video và đồ họa.
+  - **Mã màu HEX tự chọn**: Chọn bất kỳ màu nền nào bạn thích.
+- **Hỗ trợ xử lý Hàng Loạt (Batch Multi-image)**:
+  - Nút **"Tải File ZIP Chung"**: Đóng gói toàn bộ ảnh đã tách nền thành 1 file ZIP duy nhất và lưu trực tiếp vào thư mục `Downloads`.
+  - Nút **"Lưu Tất Cả Vào Downloads"**: Lưu toàn bộ ảnh PNG vào thư mục `Downloads` của máy tính.
+  - Nút **"Tải PNG (Downloads)"**: Tải và lưu lẻ từng bức ảnh với đúng chuẩn PNG.
+
+### 8. 🔄 Đổi Định Dạng Ảnh Đa Dạng (Image Format Converter)
+- **Hỗ trợ 9 định dạng phổ biến nhất**:
+  - **PNG** (`.png`): Trong suốt RGBA, đồ họa không nén Lossless.
+  - **JPG / JPEG** (`.jpg`, `.jpeg`): Ảnh chụp / web chuẩn, 100% Quality, Chroma 4:4:4 không nén mất chi tiết.
+  - **WEBP** (`.webp`): Chuẩn web thế hệ mới, nhẹ và sắc nét tuyệt đối.
+  - **BMP** (`.bmp`): Bitmap Windows nguyên bản.
+  - **TIFF** (`.tiff`): Đồ họa in ấn cao cấp nén LZW lossless.
+  - **ICO** (`.ico`): Favicon & icon ứng dụng Windows đa kích thước (16px đến 256px).
+  - **PDF** (`.pdf`): Chuyển ảnh thành tài liệu PDF trang đơn sắc nét.
+  - **AVIF** (`.avif`): Chuẩn nén hiện đại cao cấp.
+  - **GIF** (`.gif`): Ảnh đồ họa 256 màu palette.
+- **Giữ nguyên 100% tên ảnh gốc**: File đầu ra duy trì đúng tên gốc ban đầu của bạn, chỉ thay đổi phần đuôi mở rộng (ví dụ: `vacation_photo.webp` -> `vacation_photo.png`).
+- **Bảo toàn 100% chất lượng ảnh (Lossless Fidelity)**: Không giảm độ phân giải, giữ nguyên ICC Profile và EXIF, tự động xử lý hòa trộn nền sạch khi chuyển từ ảnh trong suốt sang JPG/BMP/PDF.
+- **Tải về linh hoạt**: Hỗ trợ nút **Tải lẻ giữ tên gốc**, nút **Tải File ZIP Chung** và nút **Lưu Tất Cả Vào Downloads**.
+
+### 9. 🎨 Trải Nghiệm Giao Diện Người Dùng Đỉnh Cao (Dark Glassmorphism)
 - **Thanh trượt so sánh tương tác (Interactive Split Slider)**: Kéo qua lại trực tiếp trên ảnh để so sánh chất lượng Trước/Sau.
 - **Nhiều chế độ quan sát**: Kéo thanh trượt, Đặt cạnh nhau (Side-by-Side), Phóng to chi tiết (Zoom 180%), Xem riêng ảnh gốc hoặc ảnh xử lý.
 - **Thao tác tải ảnh cực nhanh**: Kéo & thả tệp, chọn từ máy tính, hoặc **dán ảnh trực tiếp từ Clipboard (`Ctrl + V`)**.
