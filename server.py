@@ -21,6 +21,7 @@ from aspect_converter import AspectConverter
 from compressor import ImageCompressor
 from generator import ImageGenerator
 from llm_engine import LLMEngine
+from bg_remover import BackgroundRemover
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
@@ -45,6 +46,7 @@ aspect_converter = AspectConverter()
 compressor = ImageCompressor()
 image_generator = ImageGenerator()
 llm_engine = LLMEngine()
+bg_remover = BackgroundRemover()
 print("[Server] AI & Media Engines ready!")
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp', 'jfif'}
@@ -87,6 +89,7 @@ def api_save_to_downloads():
     try:
         import shutil
         filename = request.form.get('filename')
+        custom_name = request.form.get('custom_name')
         if not filename:
             return jsonify({'status': 'error', 'message': 'Tên tệp không hợp lệ'}), 400
         safe_name = secure_filename(filename)
@@ -97,15 +100,67 @@ def api_save_to_downloads():
         downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
         os.makedirs(downloads_dir, exist_ok=True)
 
-        target_name = f"ClarityAI_{safe_name}"
+        if custom_name:
+            target_name = secure_filename(custom_name)
+            ext = os.path.splitext(safe_name)[1]
+            if not target_name.lower().endswith(ext.lower()):
+                target_name += ext
+        else:
+            target_name = f"ClarityAI_{safe_name}"
+
         dst_path = os.path.join(downloads_dir, target_name)
         shutil.copy2(src_path, dst_path)
 
         return jsonify({
             'status': 'success',
             'saved_path': dst_path,
+            'saved_name': target_name,
             'filename': target_name,
             'message': f'Đã lưu trực tiếp vào thư mục Downloads: {target_name}'
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/save-batch-bg-to-downloads', methods=['POST'])
+def api_save_batch_bg_to_downloads():
+    try:
+        import shutil
+        data = request.get_json(silent=True) or {}
+        items = data.get('items', [])
+        if not items:
+            filenames = request.form.getlist('filenames')
+            orig_names = request.form.getlist('original_filenames')
+            items = [{'filename': f, 'original_filename': orig_names[i] if i < len(orig_names) else f} for i, f in enumerate(filenames)]
+
+        if not items:
+            return jsonify({'status': 'error', 'message': 'Không có ảnh nào để lưu'}), 400
+
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        os.makedirs(downloads_dir, exist_ok=True)
+
+        saved_files = []
+        for it in items:
+            filename = secure_filename(it.get('filename', ''))
+            if not filename:
+                continue
+            src_path = os.path.join(OUTPUT_DIR, filename)
+            if not os.path.exists(src_path):
+                continue
+
+            orig_name = it.get('original_filename', filename)
+            base_root, _ = os.path.splitext(orig_name)
+            out_ext = os.path.splitext(filename)[1] or '.png'
+            target_name = f"ClarityAI_{secure_filename(base_root)}_nobg{out_ext}"
+            dst_path = os.path.join(downloads_dir, target_name)
+            shutil.copy2(src_path, dst_path)
+            saved_files.append(target_name)
+
+        return jsonify({
+            'status': 'success',
+            'count': len(saved_files),
+            'saved_files': saved_files,
+            'message': f'Đã lưu thành công {len(saved_files)} ảnh đã tách nền vào thư mục Downloads!'
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -117,13 +172,35 @@ def api_download(filename):
     file_path = os.path.join(OUTPUT_DIR, safe_name)
     if not os.path.exists(file_path):
         return jsonify({'status': 'error', 'message': 'File not found'}), 404
-    download_filename = f"ClarityAI_{safe_name}"
+
+    # Custom friendly name parameter
+    custom_name = request.args.get('name')
+    ext = os.path.splitext(safe_name)[1].lower()
+    if custom_name:
+        custom_safe = secure_filename(custom_name)
+        if not custom_safe.lower().endswith(ext):
+            custom_safe += ext
+        download_filename = custom_safe
+    else:
+        download_filename = f"ClarityAI_{safe_name}"
+
+    # Determine accurate MIME type
+    mimetypes_map = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.bmp': 'image/bmp',
+        '.zip': 'application/zip'
+    }
+    mimetype = mimetypes_map.get(ext, 'application/octet-stream')
+
     return send_from_directory(
         OUTPUT_DIR,
         safe_name,
         as_attachment=True,
         download_name=download_filename,
-        mimetype='image/png'
+        mimetype=mimetype
     )
 
 
@@ -415,6 +492,157 @@ def api_history():
         'status': 'success',
         'history': session_history
     })
+
+
+# =========================================================================
+# BACKGROUND REMOVER APIS (Xóa Nền Ảnh AI RMBG-1.4)
+# =========================================================================
+
+@app.route('/api/remove-background', methods=['POST'])
+def api_remove_background():
+    try:
+        files = request.files.getlist('images')
+        if not files or files[0].filename == '':
+            files = request.files.getlist('image')
+        if not files or files[0].filename == '':
+            return jsonify({'status': 'error', 'message': 'Chưa chọn tệp ảnh nào!'}), 400
+
+        model_name = request.form.get('model_name', 'rmbg-1.4').strip().lower()
+        clean_mode = request.form.get('clean_mode', 'deep_clean').strip().lower()
+        try:
+            sensitivity = float(request.form.get('sensitivity', 0.5))
+        except Exception:
+            sensitivity = 0.5
+        de_fringe = request.form.get('de_fringe', 'true').lower() in ['true', '1', 'yes']
+        bg_color = request.form.get('bg_color', 'transparent').strip().lower()
+        feather = request.form.get('feather', 'true').lower() in ['true', '1', 'yes']
+
+        # Single file processing
+        if len(files) == 1:
+            file = files[0]
+            if not file.filename or not allowed_file(file.filename):
+                return jsonify({'status': 'error', 'message': 'Định dạng tệp không được hỗ trợ. Hãy chọn ảnh PNG, JPG, WEBP, BMP.'}), 400
+
+            file_uuid = uuid.uuid4().hex[:10]
+            orig_filename = secure_filename(file.filename or 'image.jpg')
+            base_ext = os.path.splitext(orig_filename)[1].lower() or '.jpg'
+            input_filename = f"input_bg_{file_uuid}{base_ext}"
+            input_path = os.path.join(UPLOAD_DIR, input_filename)
+            file.save(input_path)
+
+            output_uuid = uuid.uuid4().hex[:10]
+            output_ext = '.png' if bg_color in ['transparent', 'alpha', 'none', ''] else '.jpg'
+            output_filename = f"nobg_{output_uuid}{output_ext}"
+            output_path = os.path.join(OUTPUT_DIR, output_filename)
+
+            t0 = time.time()
+            stats = bg_remover.remove_background(
+                input_path=input_path,
+                output_path=output_path,
+                model_name=model_name,
+                clean_mode=clean_mode,
+                sensitivity=sensitivity,
+                de_fringe=de_fringe,
+                bg_color=bg_color,
+                feather_edge=feather
+            )
+            total_time = round(time.time() - t0, 2)
+            stats['total_request_time'] = total_time
+
+            orig_size_bytes = os.path.getsize(input_path)
+            res_size_bytes = os.path.getsize(output_path)
+
+            result_data = {
+                'id': output_uuid,
+                'timestamp': datetime.now().strftime('%H:%M:%S - %d/%m/%Y'),
+                'original_filename': orig_filename,
+                'original_url': f"/uploads/{input_filename}",
+                'result_url': f"/outputs/{output_filename}",
+                'enhanced_url': f"/outputs/{output_filename}",
+                'download_url': f"/api/download/{output_filename}",
+                'download_jpg_url': f"/api/download-jpg/{output_filename}",
+                'filename': output_filename,
+                'stats': stats,
+                'file_sizes': {
+                    'original_kb': round(orig_size_bytes / 1024, 1),
+                    'result_kb': round(res_size_bytes / 1024, 1),
+                    'result_mb': round(res_size_bytes / (1024 * 1024), 2)
+                }
+            }
+
+            session_history.insert(0, result_data)
+            if len(session_history) > 20:
+                session_history.pop()
+
+            return jsonify({'status': 'success', 'data': result_data})
+
+        # Multi-file batch processing
+        else:
+            import zipfile
+            batch_uuid = uuid.uuid4().hex[:10]
+            zip_filename = f"ClarityAI_Batch_NoBG_{batch_uuid}.zip"
+            zip_path = os.path.join(OUTPUT_DIR, zip_filename)
+
+            results = []
+            files_to_zip = []
+
+            for file in files:
+                if not file.filename or not allowed_file(file.filename):
+                    continue
+                f_uuid = uuid.uuid4().hex[:10]
+                orig_name = secure_filename(file.filename)
+                base_ext = os.path.splitext(orig_name)[1].lower() or '.jpg'
+                in_name = f"input_batch_bg_{f_uuid}{base_ext}"
+                in_path = os.path.join(UPLOAD_DIR, in_name)
+                file.save(in_path)
+
+                out_ext = '.png' if bg_color in ['transparent', 'alpha', 'none', ''] else '.jpg'
+                out_name = f"nobg_{f_uuid}{out_ext}"
+                out_path = os.path.join(OUTPUT_DIR, out_name)
+
+                try:
+                    st = bg_remover.remove_background(
+                        input_path=in_path,
+                        output_path=out_path,
+                        model_name=model_name,
+                        clean_mode=clean_mode,
+                        sensitivity=sensitivity,
+                        de_fringe=de_fringe,
+                        bg_color=bg_color,
+                        feather_edge=feather
+                    )
+                    results.append({
+                        'filename': out_name,
+                        'original_filename': orig_name,
+                        'result_url': f"/outputs/{out_name}",
+                        'stats': st
+                    })
+                    base_root, _ = os.path.splitext(orig_name)
+                    files_to_zip.append((out_path, f"{base_root}_nobg{out_ext}"))
+                except Exception as ex:
+                    print(f"[BgRemover] Batch item error: {ex}")
+
+            if not results:
+                return jsonify({'status': 'error', 'message': 'Không có ảnh nào xử lý thành công!'}), 500
+
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for file_path, arcname in files_to_zip:
+                    zf.write(file_path, arcname)
+
+            return jsonify({
+                'status': 'success',
+                'batch': True,
+                'count': len(results),
+                'results': results,
+                'zip_url': f"/outputs/{zip_filename}",
+                'zip_filename': zip_filename,
+                'download_url': f"/api/download/{zip_filename}"
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 # =========================================================================

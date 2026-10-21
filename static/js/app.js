@@ -985,6 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabBtnGenerator = document.getElementById('tabBtnGenerator');
     const tabBtnChatbot = document.getElementById('tabBtnChatbot');
     const tabBtnCompressor = document.getElementById('tabBtnCompressor');
+    const tabBtnBgRemover = document.getElementById('tabBtnBgRemover');
 
     const viewEnhancer = document.getElementById('viewEnhancer');
     const viewAspect = document.getElementById('viewAspect');
@@ -992,6 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewGenerator = document.getElementById('viewGenerator');
     const viewChatbot = document.getElementById('viewChatbot');
     const viewCompressor = document.getElementById('viewCompressor');
+    const viewBgRemover = document.getElementById('viewBgRemover');
 
     function switchAppTab(activeTab) {
         // Tab buttons
@@ -1001,6 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabBtnGenerator) tabBtnGenerator.classList.toggle('active', activeTab === 'generator');
         if (tabBtnChatbot) tabBtnChatbot.classList.toggle('active', activeTab === 'chatbot');
         if (tabBtnCompressor) tabBtnCompressor.classList.toggle('active', activeTab === 'compress');
+        if (tabBtnBgRemover) tabBtnBgRemover.classList.toggle('active', activeTab === 'bgremover');
 
         // Views
         viewEnhancer.classList.toggle('hidden', activeTab !== 'enhancer');
@@ -1009,6 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (viewGenerator) viewGenerator.classList.toggle('hidden', activeTab !== 'generator');
         if (viewChatbot) viewChatbot.classList.toggle('hidden', activeTab !== 'chatbot');
         if (viewCompressor) viewCompressor.classList.toggle('hidden', activeTab !== 'compress');
+        if (viewBgRemover) viewBgRemover.classList.toggle('hidden', activeTab !== 'bgremover');
 
         // Auto scroll to chat bottom if opening chatbot
         if (activeTab === 'chatbot') {
@@ -1034,6 +1038,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (tabBtnCompressor) {
         tabBtnCompressor.addEventListener('click', () => switchAppTab('compress'));
+    }
+    if (tabBtnBgRemover) {
+        tabBtnBgRemover.addEventListener('click', () => switchAppTab('bgremover'));
     }
 
     // ==========================================
@@ -3806,6 +3813,557 @@ document.addEventListener('DOMContentLoaded', () => {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // ==========================================
+    // 16. BACKGROUND REMOVER CLIENT LOGIC (RMBG-1.4)
+    // ==========================================
+    const bgRemoverDropZone = document.getElementById('bgRemoverDropZone');
+    const bgRemoverFileInput = document.getElementById('bgRemoverFileInput');
+    const bgRemoverDropPrompt = document.getElementById('bgRemoverDropPrompt');
+    const bgRemoverPreviewWrapper = document.getElementById('bgRemoverPreviewWrapper');
+    const bgRemoverThumb = document.getElementById('bgRemoverThumb');
+    const bgRemoverFileName = document.getElementById('bgRemoverFileName');
+    const bgRemoverFileDims = document.getElementById('bgRemoverFileDims');
+    const btnRemoveBgRemoverFile = document.getElementById('btnRemoveBgRemoverFile');
+    const bgRemoverFileCountBadge = document.getElementById('bgRemoverFileCountBadge');
+
+    const bgRemoverFilesListWrapper = document.getElementById('bgRemoverFilesListWrapper');
+    const bgRemoverFilesGrid = document.getElementById('bgRemoverFilesGrid');
+    const bgRemoverSelectedCount = document.getElementById('bgRemoverSelectedCount');
+    const btnClearBgRemoverFiles = document.getElementById('btnClearBgRemoverFiles');
+    const btnAddMoreBgRemoverFiles = document.getElementById('btnAddMoreBgRemoverFiles');
+
+    const btnReuseForBgRemover = document.getElementById('btnReuseForBgRemover');
+    const btnRunBgRemove = document.getElementById('btnRunBgRemove');
+    const btnBgRemoveText = document.getElementById('btnBgRemoveText');
+
+    const bgRemoverStatusBadge = document.getElementById('bgRemoverStatusBadge');
+    const bgRemoverViewToggles = document.getElementById('bgRemoverViewToggles');
+    const bgToggleCompare = document.getElementById('bgToggleCompare');
+    const bgToggleResultOnly = document.getElementById('bgToggleResultOnly');
+    const bgToggleOriginal = document.getElementById('bgToggleOriginal');
+
+    const bgRemoverEmptyState = document.getElementById('bgRemoverEmptyState');
+    const bgRemoverProcessingState = document.getElementById('bgRemoverProcessingState');
+    const bgRemoverCompareContainer = document.getElementById('bgRemoverCompareContainer');
+    const bgResultOnlyContainer = document.getElementById('bgResultOnlyContainer');
+    const bgRemoverResultFooter = document.getElementById('bgRemoverResultFooter');
+
+    const bgOrigImg = document.getElementById('bgOrigImg');
+    const bgResultImg = document.getElementById('bgResultImg');
+    const bgSingleResultImg = document.getElementById('bgSingleResultImg');
+    const bgBeforeWrapper = document.getElementById('bgBeforeWrapper');
+    const bgCompareHandle = document.getElementById('bgCompareHandle');
+
+    const bgMetaDims = document.getElementById('bgMetaDims');
+    const bgMetaDuration = document.getElementById('bgMetaDuration');
+    const bgMetaModel = document.getElementById('bgMetaModel');
+    const bgMetaSize = document.getElementById('bgMetaSize');
+
+    const btnDownloadBgPng = document.getElementById('btnDownloadBgPng');
+    const btnDownloadBgJpg = document.getElementById('btnDownloadBgJpg');
+    const btnSaveBgToDownloads = document.getElementById('btnSaveBgToDownloads');
+
+    const bgBatchResultsContainer = document.getElementById('bgBatchResultsContainer');
+    const bgBatchResultsGrid = document.getElementById('bgBatchResultsGrid');
+    const bgBatchSuccessCount = document.getElementById('bgBatchSuccessCount');
+    const btnDownloadBgZip = document.getElementById('btnDownloadBgZip');
+
+    const bgCustomColorPicker = document.getElementById('bgCustomColorPicker');
+    const bgCustomColorCode = document.getElementById('bgCustomColorCode');
+    const btnApplyCustomColor = document.getElementById('btnApplyCustomColor');
+    const bgFeatherEdge = document.getElementById('bgFeatherEdge');
+
+    const bgModelSelect = document.getElementById('bgModelSelect');
+    const bgCleanModeSelect = document.getElementById('bgCleanModeSelect');
+    const bgSensitivitySlider = document.getElementById('bgSensitivitySlider');
+    const bgSensitivityVal = document.getElementById('bgSensitivityVal');
+    const bgDeFringe = document.getElementById('bgDeFringe');
+
+    if (bgSensitivitySlider && bgSensitivityVal) {
+        bgSensitivitySlider.addEventListener('input', (e) => {
+            bgSensitivityVal.textContent = `${e.target.value}%`;
+        });
+    }
+
+    let bgRemoverSelectedFiles = [];
+    let currentBgResultData = null;
+    let selectedRemoverBgColor = 'transparent';
+
+    // Option cards selection
+    const bgOptCards = document.querySelectorAll('.bg-opt-card');
+    bgOptCards.forEach(card => {
+        card.addEventListener('click', () => {
+            bgOptCards.forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            const radio = card.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+            selectedRemoverBgColor = card.dataset.color || 'transparent';
+        });
+    });
+
+    if (bgCustomColorPicker && bgCustomColorCode) {
+        bgCustomColorPicker.addEventListener('input', (e) => {
+            bgCustomColorCode.textContent = e.target.value.toUpperCase();
+        });
+        if (btnApplyCustomColor) {
+            btnApplyCustomColor.addEventListener('click', () => {
+                selectedRemoverBgColor = bgCustomColorPicker.value;
+                bgOptCards.forEach(c => c.classList.remove('active'));
+                window.showToast(`🎨 Đã chọn màu phông: ${selectedRemoverBgColor.toUpperCase()}`);
+            });
+        }
+    }
+
+    // File handling
+    function setBgRemoverFiles(files) {
+        if (!files || files.length === 0) return;
+        bgRemoverSelectedFiles = Array.from(files);
+        updateBgRemoverUI();
+    }
+
+    function updateBgRemoverUI() {
+        const count = bgRemoverSelectedFiles.length;
+        if (count === 0) {
+            bgRemoverPreviewWrapper.classList.add('hidden');
+            bgRemoverDropPrompt.classList.remove('hidden');
+            bgRemoverFilesListWrapper.classList.add('hidden');
+            bgRemoverFileCountBadge.classList.add('hidden');
+            btnRunBgRemove.disabled = true;
+            btnBgRemoveText.textContent = 'Tách Nền Bằng AI';
+            return;
+        }
+
+        btnRunBgRemove.disabled = false;
+        bgRemoverFileCountBadge.classList.remove('hidden');
+        bgRemoverFileCountBadge.textContent = `${count} ảnh`;
+
+        if (count === 1) {
+            const file = bgRemoverSelectedFiles[0];
+            bgRemoverDropPrompt.classList.add('hidden');
+            bgRemoverPreviewWrapper.classList.remove('hidden');
+            bgRemoverFilesListWrapper.classList.add('hidden');
+            bgRemoverFileName.textContent = file.name;
+
+            const url = URL.createObjectURL(file);
+            bgRemoverThumb.src = url;
+            const imgTemp = new Image();
+            imgTemp.onload = () => {
+                const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+                bgRemoverFileDims.textContent = `${imgTemp.naturalWidth} x ${imgTemp.naturalHeight} · ${sizeMb} MB`;
+            };
+            imgTemp.src = url;
+            btnBgRemoveText.textContent = 'Tách Nền Bằng AI (1 Ảnh)';
+        } else {
+            bgRemoverDropPrompt.classList.add('hidden');
+            bgRemoverPreviewWrapper.classList.add('hidden');
+            bgRemoverFilesListWrapper.classList.remove('hidden');
+            bgRemoverSelectedCount.textContent = count;
+            btnBgRemoveText.textContent = `Tách Nền Hàng Loạt (${count} Ảnh)`;
+
+            bgRemoverFilesGrid.innerHTML = '';
+            bgRemoverSelectedFiles.forEach((file, idx) => {
+                const card = document.createElement('div');
+                card.className = 'batch-file-card';
+                const url = URL.createObjectURL(file);
+                card.innerHTML = `
+                    <button type="button" class="btn-remove-batch-item" data-index="${idx}" title="Xóa ảnh này">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                    <img src="${url}" class="batch-file-thumb" alt="thumbnail">
+                    <div class="batch-file-name" title="${file.name}">${file.name}</div>
+                    <div class="batch-file-meta">
+                        <span>#${idx + 1}</span>
+                        <span>${(file.size / 1024).toFixed(0)} KB</span>
+                    </div>
+                `;
+                card.querySelector('.btn-remove-batch-item').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    bgRemoverSelectedFiles.splice(idx, 1);
+                    updateBgRemoverUI();
+                });
+                bgRemoverFilesGrid.appendChild(card);
+            });
+        }
+    }
+
+    if (bgRemoverDropZone && bgRemoverFileInput) {
+        bgRemoverDropZone.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-remove-file') || e.target.closest('.btn-remove-batch-item') || e.target.closest('.btn-add-more-files') || e.target.closest('.btn-clear-batch')) return;
+            bgRemoverFileInput.click();
+        });
+        bgRemoverFileInput.addEventListener('change', () => {
+            if (bgRemoverFileInput.files.length > 0) {
+                setBgRemoverFiles(bgRemoverFileInput.files);
+            }
+        });
+
+        bgRemoverDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            bgRemoverDropZone.classList.add('drag-active');
+        });
+        bgRemoverDropZone.addEventListener('dragleave', () => {
+            bgRemoverDropZone.classList.remove('drag-active');
+        });
+        bgRemoverDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            bgRemoverDropZone.classList.remove('drag-active');
+            if (e.dataTransfer.files.length > 0) {
+                setBgRemoverFiles(e.dataTransfer.files);
+            }
+        });
+    }
+
+    if (btnRemoveBgRemoverFile) {
+        btnRemoveBgRemoverFile.addEventListener('click', (e) => {
+            e.stopPropagation();
+            bgRemoverSelectedFiles = [];
+            bgRemoverFileInput.value = '';
+            updateBgRemoverUI();
+        });
+    }
+
+    if (btnClearBgRemoverFiles) {
+        btnClearBgRemoverFiles.addEventListener('click', () => {
+            bgRemoverSelectedFiles = [];
+            bgRemoverFileInput.value = '';
+            updateBgRemoverUI();
+        });
+    }
+
+    if (btnAddMoreBgRemoverFiles) {
+        btnAddMoreBgRemoverFiles.addEventListener('click', () => {
+            const tempInput = document.createElement('input');
+            tempInput.type = 'file';
+            tempInput.multiple = true;
+            tempInput.accept = 'image/png, image/jpeg, image/webp, image/bmp';
+            tempInput.onchange = () => {
+                if (tempInput.files.length > 0) {
+                    bgRemoverSelectedFiles = bgRemoverSelectedFiles.concat(Array.from(tempInput.files));
+                    updateBgRemoverUI();
+                }
+            };
+            tempInput.click();
+        });
+    }
+
+    // Reuse from previous tab
+    if (btnReuseForBgRemover) {
+        btnReuseForBgRemover.addEventListener('click', () => {
+            if (window.currentActiveResultUrl) {
+                fetch(window.currentActiveResultUrl)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const file = new File([blob], "last_processed_image.png", { type: blob.type || "image/png" });
+                        setBgRemoverFiles([file]);
+                        window.showToast("🔄 Đã lấy ảnh vừa xử lý vào tab Xóa Nền!");
+                    })
+                    .catch(() => window.showToast("⚠️ Chưa có ảnh nào vừa xử lý!"));
+            } else {
+                window.showToast("⚠️ Hãy xử lý một ảnh trước để sử dụng tính năng này!");
+            }
+        });
+    }
+
+    // Sample buttons
+    document.querySelectorAll('.bg-sample-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const sampleType = btn.dataset.sample;
+            let sampleUrl = '/static/samples/sample_portrait_lowres.jpg';
+            let name = 'sample_portrait.jpg';
+            if (sampleType === 'dog') {
+                sampleUrl = '/uploads/input_2de8d37ea0.png';
+                name = 'sample_dog_sticker.png';
+            }
+            fetch(sampleUrl)
+                .then(r => r.blob())
+                .then(b => {
+                    const file = new File([b], name, { type: b.type || 'image/jpeg' });
+                    setBgRemoverFiles([file]);
+                    window.showToast(`📸 Đã nạp ảnh ${btn.textContent.trim()}!`);
+                });
+        });
+    });
+
+    // Run Background Removal
+    if (btnRunBgRemove) {
+        btnRunBgRemove.addEventListener('click', async () => {
+            if (bgRemoverSelectedFiles.length === 0) return;
+
+            btnRunBgRemove.disabled = true;
+            bgRemoverEmptyState.classList.add('hidden');
+            bgRemoverCompareContainer.classList.add('hidden');
+            bgResultOnlyContainer.classList.add('hidden');
+            bgRemoverResultFooter.classList.add('hidden');
+            bgBatchResultsContainer.classList.add('hidden');
+            bgRemoverViewToggles.classList.add('hidden');
+
+            bgRemoverProcessingState.classList.remove('hidden');
+            bgRemoverStatusBadge.textContent = 'Đang xử lý AI...';
+            bgRemoverStatusBadge.className = 'preview-badge badge-processing';
+
+            const modelVal = bgModelSelect ? bgModelSelect.value : 'rmbg-1.4';
+            const cleanModeVal = bgCleanModeSelect ? bgCleanModeSelect.value : 'deep_clean';
+            const sensitivityVal = bgSensitivitySlider ? (parseFloat(bgSensitivitySlider.value) / 100.0) : 0.5;
+            const deFringeVal = bgDeFringe && bgDeFringe.checked ? 'true' : 'false';
+
+            const formData = new FormData();
+            bgRemoverSelectedFiles.forEach(file => {
+                formData.append('images', file);
+            });
+            formData.append('model_name', modelVal);
+            formData.append('clean_mode', cleanModeVal);
+            formData.append('sensitivity', sensitivityVal);
+            formData.append('de_fringe', deFringeVal);
+            formData.append('bg_color', selectedRemoverBgColor);
+            formData.append('feather', bgFeatherEdge && bgFeatherEdge.checked ? 'true' : 'false');
+
+            try {
+                const response = await fetch('/api/remove-background', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                bgRemoverProcessingState.classList.add('hidden');
+
+                if (result.status === 'success') {
+                    bgRemoverStatusBadge.textContent = 'Hoàn tất';
+                    bgRemoverStatusBadge.className = 'preview-badge badge-success';
+                    window.showToast('✨ Tách nền hoàn tất!');
+
+                    if (result.batch) {
+                        // Batch view
+                        bgBatchResultsContainer.classList.remove('hidden');
+                        bgBatchSuccessCount.textContent = result.count;
+                        if (btnDownloadBgZip) btnDownloadBgZip.href = result.download_url;
+
+                        // Setup "Lưu Tất Cả Vào Downloads" button
+                        const btnSaveBatchBgToDownloads = document.getElementById('btnSaveBatchBgToDownloads');
+                        if (btnSaveBatchBgToDownloads) {
+                            btnSaveBatchBgToDownloads.onclick = async () => {
+                                btnSaveBatchBgToDownloads.disabled = true;
+                                const oldHtml = btnSaveBatchBgToDownloads.innerHTML;
+                                btnSaveBatchBgToDownloads.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang lưu...';
+
+                                try {
+                                    const res = await fetch('/api/save-batch-bg-to-downloads', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            items: result.results.map(r => ({
+                                                filename: r.filename,
+                                                original_filename: r.original_filename
+                                            }))
+                                        })
+                                    });
+                                    const json = await res.json();
+                                    if (json.status === 'success') {
+                                        window.showToast(`💾 ${json.message || 'Đã lưu tất cả ảnh vào Downloads!'}`);
+
+                                        // Also trigger browser downloads for each image file
+                                        result.results.forEach((item, idx) => {
+                                            setTimeout(() => {
+                                                const base = item.original_filename ? (item.original_filename.substring(0, item.original_filename.lastIndexOf('.')) || item.original_filename) : `image_${idx + 1}`;
+                                                const name = `ClarityAI_${base}_nobg.png`;
+                                                const a = document.createElement('a');
+                                                a.href = `/api/download/${item.filename}?name=${encodeURIComponent(name)}`;
+                                                a.download = name;
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                document.body.removeChild(a);
+                                            }, idx * 250);
+                                        });
+                                    } else {
+                                        window.showToast(`⚠️ Lỗi: ${json.message || 'Không thể lưu vào Downloads'}`);
+                                    }
+                                } catch (err) {
+                                    window.showToast(`❌ Lỗi mạng: ${err.message}`);
+                                } finally {
+                                    btnSaveBatchBgToDownloads.disabled = false;
+                                    btnSaveBatchBgToDownloads.innerHTML = oldHtml;
+                                }
+                            };
+                        }
+
+                        bgBatchResultsGrid.innerHTML = '';
+                        result.results.forEach(item => {
+                            const baseName = item.original_filename ? (item.original_filename.substring(0, item.original_filename.lastIndexOf('.')) || item.original_filename) : 'image';
+                            const cleanPngName = `ClarityAI_${baseName}_nobg.png`;
+                            const downloadUrl = `/api/download/${item.filename}?name=${encodeURIComponent(cleanPngName)}`;
+
+                            const card = document.createElement('div');
+                            card.className = 'batch-result-card';
+                            card.innerHTML = `
+                                <div class="batch-result-img-box checkerboard-bg">
+                                    <img src="${item.result_url}" alt="result" class="batch-result-img">
+                                </div>
+                                <div class="batch-result-info">
+                                    <div class="batch-result-filename" title="${item.original_filename}">${item.original_filename}</div>
+                                    <div class="batch-result-dims"><i class="fa-solid fa-check"></i> ${item.stats.duration_sec}s</div>
+                                    <div class="batch-result-bottom" style="display: flex; gap: 6px; width: 100%;">
+                                        <a href="${downloadUrl}" download="${cleanPngName}" class="btn-download-single-png" style="flex: 1; text-align: center; text-decoration: none;">
+                                            <i class="fa-solid fa-download"></i> Tải PNG
+                                        </a>
+                                        <button type="button" class="btn-save-single-bg-download" title="Lưu trực tiếp vào thư mục Downloads" style="padding: 6px 10px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; color: #38bdf8; cursor: pointer;">
+                                            <i class="fa-solid fa-folder-arrow-down"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+
+                            // Add click listener for individual save to downloads
+                            const btnSingleSave = card.querySelector('.btn-save-single-bg-download');
+                            if (btnSingleSave) {
+                                btnSingleSave.onclick = async () => {
+                                    const fd = new FormData();
+                                    fd.append('filename', item.filename);
+                                    fd.append('custom_name', cleanPngName);
+                                    try {
+                                        const r = await fetch('/api/save-to-downloads', { method: 'POST', body: fd });
+                                        const j = await r.json();
+                                        if (j.status === 'success') {
+                                            window.showToast(`💾 Đã lưu vào Downloads: ${j.saved_name || j.filename}`);
+                                        } else {
+                                            window.showToast(`⚠️ ${j.message}`);
+                                        }
+                                    } catch (e) {
+                                        window.showToast(`❌ Lỗi: ${e.message}`);
+                                    }
+                                };
+                            }
+
+                            bgBatchResultsGrid.appendChild(card);
+                        });
+                    } else {
+                        // Single file view
+                        currentBgResultData = result.data;
+                        window.currentActiveResultUrl = result.data.result_url;
+
+                        bgRemoverViewToggles.classList.remove('hidden');
+                        bgRemoverCompareContainer.classList.remove('hidden');
+                        bgRemoverResultFooter.classList.remove('hidden');
+
+                        bgOrigImg.src = result.data.original_url;
+                        bgResultImg.src = result.data.result_url;
+                        bgSingleResultImg.src = result.data.result_url;
+
+                        // Reset slider
+                        bgBeforeWrapper.style.width = '50%';
+                        bgCompareHandle.style.left = '50%';
+
+                        // Metadata
+                        bgMetaDims.textContent = `${result.data.stats.final_width} x ${result.data.stats.final_height}`;
+                        bgMetaDuration.textContent = `${result.data.stats.duration_sec}s`;
+                        bgMetaModel.textContent = result.data.stats.model_name || 'RMBG-1.4 AI';
+                        bgMetaSize.textContent = `${result.data.file_sizes.result_kb} KB`;
+
+                        const singleBase = result.data.original_filename ? (result.data.original_filename.substring(0, result.data.original_filename.lastIndexOf('.')) || result.data.original_filename) : 'image';
+                        const singlePngName = `ClarityAI_${singleBase}_nobg.png`;
+                        const singleJpgName = `ClarityAI_${singleBase}_nobg.jpg`;
+
+                        btnDownloadBgPng.href = `/api/download/${result.data.filename}?name=${encodeURIComponent(singlePngName)}`;
+                        btnDownloadBgPng.setAttribute('download', singlePngName);
+
+                        btnDownloadBgJpg.href = result.data.download_jpg_url || `/api/download-jpg/${result.data.filename}`;
+                        btnDownloadBgJpg.setAttribute('download', singleJpgName);
+
+                        // Save to downloads
+                        if (btnSaveBgToDownloads) {
+                            btnSaveBgToDownloads.onclick = () => {
+                                const fd = new FormData();
+                                fd.append('filename', result.data.filename);
+                                fd.append('custom_name', singlePngName);
+                                fetch('/api/save-to-downloads', { method: 'POST', body: fd })
+                                    .then(r => r.json())
+                                    .then(res => {
+                                        if (res.status === 'success') {
+                                            window.showToast(`💾 Đã lưu vào Downloads: ${res.saved_name || res.filename}`);
+                                        } else {
+                                            window.showToast(`⚠️ Lỗi: ${res.message}`);
+                                        }
+                                    });
+                            };
+                        }
+                    }
+                } else {
+                    bgRemoverStatusBadge.textContent = 'Lỗi xử lý';
+                    bgRemoverStatusBadge.className = 'preview-badge badge-error';
+                    bgRemoverEmptyState.classList.remove('hidden');
+                    window.showToast(`❌ Lỗi: ${result.message || 'Không thể tách nền'}`);
+                }
+            } catch (err) {
+                bgRemoverProcessingState.classList.add('hidden');
+                bgRemoverEmptyState.classList.remove('hidden');
+                bgRemoverStatusBadge.textContent = 'Lỗi kết nối';
+                bgRemoverStatusBadge.className = 'preview-badge badge-error';
+                window.showToast(`❌ Lỗi mạng: ${err.message}`);
+            } finally {
+                btnRunBgRemove.disabled = false;
+            }
+        });
+    }
+
+    // Comparison slider logic for Background Remover
+    if (bgRemoverCompareContainer && bgBeforeWrapper && bgCompareHandle) {
+        let isDraggingBgSlider = false;
+
+        const updateBgSliderPos = (clientX) => {
+            const rect = bgRemoverCompareContainer.getBoundingClientRect();
+            let pos = ((clientX - rect.left) / rect.width) * 100;
+            pos = Math.max(0, Math.min(100, pos));
+            bgBeforeWrapper.style.width = `${pos}%`;
+            bgCompareHandle.style.left = `${pos}%`;
+        };
+
+        bgCompareHandle.addEventListener('mousedown', () => { isDraggingBgSlider = true; });
+        window.addEventListener('mouseup', () => { isDraggingBgSlider = false; });
+        window.addEventListener('mousemove', (e) => {
+            if (isDraggingBgSlider) updateBgSliderPos(e.clientX);
+        });
+
+        // Touch support
+        bgCompareHandle.addEventListener('touchstart', () => { isDraggingBgSlider = true; });
+        window.addEventListener('touchend', () => { isDraggingBgSlider = false; });
+        window.addEventListener('touchmove', (e) => {
+            if (isDraggingBgSlider && e.touches[0]) updateBgSliderPos(e.touches[0].clientX);
+        });
+
+        // Click on container to jump slider
+        bgRemoverCompareContainer.addEventListener('click', (e) => {
+            updateBgSliderPos(e.clientX);
+        });
+    }
+
+    // View toggles (Compare vs Result Only vs Original)
+    if (bgToggleCompare && bgToggleResultOnly && bgToggleOriginal) {
+        bgToggleCompare.addEventListener('click', () => {
+            bgToggleCompare.classList.add('active');
+            bgToggleResultOnly.classList.remove('active');
+            bgToggleOriginal.classList.remove('active');
+            bgRemoverCompareContainer.classList.remove('hidden');
+            bgResultOnlyContainer.classList.add('hidden');
+            bgBeforeWrapper.style.width = '50%';
+            bgCompareHandle.style.left = '50%';
+        });
+
+        bgToggleResultOnly.addEventListener('click', () => {
+            bgToggleResultOnly.classList.add('active');
+            bgToggleCompare.classList.remove('active');
+            bgToggleOriginal.classList.remove('active');
+            bgRemoverCompareContainer.classList.add('hidden');
+            bgResultOnlyContainer.classList.remove('hidden');
+        });
+
+        bgToggleOriginal.addEventListener('click', () => {
+            bgToggleOriginal.classList.add('active');
+            bgToggleCompare.classList.remove('active');
+            bgToggleResultOnly.classList.remove('active');
+            bgRemoverCompareContainer.classList.remove('hidden');
+            bgResultOnlyContainer.classList.add('hidden');
+            bgBeforeWrapper.style.width = '100%';
+            bgCompareHandle.style.left = '100%';
+        });
     }
 });
 

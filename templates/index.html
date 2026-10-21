@@ -57,6 +57,10 @@
                 <button type="button" class="nav-main-tab" id="tabBtnCompressor">
                     <i class="fa-solid fa-file-zipper"></i> Nén Dung Lượng (Target MB)
                 </button>
+                <button type="button" class="nav-main-tab" id="tabBtnBgRemover">
+                    <i class="fa-solid fa-eraser"></i> Xóa Nền AI (RMBG)
+                    <span class="badge-tab-new">MỚI</span>
+                </button>
             </nav>
 
             <div class="nav-status">
@@ -1285,6 +1289,357 @@
 
                     <div class="batch-results-grid" id="compressResultsGrid">
                         <!-- Populated dynamically with individual cards -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW: AI BACKGROUND REMOVER (RMBG-1.4)     -->
+    <!-- ========================================== -->
+    <div id="viewBgRemover" class="app-view hidden">
+        <main class="main-container">
+            <!-- Left Panel: Upload & Background Settings -->
+            <aside class="sidebar-panel">
+                <!-- Step 1: Upload Photo -->
+                <div class="glass-card upload-section">
+                    <div class="card-header">
+                        <div class="step-badge">1</div>
+                        <h2 class="card-title">Tải Ảnh Lên</h2>
+                        <span class="file-counter-badge hidden" id="bgRemoverFileCountBadge">0 ảnh</span>
+                    </div>
+
+                    <div class="drop-zone" id="bgRemoverDropZone">
+                        <input type="file" id="bgRemoverFileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden" multiple>
+                        <div class="drop-content" id="bgRemoverDropPrompt">
+                            <div class="upload-icon-circle">
+                                <i class="fa-solid fa-eraser"></i>
+                            </div>
+                            <p class="drop-title">Kéo & thả ảnh cần tách nền vào đây</p>
+                            <p class="drop-sub">hoặc <span class="highlight-link">chọn tệp từ máy tính</span></p>
+                            <div class="paste-hint">
+                                <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp
+                            </div>
+                            <p class="file-limit-text">Hỗ trợ JPG, PNG, WEBP, BMP (Được chọn nhiều ảnh cùng lúc)</p>
+                        </div>
+
+                        <!-- Uploaded Single Image Thumbnail Preview -->
+                        <div class="upload-preview-wrapper hidden" id="bgRemoverPreviewWrapper">
+                            <img src="" alt="Ảnh tải lên" id="bgRemoverThumb" class="upload-thumb">
+                            <div class="upload-file-meta">
+                                <div class="file-name" id="bgRemoverFileName">ten_anh.jpg</div>
+                                <div class="file-dims" id="bgRemoverFileDims">1080 x 1080 · 1.2 MB</div>
+                            </div>
+                            <button type="button" class="btn-remove-file" id="btnRemoveBgRemoverFile" title="Xóa ảnh">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Multi-image Selected Preview Grid for Batch Background Removal -->
+                    <div class="batch-files-list-wrapper hidden" id="bgRemoverFilesListWrapper">
+                        <div class="batch-list-header">
+                            <span class="batch-list-title">
+                                <i class="fa-solid fa-list-check text-cyan"></i> Đã chọn: <strong id="bgRemoverSelectedCount">0</strong> ảnh
+                            </span>
+                            <button type="button" class="btn-clear-batch" id="btnClearBgRemoverFiles" title="Xóa toàn bộ ảnh đã chọn">
+                                <i class="fa-solid fa-trash-can"></i> Xóa tất cả
+                            </button>
+                        </div>
+                        <div class="batch-files-grid" id="bgRemoverFilesGrid"></div>
+                        <div class="batch-add-more">
+                            <button type="button" class="btn-add-more-files" id="btnAddMoreBgRemoverFiles">
+                                <i class="fa-solid fa-plus"></i> Chọn thêm ảnh khác...
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Sample buttons -->
+                    <div class="sample-presets">
+                        <div class="sample-btn-group">
+                            <button type="button" class="btn-sample" id="btnReuseForBgRemover" title="Dùng ảnh vừa xử lý ở tab trước">
+                                <i class="fa-solid fa-arrow-rotate-right text-cyan"></i> Dùng ảnh vừa xử lý
+                            </button>
+                            <button type="button" class="btn-sample bg-sample-btn" data-sample="portrait">
+                                <i class="fa-solid fa-user"></i> Mẫu người
+                            </button>
+                            <button type="button" class="btn-sample bg-sample-btn" data-sample="dog">
+                                <i class="fa-solid fa-paw"></i> Mẫu Sticker
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: AI Model & Deep Clean Settings -->
+                <div class="glass-card config-section">
+                    <div class="card-header">
+                        <div class="step-badge">2</div>
+                        <h2 class="card-title">Mô Hình AI & Lực Khử Nền</h2>
+                    </div>
+
+                    <!-- AI Model Selector -->
+                    <div class="form-group">
+                        <label class="form-label" for="bgModelSelect">
+                            <i class="fa-solid fa-microchip text-purple"></i> Mô hình tách nền AI:
+                        </label>
+                        <select id="bgModelSelect" class="custom-select">
+                            <option value="rmbg-1.4" selected>⚡ RMBG-1.4 AI (Chuyên Sticker, Đồ Họa & Nhanh Siêu Tốc)</option>
+                            <option value="birefnet">🌟 BiRefNet AI SOTA 2025 (Cực Nét Từng Sợi Tóc & Độ Phân Giải Cao)</option>
+                            <option value="u2net">🎯 U2Net (Cân Bằng Tổng Quát)</option>
+                        </select>
+                    </div>
+
+                    <!-- Clean Mode Selector -->
+                    <div class="form-group" style="margin-top: 14px;">
+                        <label class="form-label" for="bgCleanModeSelect">
+                            <i class="fa-solid fa-shield-virus text-cyan"></i> Chế độ xử lý nền:
+                        </label>
+                        <select id="bgCleanModeSelect" class="custom-select">
+                            <option value="deep_clean" selected>🛡️ Khử Nền Triệt Để (Deep Clean · Quét sạch mảng màu & sương mù)</option>
+                            <option value="standard">🎯 Chuẩn AI (Standard · Phân bổ xác suất AI nguyên bản)</option>
+                            <option value="soft">🌿 Mềm Mại (Soft Matting · Giữ sợi tóc mỏng & vải voan)</option>
+                        </select>
+                    </div>
+
+                    <!-- Sensitivity Slider -->
+                    <div class="form-group" style="margin-top: 14px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <label class="form-label" style="margin-bottom: 0;" for="bgSensitivitySlider">
+                                <i class="fa-solid fa-gauge-high text-yellow"></i> Độ mạnh khử nền (Deep Purge):
+                            </label>
+                            <span id="bgSensitivityVal" style="font-weight: 700; color: #38bdf8; font-size: 0.85rem;">50%</span>
+                        </div>
+                        <input type="range" id="bgSensitivitySlider" min="10" max="95" value="50" step="5" class="custom-range" style="width: 100%; accent-color: #38bdf8;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #94a3b8; margin-top: 4px;">
+                            <span>Nhẹ nhàng (10%)</span>
+                            <span>Mặc định (50%)</span>
+                            <span>Triệt để (95%)</span>
+                        </div>
+                    </div>
+
+                    <!-- De-fringe & Alpha Matting checkboxes -->
+                    <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 8px;">
+                        <label class="custom-checkbox-wrapper">
+                            <input type="checkbox" id="bgDeFringe" checked>
+                            <span class="checkbox-checkmark"></span>
+                            <span class="checkbox-text">
+                                <strong>Khử viền lem màu nền cũ (Edge De-Fringe)</strong>
+                                <small>Triệt tiêu vệt sáng/vệt màu của nền cũ còn dính trên mép nét vẽ</small>
+                            </span>
+                        </label>
+
+                        <label class="custom-checkbox-wrapper">
+                            <input type="checkbox" id="bgFeatherEdge" checked>
+                            <span class="checkbox-checkmark"></span>
+                            <span class="checkbox-text">
+                                <strong>Làm mượt biên mép (Sub-pixel Matting)</strong>
+                                <small>Khử răng cưa và giữ ranh giới nét vẽ mềm mịn tự nhiên</small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Step 3: Background Replacement Options -->
+                <div class="glass-card config-section">
+                    <div class="card-header">
+                        <div class="step-badge">3</div>
+                        <h2 class="card-title">Tùy Chọn Phông Nền Mới</h2>
+                    </div>
+
+                    <div class="bg-options-grid">
+                        <label class="bg-opt-card active" data-color="transparent">
+                            <input type="radio" name="bgRemoverColor" value="transparent" checked class="hidden-radio">
+                            <div class="bg-opt-preview bg-preview-checkerboard"></div>
+                            <div class="bg-opt-info">
+                                <span class="bg-opt-title"><i class="fa-solid fa-chess-board"></i> Trong Suốt (PNG)</span>
+                                <span class="bg-opt-desc">Tách nền sạch chuẩn sticker</span>
+                            </div>
+                        </label>
+
+                        <label class="bg-opt-card" data-color="white">
+                            <input type="radio" name="bgRemoverColor" value="white" class="hidden-radio">
+                            <div class="bg-opt-preview bg-preview-white"></div>
+                            <div class="bg-opt-info">
+                                <span class="bg-opt-title"><i class="fa-solid fa-square text-white"></i> Nền Trắng</span>
+                                <span class="bg-opt-desc">Chuẩn ảnh thẻ & thương mại điện tử</span>
+                            </div>
+                        </label>
+
+                        <label class="bg-opt-card" data-color="black">
+                            <input type="radio" name="bgRemoverColor" value="black" class="hidden-radio">
+                            <div class="bg-opt-preview bg-preview-black"></div>
+                            <div class="bg-opt-info">
+                                <span class="bg-opt-title"><i class="fa-solid fa-square text-dark"></i> Nền Đen</span>
+                                <span class="bg-opt-desc">Studio nghệ thuật & sản phẩm</span>
+                            </div>
+                        </label>
+
+                        <label class="bg-opt-card" data-color="green">
+                            <input type="radio" name="bgRemoverColor" value="green" class="hidden-radio">
+                            <div class="bg-opt-preview bg-preview-green"></div>
+                            <div class="bg-opt-info">
+                                <span class="bg-opt-title"><i class="fa-solid fa-square text-success"></i> Phông Xanh</span>
+                                <span class="bg-opt-desc">Chroma key ghép video/ảnh</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Custom Color Picker Row -->
+                    <div class="bg-custom-color-row">
+                        <span class="custom-color-label"><i class="fa-solid fa-palette text-cyan"></i> Hoặc chọn màu phông tùy ý:</span>
+                        <div class="color-picker-box">
+                            <input type="color" id="bgCustomColorPicker" value="#3b82f6" class="color-input">
+                            <span class="color-code" id="bgCustomColorCode">#3B82F6</span>
+                            <button type="button" class="btn-apply-color" id="btnApplyCustomColor">Áp dụng</button>
+                        </div>
+                    </div>
+
+
+                </div>
+
+                <!-- Step 3: Run Action Button -->
+                <div class="action-section">
+                    <button type="button" class="btn-enhance-magic" id="btnRunBgRemove" disabled>
+                        <span class="btn-content">
+                            <i class="fa-solid fa-eraser"></i>
+                            <span class="btn-text-main" id="btnBgRemoveText">Tách Nền Bằng AI</span>
+                            <span class="btn-text-sub">Mô hình RMBG-1.4 · NVIDIA RTX 3060 CUDA</span>
+                        </span>
+                        <div class="btn-shimmer"></div>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Result Preview & Interactive Tools -->
+            <section class="preview-panel">
+                <div class="glass-card preview-card">
+                    <!-- Header with Title & View Toggles -->
+                    <div class="preview-header">
+                        <div class="preview-title-group">
+                            <h2 class="preview-title">
+                                <i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> Kết Quả Tách Nền AI
+                            </h2>
+                            <span class="preview-badge" id="bgRemoverStatusBadge">Chờ xử lý</span>
+                        </div>
+
+                        <div class="view-toggles hidden" id="bgRemoverViewToggles">
+                            <button type="button" class="btn-toggle active" id="bgToggleCompare" title="So sánh trước/sau">
+                                <i class="fa-solid fa-sliders"></i> So Sánh
+                            </button>
+                            <button type="button" class="btn-toggle" id="bgToggleResultOnly" title="Chỉ xem ảnh đã tách nền">
+                                <i class="fa-solid fa-image"></i> Ảnh Tách Nền
+                            </button>
+                            <button type="button" class="btn-toggle" id="bgToggleOriginal" title="Xem ảnh gốc">
+                                <i class="fa-solid fa-clock-rotate-left"></i> Ảnh Gốc
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Canvas/Preview Area -->
+                    <div class="preview-viewport" id="bgRemoverViewport">
+                        <!-- Empty Placeholder State -->
+                        <div class="empty-state" id="bgRemoverEmptyState">
+                            <div class="empty-icon-wrap">
+                                <i class="fa-solid fa-eraser empty-icon"></i>
+                            </div>
+                            <h3 class="empty-title">Chưa Có Ảnh Nào Được Tách Nền</h3>
+                            <p class="empty-desc">Tải ảnh lên ở cột bên trái và nhấn <strong>"Tách Nền Bằng AI"</strong> để xem kết quả sắc nét tức thì.</p>
+                        </div>
+
+                        <!-- Processing State -->
+                        <div class="processing-state hidden" id="bgRemoverProcessingState">
+                            <div class="scanner-wrap">
+                                <div class="scanner-circle"></div>
+                                <i class="fa-solid fa-eraser scanner-icon"></i>
+                            </div>
+                            <h3 class="processing-title">Đang Tách Nền Với RMBG-1.4...</h3>
+                            <p class="processing-desc">Phân tách chủ thể và xử lý viền tóc bằng GPU RTX 3060</p>
+                            <div class="progress-bar-wrap">
+                                <div class="progress-bar-fill indeterminate"></div>
+                            </div>
+                        </div>
+
+                        <!-- Interactive Before/After Compare View -->
+                        <div class="compare-container hidden checkerboard-bg" id="bgRemoverCompareContainer">
+                            <!-- Background (Result Image) -->
+                            <img src="" alt="Ảnh đã tách nền" id="bgResultImg" class="compare-img compare-after">
+
+                            <!-- Foreground (Original Image) with Clip -->
+                            <div class="compare-before-wrapper" id="bgBeforeWrapper">
+                                <img src="" alt="Ảnh gốc" id="bgOrigImg" class="compare-img compare-before">
+                            </div>
+
+                            <!-- Interactive Slider Bar -->
+                            <div class="compare-handle" id="bgCompareHandle">
+                                <div class="handle-line"></div>
+                                <div class="handle-button">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </div>
+                            </div>
+
+                            <!-- Overlay Labels -->
+                            <span class="label-before">GỐC</span>
+                            <span class="label-after">ĐÃ TÁCH NỀN</span>
+                        </div>
+
+                        <!-- Result Only View -->
+                        <div class="result-only-container hidden checkerboard-bg" id="bgResultOnlyContainer">
+                            <img src="" alt="Ảnh kết quả tách nền" id="bgSingleResultImg" class="single-result-img">
+                        </div>
+                    </div>
+
+                    <!-- Result Metadata & Action Bar -->
+                    <div class="result-footer hidden" id="bgRemoverResultFooter">
+                        <div class="meta-chips">
+                            <div class="chip">
+                                <i class="fa-solid fa-expand text-cyan"></i>
+                                <span id="bgMetaDims">1080 x 1080</span>
+                            </div>
+                            <div class="chip">
+                                <i class="fa-solid fa-clock text-cyan"></i>
+                                <span id="bgMetaDuration">0.25s</span>
+                            </div>
+                            <div class="chip">
+                                <i class="fa-solid fa-brain text-cyan"></i>
+                                <span id="bgMetaModel">RMBG-1.4 AI</span>
+                            </div>
+                            <div class="chip">
+                                <i class="fa-solid fa-file-arrow-down text-cyan"></i>
+                                <span id="bgMetaSize">1.2 MB</span>
+                            </div>
+                        </div>
+
+                        <div class="download-action-group">
+                            <a href="#" download class="btn-download-primary" id="btnDownloadBgPng">
+                                <i class="fa-solid fa-download"></i> Tải PNG Trong Suốt
+                            </a>
+                            <a href="#" download class="btn-download-secondary" id="btnDownloadBgJpg">
+                                <i class="fa-solid fa-file-image"></i> Tải JPG
+                            </a>
+                            <button type="button" class="btn-download-secondary" id="btnSaveBgToDownloads" title="Lưu trực tiếp vào thư mục Downloads">
+                                <i class="fa-solid fa-folder-arrow-down text-cyan"></i> Lưu Vào Downloads
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Batch Results Grid (Hidden by default, shown when multi-file batch runs) -->
+                    <div class="batch-results-container hidden" id="bgBatchResultsContainer">
+                        <div class="batch-results-header">
+                            <h3 class="batch-results-title">
+                                <i class="fa-solid fa-circle-check text-success"></i> Đã Tách Nền Xong <span id="bgBatchSuccessCount">0</span> Ảnh
+                            </h3>
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <button type="button" class="btn-download-zip" id="btnSaveBatchBgToDownloads" style="background: linear-gradient(135deg, #0284c7, #2563eb); border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-folder-arrow-down"></i> Lưu Tất Cả Vào Downloads
+                                </button>
+                                <a href="#" download class="btn-download-zip" id="btnDownloadBgZip" title="Tải file nén .ZIP về máy" style="opacity: 0.85; font-size: 0.82rem; background: rgba(255, 255, 255, 0.08);">
+                                    <i class="fa-solid fa-file-zipper"></i> Tải Tệp ZIP
+                                </a>
+                            </div>
+                        </div>
+                        <div class="batch-results-grid" id="bgBatchResultsGrid"></div>
                     </div>
                 </div>
             </section>

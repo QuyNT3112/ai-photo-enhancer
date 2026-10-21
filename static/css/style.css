@@ -3629,4 +3629,179 @@ input:checked + .slider:before {
     40% { transform: scale(1); opacity: 1; }
 }
 
+/* =========================================================================
+   SECTION: AI BACKGROUND REMOVER STYLES (RMBG-1.4)
+   ========================================================================= */
+
+.checkerboard-bg {
+    background-color: #12151e !important;
+    background-image: 
+        linear-gradient(45deg, #1e2230 25%, transparent 25%), 
+        linear-gradient(-45deg, #1e2230 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #1e2230 75%), 
+        linear-gradient(-45deg, transparent 75%, #1e2230 75%) !important;
+    background-size: 24px 24px !important;
+    background-position: 0 0, 0 12px, 12px -12px, -12px 0px !important;
+}
+
+.bg-options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.bg-opt-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.bg-opt-card:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.bg-opt-card.active {
+    background: rgba(6, 182, 212, 0.12);
+    border-color: var(--primary);
+    box-shadow: 0 0 14px rgba(6, 182, 212, 0.25);
+}
+
+.bg-opt-preview {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+}
+
+.bg-preview-checkerboard {
+    background-color: #12151e;
+    background-image: 
+        linear-gradient(45deg, #242938 25%, transparent 25%), 
+        linear-gradient(-45deg, #242938 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #242938 75%), 
+        linear-gradient(-45deg, transparent 75%, #242938 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+}
+
+.bg-preview-white {
+    background-color: #ffffff;
+}
+
+.bg-preview-black {
+    background-color: #0b0f19;
+}
+
+.bg-preview-green {
+    background-color: #00ff00;
+}
+
+.bg-opt-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.bg-opt-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.bg-opt-desc {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bg-custom-color-row {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.custom-color-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.color-picker-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-input {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: none;
+    padding: 0;
+}
+
+.color-code {
+    font-family: var(--font-heading);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-glass);
+}
+
+.btn-apply-color {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--primary);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-apply-color:hover {
+    background: var(--primary);
+    color: #000;
+}
+
+.bg-feather-toggle {
+    margin-top: 6px;
+}
+
+.hidden-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+
 
