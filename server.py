@@ -5,6 +5,18 @@ Runs on http://127.0.0.1:7860
 
 import os
 import sys
+
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 import uuid
 import time
 import json
@@ -1681,14 +1693,14 @@ def api_generate_image():
         mode = request.form.get('mode', 't2i').strip().lower()
         prompt = request.form.get('prompt', '').strip()
         negative_prompt = request.form.get('negative_prompt', '').strip()
-        style_preset = request.form.get('style_preset', 'none').strip()
+        style_preset = request.form.get('style_preset', 'auto').strip()
         model_id = request.form.get('model_id', 'runwayml/stable-diffusion-v1-5').strip()
         aspect_ratio = request.form.get('aspect_ratio', '1:1').strip()
         
         try:
-            steps = int(request.form.get('steps', 20))
+            steps = int(request.form.get('steps', 25))
         except (ValueError, TypeError):
-            steps = 20
+            steps = 25
 
         try:
             cfg_scale = float(request.form.get('cfg_scale', 7.5))
@@ -1709,9 +1721,9 @@ def api_generate_image():
 
         if mode == 'i2i':
             try:
-                strength = float(request.form.get('strength', 0.65))
+                strength = float(request.form.get('strength', 0.45))
             except (ValueError, TypeError):
-                strength = 0.65
+                strength = 0.45
 
             input_img = None
             orig_filename = "init_image.jpg"

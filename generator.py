@@ -5,9 +5,22 @@ Supports Text-to-Image, Image-to-Image, Style Presets, and Local Model Caching
 """
 
 import os
+import sys
 import time
 import random
 from typing import Optional, Dict, Any, List
+
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 import torch
 from PIL import Image
 from diffusers import (
@@ -15,6 +28,17 @@ from diffusers import (
     StableDiffusionImg2ImgPipeline,  # type: ignore
     DPMSolverMultistepScheduler  # type: ignore
 )
+
+def safe_print(msg: str):
+    """Safely print message without throwing UnicodeEncodeError on Windows terminals."""
+    try:
+        print(msg)
+    except Exception:
+        try:
+            print(msg.encode('ascii', 'replace').decode('ascii'))
+        except Exception:
+            pass
+
 
 # Supported Models List
 SUPPORTED_MODELS = [
@@ -24,6 +48,13 @@ SUPPORTED_MODELS = [
         "badge": "Khuyên dùng - Sẵn sàng",
         "type": "sd15",
         "desc": "Mô hình đa năng đã nạp sẵn cục bộ trên máy, tốc độ sinh ảnh cực nhanh 2-3 giây trên GPU RTX 3060."
+    },
+    {
+        "id": "prompthero/openjourney",
+        "name": "🌌 Openjourney v4 (Phong Cách Nghệ Thuật Midjourney)",
+        "badge": "Artistic - Đã nạp sẵn",
+        "type": "sd15",
+        "desc": "Tái hiện phong cách hội họa nghệ thuật độc đáo, trừu tượng và ma mị tương tự Midjourney v4."
     },
     {
         "id": "Lykon/dreamshaper-8",
@@ -38,72 +69,121 @@ SUPPORTED_MODELS = [
         "badge": "Siêu nét",
         "type": "sd15",
         "desc": "Mô hình chuyên dụng tái tạo chất lượng da người, ánh sáng studio và chi tiết phong cảnh như máy ảnh DSLR."
-    },
-    {
-        "id": "prompthero/openjourney",
-        "name": "🌌 Openjourney v4 (Phong Cách Midjourney)",
-        "badge": "Artistic",
-        "type": "sd15",
-        "desc": "Tái hiện phong cách hội họa nghệ thuật độc đáo, trừu tượng và ma mị tương tự Midjourney."
     }
 ]
 
-# Curated Style Presets
+# Smart Bilingual Translation & Semantic Understanding
+def smart_translate_prompt(text: str) -> str:
+    """Translates Vietnamese prompt to English if needed, preserving 100% of keywords and context."""
+    text_clean = text.strip()
+    if not text_clean:
+        return ""
+    vietnamese_chars = set("àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ"
+                           "ÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ")
+    if not any(c in vietnamese_chars for c in text_clean):
+        return text_clean
+    try:
+        import urllib.request, urllib.parse, json
+        url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=" + urllib.parse.quote(text_clean)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            translated = "".join([part[0] for part in data[0] if part and part[0]])
+            if translated and translated.strip():
+                return translated.strip()
+    except Exception as e:
+        print(f"[ImageGenerator] Smart translation fallback: {e}")
+    return text_clean
+
+
+def detect_style_from_prompt(prompt_en: str) -> str:
+    """Detects artistic style from English prompt keywords to prevent style mismatch."""
+    p = prompt_en.lower()
+    if any(k in p for k in ["anime", "manga", "waifu", "shinkai", "chibi", "2d illustration", "cel shaded", "comic", "pixiv", "hoạt hình nhật"]):
+        return "anime"
+    if any(k in p for k in ["3d", "pixar", "disney", "cgi", "octane render", "clay", "unreal engine", "3d character"]):
+        return "pixar3d"
+    if any(k in p for k in ["cyberpunk", "neon", "sci-fi", "futuristic", "mecha", "blade runner", "night city"]):
+        return "cyberpunk"
+    if any(k in p for k in ["photo", "portrait", "dslr", "photograph", "real life", "skin texture", "85mm", "raw photo"]):
+        return "photorealistic"
+    if any(k in p for k in ["fantasy", "dragon", "magic", "mythical", "castle", "ethereal", "wizard", "elf"]):
+        return "fantasy"
+    if any(k in p for k in ["vintage", "retro", "1970s", "1980s", "film grain", "analog", "kodak"]):
+        return "vintage"
+    if any(k in p for k in ["cinematic", "film still", "movie scene", "dramatic lighting", "anamorphic"]):
+        return "cinematic"
+    return "general"
+
+
+# Curated Style Presets (Harmonized, No Style-Clashing)
 STYLE_PRESETS = {
-    "none": {
-        "name": "Tự do (Không áp dụng phong cách)",
+    "auto": {
+        "name": "✨ Tự động bám sát Prompt & Phong cách ảnh gốc (Auto)",
         "prompt_prefix": "",
-        "prompt_suffix": ", high quality, detailed",
-        "negative": "blurry, low quality, distorted"
+        "prompt_suffix": ", masterpiece, highly detailed, sharp focus, vibrant colors, 8k uhd",
+        "negative": "worst quality, low quality, normal quality, blurry, lowres, bad anatomy, bad hands, deformed, watermark"
     },
-    "cinematic": {
-        "name": "🎬 Điện Ảnh 8K (Cinematic Movie)",
-        "prompt_prefix": "cinematic film still, 35mm photograph, dramatic lighting, ",
-        "prompt_suffix": ", anamorphic lens flare, sharp focus, 8k uhd, photorealistic, masterpiece",
-        "negative": "cartoon, 3d render, blurry, low resolution, oversaturated, amateur photography"
+    "none": {
+        "name": "Tự do (Nguyên bản theo Prompt)",
+        "prompt_prefix": "",
+        "prompt_suffix": ", sharp focus, high quality",
+        "negative": "worst quality, low quality, blurry, distorted"
     },
-    "photorealistic": {
-        "name": "📸 Nhiếp Ảnh Đời Thực (Photorealistic DSLR)",
-        "prompt_prefix": "professional ultra-detailed photograph, realistic skin texture, natural studio lighting, ",
-        "prompt_suffix": ", 85mm portrait lens, f/1.8 aperture, raw photo, 8k resolution, crisp details",
-        "negative": "painting, drawing, illustration, anime, cartoon, 3d, airbrushed, plastic skin, distorted anatomy"
+    "original": {
+        "name": "🖼️ Giữ nguyên phong cách & màu sắc ảnh gốc (Style Lock I2I)",
+        "prompt_prefix": "",
+        "prompt_suffix": ", masterpiece, highly detailed, crisp clean lines, vibrant colors, preserve original artwork style",
+        "negative": "worst quality, low quality, blurry, noise, artifacts, distorted features, bad anatomy, watermark"
     },
     "anime": {
         "name": "🌸 Anime Makoto Shinkai (Hoạt Hình Nhật Bản)",
-        "prompt_prefix": "anime aesthetic masterpiece, makoto shinkai style, vivid colors, atmospheric scenery, ",
-        "prompt_suffix": ", stunning sky, beautiful detailed digital illustration, trending on pixiv, 4k",
-        "negative": "photorealistic, real life photo, western cartoon, low quality, bad anatomy, deformed"
+        "prompt_prefix": "masterpiece anime illustration, ",
+        "prompt_suffix": ", Makoto Shinkai aesthetic, vibrant colors, breathtaking scenery, atmospheric lighting, trending on pixiv, 4k",
+        "negative": "photorealistic, real life photo, western cartoon, 3d render, low quality, bad anatomy, deformed"
     },
-    "cyberpunk": {
-        "name": "🌃 Cyberpunk Neon (Khoa Học Viễn Tưởng)",
-        "prompt_prefix": "cyberpunk sci-fi aesthetic, vibrant glowing neon lights, futuristic city reflections, ",
-        "prompt_suffix": ", volumetric mist, dark night atmosphere, high tech cyberpunk art, 8k octane render",
-        "negative": "daylight, vintage, traditional, blurry, lowres, oversaturated, bad composition"
+    "photorealistic": {
+        "name": "📸 Nhiếp Ảnh Đời Thực (Photorealistic DSLR)",
+        "prompt_prefix": "professional ultra-detailed photograph, ",
+        "prompt_suffix": ", natural skin texture, studio lighting, 85mm portrait lens, f/1.8 aperture, raw photo, 8k uhd, crisp details",
+        "negative": "painting, drawing, illustration, anime, cartoon, 3d render, airbrushed, plastic skin, deformed, blurry"
+    },
+    "cinematic": {
+        "name": "🎬 Điện Ảnh 8K (Cinematic Movie)",
+        "prompt_prefix": "cinematic film still, 35mm photograph, dramatic atmosphere, ",
+        "prompt_suffix": ", anamorphic lens flare, sharp focus, 8k uhd, photorealistic, color graded masterpiece",
+        "negative": "cartoon, 3d render, blurry, low resolution, oversaturated, amateur photography"
     },
     "pixar3d": {
         "name": "🧸 3D Hoạt Hình Pixar / Disney",
-        "prompt_prefix": "cute 3d character render, pixar disney modern animation style, smooth clay textures, ",
-        "prompt_suffix": ", expressive eyes, soft studio lighting, octane render, unreal engine 5, ray tracing",
-        "negative": "realistic photo, creepy, ugly, deformed, dark, grainy, 2d drawing"
+        "prompt_prefix": "cute 3d character animation render, ",
+        "prompt_suffix": ", modern Pixar Disney studio style, smooth clay textures, expressive eyes, soft studio lighting, octane render, ray tracing",
+        "negative": "realistic human photo, creepy, ugly, deformed, dark, grainy, 2d drawing, sketch"
+    },
+    "cyberpunk": {
+        "name": "🌃 Cyberpunk Neon (Khoa Học Viễn Tưởng)",
+        "prompt_prefix": "cyberpunk sci-fi aesthetic, ",
+        "prompt_suffix": ", vibrant glowing neon lights, futuristic city reflections, volumetric mist, dark night atmosphere, 8k octane render",
+        "negative": "daylight, vintage, traditional, blurry, lowres, oversaturated, bad composition"
     },
     "fantasy": {
         "name": "🏰 Thần Thoại & Giả Tưởng (Epic Fantasy)",
-        "prompt_prefix": "epic fantasy digital painting, mystical glowing ambiance, intricate ethereal details, ",
-        "prompt_suffix": ", concept art by greg rutkowski, artstation trending, dramatic majestic composition",
+        "prompt_prefix": "epic fantasy digital painting, ",
+        "prompt_suffix": ", mystical glowing ambiance, intricate ethereal details, concept art by Greg Rutkowski, artstation trending",
         "negative": "modern, futuristic, cars, blurry, poor quality, bad proportions, watermark"
     },
     "vintage": {
         "name": "🎞️ Phim Cổ Điển Retro (Vintage 1970s)",
-        "prompt_prefix": "vintage 1970s kodak film photograph, muted retro warm tones, subtle film grain, ",
-        "prompt_suffix": ", nostalgic mood, classic composition, authentic analog camera texture",
+        "prompt_prefix": "vintage 1970s Kodak film photograph, ",
+        "prompt_suffix": ", muted retro warm tones, subtle film grain, nostalgic mood, classic analog camera texture",
         "negative": "modern digital, ultra-sharp, cgi, futuristic, oversaturated, clean"
     }
 }
 
 DEFAULT_NEGATIVE_PROMPT = (
-    "ugly, deformed, disfigured, poor anatomy, bad hands, missing fingers, "
-    "extra digits, blurry, low quality, pixelated, watermark, signature, grainy, "
-    "low resolution, bad eyes, poorly drawn face, out of focus, cropped"
+    "worst quality, low quality, normal quality, lowres, blurry, bad anatomy, "
+    "bad hands, missing fingers, extra digits, deformed, disfigured, poorly drawn face, "
+    "bad eyes, mutation, extra limbs, watermark, signature, text, out of focus, cropped"
 )
 
 PROMPT_SUGGESTIONS = [
@@ -201,6 +281,10 @@ class ImageGenerator:
         self.t2i_pipe.to(self.device)
         if self.device == "cuda":
             self.t2i_pipe.enable_attention_slicing()
+            try:
+                self.t2i_pipe.enable_vae_slicing()
+            except Exception:
+                pass
 
         # Share components with I2I pipeline (Zero extra VRAM!)
         i2i_cls: Any = StableDiffusionImg2ImgPipeline
@@ -217,64 +301,106 @@ class ImageGenerator:
         self.i2i_pipe.to(self.device)
         if self.device == "cuda":
             self.i2i_pipe.enable_attention_slicing()
+            try:
+                self.i2i_pipe.enable_vae_slicing()
+            except Exception:
+                pass
 
         self.current_model_id = model_id
         print(f"[ImageGenerator] Pipeline {model_id} ready in {time.time() - t0:.2f}s!")
 
     def _resolve_aspect_dimensions(self, ratio_str: str, custom_w: Optional[int] = None, custom_h: Optional[int] = None):
-        """Calculates pixel dimensions aligned to multiples of 64."""
+        """Calculates pixel dimensions aligned to multiples of 64 optimized for SD1.5 without duplication."""
         if custom_w and custom_h and custom_w > 0 and custom_h > 0:
             w = (int(custom_w) // 64) * 64
             h = (int(custom_h) // 64) * 64
             return max(256, min(1024, w)), max(256, min(1024, h))
 
+        # Optimized SD1.5 resolutions avoiding repetitive double heads
         ratio_map = {
             "1:1": (512, 512),
-            "9:16": (512, 896),
-            "16:9": (896, 512),
+            "9:16": (512, 768),
+            "16:9": (768, 512),
             "4:3": (640, 480),
             "3:4": (480, 640),
             "square": (512, 512),
-            "vertical": (512, 896),
-            "horizontal": (896, 512)
+            "vertical": (512, 768),
+            "horizontal": (768, 512)
         }
         return ratio_map.get(ratio_str, (512, 512))
 
-    def _format_prompt(self, prompt: str, style_key: str, negative_prompt: Optional[str] = None):
-        """Applies style presets to positive and negative prompts."""
-        style = STYLE_PRESETS.get(style_key, STYLE_PRESETS["none"])
-        
-        full_positive = f"{style['prompt_prefix']}{prompt.strip()}{style['prompt_suffix']}"
-        
+    def _format_prompt(self, prompt: str, style_key: str = "auto", negative_prompt: Optional[str] = None):
+        """
+        Translates, cleans, and applies appropriate style enhancements without clashing.
+        """
+        import re
+        # 1. Smart translation
+        prompt_en = smart_translate_prompt(prompt).strip()
+
+        # 2. Determine effective style
+        detected_style = detect_style_from_prompt(prompt_en)
+        effective_style_key = style_key
+
+        if style_key in ("auto", "", None):
+            effective_style_key = detected_style if detected_style != "general" else "auto"
+
+        style = STYLE_PRESETS.get(effective_style_key, STYLE_PRESETS["auto"])
+
+        # 3. Assemble Positive Prompt
+        prefix = style.get("prompt_prefix", "")
+        suffix = style.get("prompt_suffix", "")
+
+        # Avoid redundant prefix if user prompt already specifies it
+        if prefix and prefix.strip().lower() in prompt_en.lower():
+            full_positive = f"{prompt_en}{suffix}"
+        else:
+            full_positive = f"{prefix}{prompt_en}{suffix}"
+
+        full_positive = re.sub(r',\s*,+', ', ', full_positive).strip(', ')
+
+        # 4. Assemble Negative Prompt
         neg_parts = []
         if negative_prompt and negative_prompt.strip():
-            neg_parts.append(negative_prompt.strip())
+            translated_neg = smart_translate_prompt(negative_prompt.strip())
+            neg_parts.append(translated_neg)
+
         if style.get("negative"):
             neg_parts.append(style["negative"])
+
         neg_parts.append(DEFAULT_NEGATIVE_PROMPT)
-        
-        full_negative = ", ".join(neg_parts)
-        return full_positive, full_negative
+
+        # De-duplicate negative keywords
+        all_negs = ", ".join(neg_parts)
+        seen_words = set()
+        clean_negs = []
+        for word in [w.strip() for w in all_negs.split(',') if w.strip()]:
+            w_lower = word.lower()
+            if w_lower not in seen_words:
+                seen_words.add(w_lower)
+                clean_negs.append(word)
+
+        full_negative = ", ".join(clean_negs)
+        return full_positive, full_negative, prompt_en, effective_style_key
 
     def generate_text_to_image(
         self,
         prompt: str,
         negative_prompt: Optional[str] = None,
-        style_preset: str = "none",
+        style_preset: str = "auto",
         aspect_ratio: str = "1:1",
         width: Optional[int] = None,
         height: Optional[int] = None,
-        steps: int = 20,
+        steps: int = 25,
         cfg_scale: float = 7.5,
         seed: int = -1,
         model_id: str = "runwayml/stable-diffusion-v1-5"
     ):
-        """Generates an image from text prompt."""
+        """Generates an image from text prompt with full semantic understanding."""
         t0 = time.time()
         self._ensure_pipeline(model_id)
 
         w, h = self._resolve_aspect_dimensions(aspect_ratio, width, height)
-        full_prompt, full_negative = self._format_prompt(prompt, style_preset, negative_prompt)
+        full_prompt, full_negative, prompt_en, effective_style = self._format_prompt(prompt, style_preset, negative_prompt)
 
         # Seed handling
         if seed is None or int(seed) < 0:
@@ -284,10 +410,10 @@ class ImageGenerator:
 
         generator = torch.Generator(device=self.device).manual_seed(actual_seed)
 
-        steps = max(10, min(50, int(steps)))
-        cfg_scale = max(1.0, min(20.0, float(cfg_scale)))
+        steps = max(10, min(50, int(steps or 25)))
+        cfg_scale = max(1.0, min(20.0, float(cfg_scale or 7.5)))
 
-        print(f"[ImageGenerator] T2I: '{prompt[:40]}...' ({w}x{h}, {steps} steps, seed {actual_seed})")
+        safe_print(f"[ImageGenerator] T2I: '{prompt[:35]}...' -> EN: '{prompt_en[:35]}...' ({w}x{h}, {steps} steps, style: {effective_style}, seed {actual_seed})")
 
         with torch.inference_mode():
             result = self.t2i_pipe(
@@ -306,7 +432,10 @@ class ImageGenerator:
         meta = {
             "mode": "t2i",
             "prompt": prompt,
+            "translated_prompt": prompt_en,
+            "final_positive": full_prompt,
             "style_preset": style_preset,
+            "applied_style": effective_style,
             "width": w,
             "height": h,
             "steps": steps,
@@ -323,25 +452,45 @@ class ImageGenerator:
         input_image: Image.Image,
         prompt: str,
         negative_prompt: Optional[str] = None,
-        style_preset: str = "none",
-        strength: float = 0.65,
-        steps: int = 20,
+        style_preset: str = "auto",
+        strength: float = 0.45,
+        steps: int = 25,
         cfg_scale: float = 7.5,
         seed: int = -1,
         model_id: str = "runwayml/stable-diffusion-v1-5"
     ):
-        """Generates a transformed image from an existing input image."""
+        """
+        Generates a transformed image from an existing input image.
+        Uses strength 0.45 default to preserve the source image style, composition, and colors.
+        """
         t0 = time.time()
         self._ensure_pipeline(model_id)
 
-        full_prompt, full_negative = self._format_prompt(prompt, style_preset, negative_prompt)
+        # In I2I, if style is auto/original and prompt doesn't ask for a new style, preserve original artwork style
+        if style_preset in ("auto", "original", "", None):
+            detected_style = detect_style_from_prompt(smart_translate_prompt(prompt))
+            if detected_style == "general":
+                effective_preset = "original"
+            else:
+                effective_preset = detected_style
+        else:
+            effective_preset = style_preset
 
-        # Resize input image to multiples of 64 preserving max dimension ~768
+        full_prompt, full_negative, prompt_en, effective_style = self._format_prompt(prompt, effective_preset, negative_prompt)
+
+        # Maintain exact aspect ratio aligned to multiples of 64
         orig_w, orig_h = input_image.size
-        scale = min(768 / orig_w, 768 / orig_h, 1.0)
-        target_w = max(256, (int(orig_w * scale) // 64) * 64)
-        target_h = max(256, (int(orig_h * scale) // 64) * 64)
-        
+        # For optimal SD1.5 diffusion quality, ensure target dimensions are at least 512 on the longer side (and max 768)
+        if max(orig_w, orig_h) < 512:
+            scale = 512.0 / max(orig_w, orig_h)
+        else:
+            scale = min(768.0 / max(orig_w, orig_h), 1.0)
+
+        target_w = max(384, int(round((orig_w * scale) / 64.0)) * 64)
+        target_h = max(384, int(round((orig_h * scale) / 64.0)) * 64)
+        target_w = min(1024, target_w)
+        target_h = min(1024, target_h)
+
         resized_image = input_image.convert("RGB").resize((target_w, target_h), Image.Resampling.LANCZOS)
 
         # Seed handling
@@ -352,11 +501,11 @@ class ImageGenerator:
 
         generator = torch.Generator(device=self.device).manual_seed(actual_seed)
 
-        steps = max(10, min(50, int(steps)))
-        cfg_scale = max(1.0, min(20.0, float(cfg_scale)))
-        strength = max(0.1, min(0.95, float(strength)))
+        steps = max(10, min(50, int(steps or 25)))
+        cfg_scale = max(1.0, min(20.0, float(cfg_scale or 7.5)))
+        strength = max(0.1, min(0.95, float(strength or 0.45)))
 
-        print(f"[ImageGenerator] I2I: '{prompt[:40]}...' ({target_w}x{target_h}, strength {strength}, seed {actual_seed})")
+        safe_print(f"[ImageGenerator] I2I: '{prompt[:35]}...' -> EN: '{prompt_en[:35]}...' ({target_w}x{target_h}, strength {strength}, style: {effective_style}, seed {actual_seed})")
 
         with torch.inference_mode():
             result = self.i2i_pipe(
@@ -375,7 +524,10 @@ class ImageGenerator:
         meta = {
             "mode": "i2i",
             "prompt": prompt,
+            "translated_prompt": prompt_en,
+            "final_positive": full_prompt,
             "style_preset": style_preset,
+            "applied_style": effective_style,
             "original_width": orig_w,
             "original_height": orig_h,
             "width": target_w,

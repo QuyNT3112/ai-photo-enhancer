@@ -2818,12 +2818,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = parseFloat(e.target.value);
             if (genStrengthVal) genStrengthVal.textContent = val.toFixed(2);
             if (genStrengthHint) {
-                if (val <= 0.45) {
-                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Bảo toàn)</b>: Giữ gần như tuyệt đối nét ảnh gốc, chỉ phủ lớp màu hoặc ánh sáng nhẹ.`;
-                } else if (val <= 0.75) {
-                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Cân bằng - Khuyên dùng)</b>: Giữ bố cục & dáng vẻ tổng thể, biến đổi phong cách và chi tiết theo Prompt.`;
+                if (val <= 0.35) {
+                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Bảo toàn cao)</b>: Giữ tối đa đường nét, phong cách và màu sắc ảnh gốc, chỉ tinh chỉnh nhẹ.`;
+                } else if (val <= 0.55) {
+                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Cân bằng - Khuyên dùng)</b>: Giữ trọn vẹn nét vẽ & phong cách ảnh gốc, bổ sung chi tiết theo Prompt.`;
                 } else {
-                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Sáng tạo mạnh)</b>: Tự do tạo hình mới mẻ, chỉ mượn vị trí mảng màu đại khái của ảnh gốc.`;
+                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Biến đổi mạnh)</b>: Chuyển đổi sang phong cách mới, dựa trên hình khối ảnh nguồn.`;
                 }
             }
         });
@@ -2935,17 +2935,17 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('mode', currentGenMode);
             formData.append('prompt', promptText);
             formData.append('negative_prompt', genNegativePrompt?.value?.trim() || '');
-            formData.append('style_preset', genStylePreset?.value || 'none');
+            formData.append('style_preset', genStylePreset?.value || 'auto');
             formData.append('model_id', genModelSelect?.value || 'runwayml/stable-diffusion-v1-5');
 
             const selectedRatio = document.querySelector('input[name="genAspectRatio"]:checked')?.value || '1:1';
             formData.append('aspect_ratio', selectedRatio);
-            formData.append('steps', genSteps?.value || 20);
+            formData.append('steps', genSteps?.value || 25);
             formData.append('cfg_scale', genCfg?.value || 7.5);
             formData.append('seed', genSeed?.value || -1);
 
             if (currentGenMode === 'i2i') {
-                formData.append('strength', genStrength?.value || 0.65);
+                formData.append('strength', genStrength?.value || 0.45);
                 if (currentGenFile) {
                     formData.append('image', currentGenFile);
                 } else if (currentGenSourceFilename) {
@@ -3193,7 +3193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnRunPromptOpt.disabled = true;
 
         try {
-            const currentStyle = genStylePreset ? genStylePreset.value : 'cinematic';
+            const currentStyle = genStylePreset ? genStylePreset.value : 'auto';
             const res = await fetch('/api/llm/optimize-prompt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

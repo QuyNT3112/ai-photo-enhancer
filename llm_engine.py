@@ -579,25 +579,27 @@ class LLMEngine:
         return {"status": "success", "data": expanded}
 
     def _semantic_expand_prompt(self, text: str, style_name: str, ratio: Optional[str]) -> Dict[str, Any]:
-        """High-speed offline semantic expander with rich art rules."""
-        style_info = ART_STYLE_TEMPLATES.get(style_name, ART_STYLE_TEMPLATES["cinematic"])
+        """High-speed offline semantic expander with complete context preservation."""
+        from generator import smart_translate_prompt, detect_style_from_prompt
+
+        style_info = ART_STYLE_TEMPLATES.get(style_name, ART_STYLE_TEMPLATES.get("photorealistic", ART_STYLE_TEMPLATES["cinematic"]))
         text_lower = text.lower()
 
-        translated_elements = []
-        applied_rules = []
+        # 1. Translate full sentence first so zero words are discarded
+        full_translated_sentence = smart_translate_prompt(text).strip()
 
-        # Find concept matches from dictionary
+        # 2. Enrich with matched domain concepts if any
+        applied_rules = []
+        enriched_tags = []
         for pattern, english_repr in VIETNAMESE_CONCEPT_MAP.items():
             if re.search(pattern, text_lower):
-                translated_elements.append(english_repr)
                 applied_rules.append(pattern.split('|')[0])
+                if english_repr.lower() not in full_translated_sentence.lower():
+                    enriched_tags.append(english_repr)
 
-        # If text is already mostly English or no direct match found
-        if not translated_elements:
-            cleaned_text = re.sub(r'[\r\n]+', ' ', text).strip()
-            translated_elements.append(cleaned_text)
-
-        core_concept = ", ".join(translated_elements)
+        core_concept = full_translated_sentence
+        if enriched_tags:
+            core_concept = f"{full_translated_sentence}, {', '.join(enriched_tags[:2])}"
 
         # Assemble full prompt with aesthetic layers
         full_positive = f"{style_info['prefix']}{core_concept}{style_info['suffix']}"

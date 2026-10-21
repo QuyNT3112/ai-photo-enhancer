@@ -2036,11 +2036,11 @@
                             <label class="param-label" for="genStrength">
                                 <i class="fa-solid fa-sliders text-cyan"></i> Mức độ biến đổi ảnh gốc (Strength):
                             </label>
-                            <span class="param-value-badge" id="genStrengthVal">0.65</span>
+                            <span class="param-value-badge" id="genStrengthVal">0.45</span>
                         </div>
-                        <input type="range" id="genStrength" min="0.1" max="0.95" step="0.05" value="0.65" class="custom-range">
+                        <input type="range" id="genStrength" min="0.1" max="0.95" step="0.05" value="0.45" class="custom-range">
                         <div class="param-hint-text" id="genStrengthHint">
-                            <b>0.65 (Cân bằng)</b>: Giữ bố cục & dáng vẻ tổng thể, biến đổi phong cách và chi tiết theo Prompt.
+                            <b>0.45 (Khuyên dùng - Cân bằng)</b>: Giữ trọn nét vẽ, phong cách và bố cục ảnh nguồn, nâng nét và tinh chỉnh chi tiết theo Prompt.
                         </div>
                     </div>
                 </div>
@@ -2109,12 +2109,14 @@
                             <i class="fa-solid fa-paint-roller text-cyan"></i> Phong cách nghệ thuật:
                         </label>
                         <select id="genStylePreset" class="custom-select">
-                            <option value="none">Tự do (Không áp dụng phong cách bổ sung)</option>
-                            <option value="cinematic" selected>🎬 Điện Ảnh 8K (Cinematic Movie)</option>
-                            <option value="photorealistic">📸 Nhiếp Ảnh Đời Thực (Photorealistic DSLR)</option>
+                            <option value="auto" selected>✨ Tự Động Nhận Diện (Bám sát Prompt & Ảnh nguồn)</option>
+                            <option value="none">Tự Do (Theo sát Prompt, không thêm Style)</option>
+                            <option value="original">🖼️ Giữ Nguyên Phong Cách Ảnh Gốc (Image-to-Image)</option>
                             <option value="anime">🌸 Anime Makoto Shinkai (Hoạt Hình Nhật Bản)</option>
-                            <option value="cyberpunk">🌃 Cyberpunk Neon (Khoa Học Viễn Tưởng)</option>
+                            <option value="photorealistic">📸 Nhiếp Ảnh Đời Thực (Photorealistic DSLR 8K)</option>
+                            <option value="cinematic">🎬 Điện Ảnh 8K (Cinematic Movie)</option>
                             <option value="pixar3d">🧸 3D Hoạt Hình Pixar / Disney</option>
+                            <option value="cyberpunk">🌃 Cyberpunk Neon (Khoa Học Viễn Tưởng)</option>
                             <option value="fantasy">🏰 Thần Thoại & Giả Tưởng (Epic Fantasy)</option>
                             <option value="vintage">🎞️ Phim Cổ Điển Retro (Vintage 1970s)</option>
                         </select>
@@ -2145,9 +2147,9 @@
                         </label>
                         <select id="genModelSelect" class="custom-select">
                             <option value="runwayml/stable-diffusion-v1-5" selected>⚡ Stable Diffusion v1.5 (Local RTX 3060 · Siêu Nhanh ~2.5s)</option>
+                            <option value="prompthero/openjourney">🌌 Openjourney v4 (Phong Cách Nghệ Thuật Midjourney · Sẵn Sàng)</option>
                             <option value="Lykon/dreamshaper-8">🎨 DreamShaper v8 (Tranh 3D, Nghệ Thuật & Concept)</option>
                             <option value="SG161222/Realistic_Vision_V5.1_noVAE">📸 Realistic Vision v5.1 (Chân Dung & Nhiếp Ảnh Thực Tế)</option>
-                            <option value="prompthero/openjourney">🌌 Openjourney v4 (Phong Cách Midjourney)</option>
                         </select>
                     </div>
 
@@ -2169,7 +2171,7 @@
                                 <input type="radio" name="genAspectRatio" id="genRatio916" value="9:16">
                                 <div class="ratio-pill-inner">
                                     <span class="ratio-pill-name">9:16 Dọc</span>
-                                    <span class="ratio-pill-dims">512 x 896</span>
+                                    <span class="ratio-pill-dims">512 x 768</span>
                                 </div>
                             </label>
 
@@ -2177,7 +2179,7 @@
                                 <input type="radio" name="genAspectRatio" id="genRatio169" value="16:9">
                                 <div class="ratio-pill-inner">
                                     <span class="ratio-pill-name">16:9 Ngang</span>
-                                    <span class="ratio-pill-dims">896 x 512</span>
+                                    <span class="ratio-pill-dims">768 x 512</span>
                                 </div>
                             </label>
 
@@ -2201,9 +2203,9 @@
                                 <div class="param-col">
                                     <div class="param-header">
                                         <label class="param-label" for="genSteps">Số bước (Steps):</label>
-                                        <span class="param-value-badge" id="genStepsVal">20</span>
+                                        <span class="param-value-badge" id="genStepsVal">25</span>
                                     </div>
-                                    <input type="range" id="genSteps" min="15" max="50" step="1" value="20" class="custom-range">
+                                    <input type="range" id="genSteps" min="15" max="50" step="1" value="25" class="custom-range">
                                 </div>
 
                                 <div class="param-col">
