@@ -74,7 +74,7 @@ SUPPORTED_MODELS = [
 
 # Smart Bilingual Translation & Semantic Understanding
 def smart_translate_prompt(text: str) -> str:
-    """Translates Vietnamese prompt to English if needed, preserving 100% of keywords and context."""
+    """Translates Vietnamese prompt to English if needed with multi-tier fallback to prevent rate limits."""
     text_clean = text.strip()
     if not text_clean:
         return ""
@@ -82,17 +82,52 @@ def smart_translate_prompt(text: str) -> str:
                            "ÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ")
     if not any(c in vietnamese_chars for c in text_clean):
         return text_clean
+
+    import urllib.request, urllib.parse, json
+
+    # Engine 1: Chrome Extension endpoint (ultra-fast, highly reliable, no 429)
     try:
-        import urllib.request, urllib.parse, json
-        url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=" + urllib.parse.quote(text_clean)
+        url = "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=en&q=" + urllib.parse.quote(text_clean)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if isinstance(data, list) and len(data) > 0:
+                if isinstance(data[0], list) and len(data[0]) > 0:
+                    t = data[0][0]
+                    if t and t.strip():
+                        return t.strip()
+                elif isinstance(data[0], str):
+                    return data[0].strip()
+    except Exception as e:
+        safe_print(f"[ImageGenerator] Translation Engine 1 fallback: {e}")
+
+    # Engine 2: MyMemory API fallback
+    try:
+        url = "https://api.mymemory.translated.net/get?q=" + urllib.parse.quote(text_clean) + "&langpair=vi|en"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=3.5) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            translated = "".join([part[0] for part in data[0] if part and part[0]])
-            if translated and translated.strip():
-                return translated.strip()
+            if data and "responseData" in data and "translatedText" in data["responseData"]:
+                t = data["responseData"]["translatedText"]
+                if t and t.strip() and not t.startswith("MYMEMORY WARNING"):
+                    return t.strip()
     except Exception as e:
-        print(f"[ImageGenerator] Smart translation fallback: {e}")
+        safe_print(f"[ImageGenerator] Translation Engine 2 fallback: {e}")
+
+    # Engine 3: Local semantic concept replacement
+    try:
+        from llm_engine import VIETNAMESE_CONCEPT_MAP
+        import re
+        t = text_clean.lower()
+        replacements = []
+        for pat, en in VIETNAMESE_CONCEPT_MAP.items():
+            if re.search(pat, t):
+                replacements.append(en)
+        if replacements:
+            return ", ".join(replacements)
+    except Exception:
+        pass
+
     return text_clean
 
 
@@ -116,12 +151,12 @@ def detect_style_from_prompt(prompt_en: str) -> str:
     return "general"
 
 
-# Curated Style Presets (Harmonized, No Style-Clashing)
+# Curated Style Presets (Subject-First, No Forced Scenery/Characters)
 STYLE_PRESETS = {
     "auto": {
         "name": "✨ Tự động bám sát Prompt & Phong cách ảnh gốc (Auto)",
         "prompt_prefix": "",
-        "prompt_suffix": ", masterpiece, highly detailed, sharp focus, vibrant colors, 8k uhd",
+        "prompt_suffix": ", masterpiece, best quality, ultra-detailed, sharp focus, 8k uhd",
         "negative": "worst quality, low quality, normal quality, blurry, lowres, bad anatomy, bad hands, deformed, watermark"
     },
     "none": {
@@ -138,44 +173,44 @@ STYLE_PRESETS = {
     },
     "anime": {
         "name": "🌸 Anime Makoto Shinkai (Hoạt Hình Nhật Bản)",
-        "prompt_prefix": "masterpiece anime illustration, ",
-        "prompt_suffix": ", Makoto Shinkai aesthetic, vibrant colors, breathtaking scenery, atmospheric lighting, trending on pixiv, 4k",
+        "prompt_prefix": "",
+        "prompt_suffix": ", anime art style, vibrant colors, detailed anime digital illustration, trending on pixiv, masterpiece, 4k",
         "negative": "photorealistic, real life photo, western cartoon, 3d render, low quality, bad anatomy, deformed"
     },
     "photorealistic": {
         "name": "📸 Nhiếp Ảnh Đời Thực (Photorealistic DSLR)",
-        "prompt_prefix": "professional ultra-detailed photograph, ",
-        "prompt_suffix": ", natural skin texture, studio lighting, 85mm portrait lens, f/1.8 aperture, raw photo, 8k uhd, crisp details",
+        "prompt_prefix": "",
+        "prompt_suffix": ", professional photograph, natural lighting, sharp focus, 85mm portrait lens, raw photo, 8k uhd, crisp details",
         "negative": "painting, drawing, illustration, anime, cartoon, 3d render, airbrushed, plastic skin, deformed, blurry"
     },
     "cinematic": {
         "name": "🎬 Điện Ảnh 8K (Cinematic Movie)",
-        "prompt_prefix": "cinematic film still, 35mm photograph, dramatic atmosphere, ",
-        "prompt_suffix": ", anamorphic lens flare, sharp focus, 8k uhd, photorealistic, color graded masterpiece",
+        "prompt_prefix": "",
+        "prompt_suffix": ", cinematic atmosphere, dramatic volumetric lighting, sharp focus, 8k uhd, photorealistic, color graded masterpiece",
         "negative": "cartoon, 3d render, blurry, low resolution, oversaturated, amateur photography"
     },
     "pixar3d": {
         "name": "🧸 3D Hoạt Hình Pixar / Disney",
-        "prompt_prefix": "cute 3d character animation render, ",
-        "prompt_suffix": ", modern Pixar Disney studio style, smooth clay textures, expressive eyes, soft studio lighting, octane render, ray tracing",
+        "prompt_prefix": "",
+        "prompt_suffix": ", cute 3D character render, modern Pixar Disney studio style, smooth clay textures, soft studio lighting, octane render, ray tracing",
         "negative": "realistic human photo, creepy, ugly, deformed, dark, grainy, 2d drawing, sketch"
     },
     "cyberpunk": {
         "name": "🌃 Cyberpunk Neon (Khoa Học Viễn Tưởng)",
-        "prompt_prefix": "cyberpunk sci-fi aesthetic, ",
-        "prompt_suffix": ", vibrant glowing neon lights, futuristic city reflections, volumetric mist, dark night atmosphere, 8k octane render",
+        "prompt_prefix": "",
+        "prompt_suffix": ", cyberpunk aesthetic, vibrant glowing neon lights, futuristic reflections, volumetric mist, dark night atmosphere, 8k octane render",
         "negative": "daylight, vintage, traditional, blurry, lowres, oversaturated, bad composition"
     },
     "fantasy": {
         "name": "🏰 Thần Thoại & Giả Tưởng (Epic Fantasy)",
-        "prompt_prefix": "epic fantasy digital painting, ",
-        "prompt_suffix": ", mystical glowing ambiance, intricate ethereal details, concept art by Greg Rutkowski, artstation trending",
+        "prompt_prefix": "",
+        "prompt_suffix": ", epic fantasy digital painting, mystical glowing ambiance, intricate ethereal details, concept art, artstation trending, masterpiece",
         "negative": "modern, futuristic, cars, blurry, poor quality, bad proportions, watermark"
     },
     "vintage": {
         "name": "🎞️ Phim Cổ Điển Retro (Vintage 1970s)",
-        "prompt_prefix": "vintage 1970s Kodak film photograph, ",
-        "prompt_suffix": ", muted retro warm tones, subtle film grain, nostalgic mood, classic analog camera texture",
+        "prompt_prefix": "",
+        "prompt_suffix": ", vintage 1970s Kodak film photograph, muted retro warm tones, subtle film grain, nostalgic mood, classic analog camera texture",
         "negative": "modern digital, ultra-sharp, cgi, futuristic, oversaturated, clean"
     }
 }
@@ -329,9 +364,10 @@ class ImageGenerator:
         }
         return ratio_map.get(ratio_str, (512, 512))
 
-    def _format_prompt(self, prompt: str, style_key: str = "auto", negative_prompt: Optional[str] = None):
+    def _format_prompt(self, prompt: str, style_key: str = "auto", negative_prompt: Optional[str] = None, model_id: str = ""):
         """
         Translates, cleans, and applies appropriate style enhancements without clashing.
+        Ensures the user subject is strictly FIRST in CLIP cross-attention.
         """
         import re
         # 1. Smart translation
@@ -346,16 +382,15 @@ class ImageGenerator:
 
         style = STYLE_PRESETS.get(effective_style_key, STYLE_PRESETS["auto"])
 
-        # 3. Assemble Positive Prompt
-        prefix = style.get("prompt_prefix", "")
+        # 3. Assemble Positive Prompt (SUBJECT IS ALWAYS FIRST)
         suffix = style.get("prompt_suffix", "")
+        
+        # Check if model is openjourney and add trigger token if not present
+        extra_model_token = ""
+        if "openjourney" in str(model_id).lower() and "mdjrny-v4 style" not in prompt_en.lower():
+            extra_model_token = ", mdjrny-v4 style"
 
-        # Avoid redundant prefix if user prompt already specifies it
-        if prefix and prefix.strip().lower() in prompt_en.lower():
-            full_positive = f"{prompt_en}{suffix}"
-        else:
-            full_positive = f"{prefix}{prompt_en}{suffix}"
-
+        full_positive = f"{prompt_en}{suffix}{extra_model_token}"
         full_positive = re.sub(r',\s*,+', ', ', full_positive).strip(', ')
 
         # 4. Assemble Negative Prompt
@@ -368,6 +403,22 @@ class ImageGenerator:
             neg_parts.append(style["negative"])
 
         neg_parts.append(DEFAULT_NEGATIVE_PROMPT)
+
+        # Detect human/character intent in prompt
+        # If user did NOT ask for humans (e.g. dragon, animal, car, landscape, room, still life, food),
+        # prevent model priors from hallucinating humans/crowds/faces!
+        prompt_lower = f" {prompt_en.lower()} "
+        human_indicators = [
+            "person", "people", "man", "men", "woman", "women", "girl", "boy", "kid", "child",
+            "children", "human", "portrait", "lady", "guy", "warrior", "samurai",
+            "ninja", "soldier", "couple", "lovers", "bride", "groom", "witch", "wizard", "hero",
+            "heroine", "queen", "king", "princess", "prince", "crowd", "model", "student", "teacher",
+            "anime girl", "anime boy", "selfie", "human baby", "baby girl", "baby boy"
+        ]
+        has_human_intent = any(re.search(r'\b' + re.escape(h) + r'\b', prompt_lower) for h in human_indicators)
+
+        if not has_human_intent:
+            neg_parts.append("human, person, people, man, woman, girl, boy, couple, crowd, human face, human skin")
 
         # De-duplicate negative keywords
         all_negs = ", ".join(neg_parts)
@@ -391,7 +442,7 @@ class ImageGenerator:
         width: Optional[int] = None,
         height: Optional[int] = None,
         steps: int = 25,
-        cfg_scale: float = 7.5,
+        cfg_scale: float = 8.0,
         seed: int = -1,
         model_id: str = "runwayml/stable-diffusion-v1-5"
     ):
@@ -400,7 +451,12 @@ class ImageGenerator:
         self._ensure_pipeline(model_id)
 
         w, h = self._resolve_aspect_dimensions(aspect_ratio, width, height)
-        full_prompt, full_negative, prompt_en, effective_style = self._format_prompt(prompt, style_preset, negative_prompt)
+        full_prompt, full_negative, prompt_en, effective_style = self._format_prompt(
+            prompt=prompt,
+            style_key=style_preset,
+            negative_prompt=negative_prompt,
+            model_id=model_id
+        )
 
         # Seed handling
         if seed is None or int(seed) < 0:
@@ -476,7 +532,12 @@ class ImageGenerator:
         else:
             effective_preset = style_preset
 
-        full_prompt, full_negative, prompt_en, effective_style = self._format_prompt(prompt, effective_preset, negative_prompt)
+        full_prompt, full_negative, prompt_en, effective_style = self._format_prompt(
+            prompt=prompt,
+            style_key=effective_preset,
+            negative_prompt=negative_prompt,
+            model_id=model_id
+        )
 
         # Maintain exact aspect ratio aligned to multiples of 64
         orig_w, orig_h = input_image.size

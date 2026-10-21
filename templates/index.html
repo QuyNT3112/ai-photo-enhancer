@@ -2059,15 +2059,41 @@
                                 <i class="fa-solid fa-feather-pointed text-purple"></i> Lời nhắc (Prompt):
                             </label>
                             <div class="prompt-action-btns">
+                                <button type="button" class="btn-prompt-action text-cyan" id="btnTranslateAndTunePrompt" title="Dịch tiếng Việt và xem trước Prompt tiếng Anh chuẩn Stable Diffusion để bạn dễ dàng tinh chỉnh">
+                                    <i class="fa-solid fa-language"></i> ✨ Tinh Chỉnh & Dịch
+                                </button>
                                 <button type="button" class="btn-prompt-action" id="btnRandomPrompt" title="Lấy ý tưởng ngẫu nhiên">
-                                    <i class="fa-solid fa-dice"></i> Gợi Ý Prompt Hay
+                                    <i class="fa-solid fa-dice"></i> Gợi Ý Hay
                                 </button>
                                 <button type="button" class="btn-prompt-action text-muted" id="btnClearPrompt" title="Xóa văn bản">
                                     <i class="fa-solid fa-trash-can"></i> Xóa
                                 </button>
                             </div>
                         </div>
-                        <textarea id="genPrompt" class="custom-textarea" rows="3" placeholder="Nhập ý tưởng bằng tiếng Việt hoặc tiếng Anh (Ví dụ: Chân dung hiệp sĩ mèo máy trong bộ giáp Cyberpunk phát sáng neon tím, chi tiết 8k, kiệt tác...)"></textarea>
+                        <textarea id="genPrompt" class="custom-textarea" rows="3" placeholder="Nhập ý tưởng bằng tiếng Việt hoặc tiếng Anh (Ví dụ: Chú rồng con tí hon dễ thương màu ngọc bích ôm viên pha lê phát sáng trong hang động thạch nhũ...)"></textarea>
+
+                        <!-- Prompt Tuning & Live Inspection Panel -->
+                        <div class="prompt-tune-panel hidden" id="promptTunePanel">
+                            <div class="tune-panel-header">
+                                <span class="tune-panel-title"><i class="fa-solid fa-sliders text-cyan"></i> Bảng Tinh Chỉnh Prompt Tiếng Anh (SD Cross-Attention)</span>
+                                <button type="button" class="btn-tune-close" id="btnCloseTunePanel" title="Đóng bảng"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="tune-panel-body">
+                                <label class="tune-field-label">Prompt Tiếng Anh (Chủ thể đứng đầu - Trọng tâm AI ưu tiên):</label>
+                                <textarea id="tuneEnglishPrompt" class="custom-textarea tune-textarea" rows="2"></textarea>
+                                <div class="tune-meta-row">
+                                    <div class="tune-meta-item">
+                                        <span class="tune-tag-label">Phong cách:</span>
+                                        <span class="tune-tag-val" id="tuneAppliedStyleTag">--</span>
+                                    </div>
+                                    <div class="tune-meta-actions">
+                                        <button type="button" class="btn-tune-action" id="btnApplyTuneToMain"><i class="fa-solid fa-check text-emerald"></i> Nạp Vào Prompt Chính</button>
+                                    </div>
+                                </div>
+                                <label class="tune-field-label" style="margin-top: 8px;">Negative Prompt Tự Động (Lọc đối tượng không mong muốn):</label>
+                                <div class="tune-neg-display" id="tuneNegativeDisplay">--</div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Quick Inspiration Pills -->
@@ -2307,6 +2333,14 @@
                         <div class="stat-item">
                             <span class="stat-label"><i class="fa-solid fa-fingerprint"></i> Seed:</span>
                             <span class="stat-val" id="genStatSeed">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Generation Output Prompt Audit Card -->
+                    <div class="gen-prompt-audit-card" id="genPromptAuditCard">
+                        <div class="audit-row">
+                            <span class="audit-badge"><i class="fa-solid fa-language"></i> Prompt Đã Nạp Vào Mô Hình (CLIP Input):</span>
+                            <span class="audit-text" id="genAuditPromptEn">--</span>
                         </div>
                     </div>
 

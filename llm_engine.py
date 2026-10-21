@@ -580,9 +580,9 @@ class LLMEngine:
 
     def _semantic_expand_prompt(self, text: str, style_name: str, ratio: Optional[str]) -> Dict[str, Any]:
         """High-speed offline semantic expander with complete context preservation."""
-        from generator import smart_translate_prompt, detect_style_from_prompt
+        from generator import smart_translate_prompt, detect_style_from_prompt, STYLE_PRESETS, DEFAULT_NEGATIVE_PROMPT
 
-        style_info = ART_STYLE_TEMPLATES.get(style_name, ART_STYLE_TEMPLATES.get("photorealistic", ART_STYLE_TEMPLATES["cinematic"]))
+        style_info = STYLE_PRESETS.get(style_name, STYLE_PRESETS.get("cinematic", STYLE_PRESETS["auto"]))
         text_lower = text.lower()
 
         # 1. Translate full sentence first so zero words are discarded
@@ -601,12 +601,13 @@ class LLMEngine:
         if enriched_tags:
             core_concept = f"{full_translated_sentence}, {', '.join(enriched_tags[:2])}"
 
-        # Assemble full prompt with aesthetic layers
-        full_positive = f"{style_info['prefix']}{core_concept}{style_info['suffix']}"
+        # Assemble full prompt with aesthetic layers (Subject Always First)
+        suffix = style_info.get("prompt_suffix", "")
+        full_positive = f"{core_concept}{suffix}"
 
         # Clean multiple commas or redundant spaces
         full_positive = re.sub(r',\s*,+', ', ', full_positive).strip(', ')
-        negative_prompt = style_info['negative']
+        negative_prompt = style_info.get("negative", DEFAULT_NEGATIVE_PROMPT)
 
         # Determine recommended aspect ratio if not passed
         recommended_ratio = ratio or "1:1"
@@ -622,7 +623,7 @@ class LLMEngine:
             "style_preset": style_name,
             "aspect_ratio": recommended_ratio,
             "breakdown": {
-                "core_subject": translated_elements[0] if translated_elements else text,
+                "core_subject": full_translated_sentence if full_translated_sentence else text,
                 "style_name": style_name.capitalize(),
                 "matched_concepts": applied_rules[:4],
                 "enhancement_tags": "Masterpiece, 8K UHD, Volumetric Lighting, Studio Quality"

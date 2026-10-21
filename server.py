@@ -1687,6 +1687,42 @@ def api_generator_random_prompt():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/translate-prompt', methods=['POST'])
+def api_translate_prompt():
+    """Translates and formats prompt for user inspection and fine-tuning."""
+    try:
+        data = request.get_json(silent=True) or request.form.to_dict()
+        prompt_text = data.get('prompt', '').strip()
+        style_preset = data.get('style_preset', 'auto').strip()
+        model_id = data.get('model_id', 'runwayml/stable-diffusion-v1-5').strip()
+        negative_prompt = data.get('negative_prompt', '').strip()
+
+        if not prompt_text:
+            return jsonify({'status': 'error', 'message': 'Vui lòng nhập nội dung prompt!'}), 400
+
+        from generator import smart_translate_prompt
+        prompt_en = smart_translate_prompt(prompt_text).strip()
+        full_positive, full_negative, _, effective_style = image_generator._format_prompt(
+            prompt=prompt_text,
+            style_key=style_preset,
+            negative_prompt=negative_prompt,
+            model_id=model_id
+        )
+
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'original': prompt_text,
+                'translated': prompt_en,
+                'full_positive': full_positive,
+                'full_negative': full_negative,
+                'effective_style': effective_style
+            }
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/api/generate-image', methods=['POST'])
 def api_generate_image():
     try:
@@ -1703,9 +1739,9 @@ def api_generate_image():
             steps = 25
 
         try:
-            cfg_scale = float(request.form.get('cfg_scale', 7.5))
+            cfg_scale = float(request.form.get('cfg_scale', 8.0))
         except (ValueError, TypeError):
-            cfg_scale = 7.5
+            cfg_scale = 8.0
 
         try:
             seed = int(request.form.get('seed', -1))

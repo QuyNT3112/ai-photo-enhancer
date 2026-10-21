@@ -2667,6 +2667,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSendToCompressor = document.getElementById('btnSendToCompressor');
     const btnUseForNextI2i = document.getElementById('btnUseForNextI2i');
 
+    const btnTranslateAndTunePrompt = document.getElementById('btnTranslateAndTunePrompt');
+    const promptTunePanel = document.getElementById('promptTunePanel');
+    const btnCloseTunePanel = document.getElementById('btnCloseTunePanel');
+    const tuneEnglishPrompt = document.getElementById('tuneEnglishPrompt');
+    const tuneAppliedStyleTag = document.getElementById('tuneAppliedStyleTag');
+    const tuneNegativeDisplay = document.getElementById('tuneNegativeDisplay');
+    const btnApplyTuneToMain = document.getElementById('btnApplyTuneToMain');
+    const genAuditPromptEn = document.getElementById('genAuditPromptEn');
+
     // 1. Mode Switcher (T2I vs I2I)
     function setGenMode(mode) {
         currentGenMode = mode;
@@ -2862,6 +2871,65 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Live Prompt Tuning & Inspection
+    if (btnTranslateAndTunePrompt) {
+        btnTranslateAndTunePrompt.addEventListener('click', async () => {
+            const promptText = genPrompt?.value?.trim() || '';
+            if (!promptText) {
+                showToast('Vui lòng nhập mô tả ảnh (Prompt) trước khi tinh chỉnh!', 'error');
+                genPrompt?.focus();
+                return;
+            }
+
+            btnTranslateAndTunePrompt.disabled = true;
+            btnTranslateAndTunePrompt.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang Dịch & Tinh Chỉnh...';
+
+            try {
+                const res = await fetch('/api/translate-prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: promptText,
+                        style_preset: genStylePreset?.value || 'auto',
+                        model_id: genModelSelect?.value || 'runwayml/stable-diffusion-v1-5',
+                        negative_prompt: genNegativePrompt?.value?.trim() || ''
+                    })
+                });
+                const data = await res.json();
+                if (data.status !== 'success') {
+                    throw new Error(data.message || 'Lỗi dịch prompt');
+                }
+
+                if (tuneEnglishPrompt) tuneEnglishPrompt.value = data.data.translated;
+                if (tuneAppliedStyleTag) tuneAppliedStyleTag.textContent = data.data.effective_style;
+                if (tuneNegativeDisplay) tuneNegativeDisplay.textContent = data.data.full_negative;
+
+                if (promptTunePanel) promptTunePanel.classList.remove('hidden');
+                showToast('✨ Đã dịch và tối ưu Prompt tiếng Anh! Bạn có thể chỉnh sửa trực tiếp bên dưới.');
+            } catch (err) {
+                console.error(err);
+                showToast(`Lỗi tinh chỉnh prompt: ${err.message}`, 'error');
+            } finally {
+                btnTranslateAndTunePrompt.disabled = false;
+                btnTranslateAndTunePrompt.innerHTML = '<i class="fa-solid fa-language"></i> ✨ Tinh Chỉnh & Dịch';
+            }
+        });
+    }
+
+    if (btnCloseTunePanel && promptTunePanel) {
+        btnCloseTunePanel.addEventListener('click', () => {
+            promptTunePanel.classList.add('hidden');
+        });
+    }
+
+    if (btnApplyTuneToMain && promptTunePanel && genPrompt && tuneEnglishPrompt) {
+        btnApplyTuneToMain.addEventListener('click', () => {
+            genPrompt.value = tuneEnglishPrompt.value;
+            promptTunePanel.classList.add('hidden');
+            showToast('✅ Đã nạp Prompt tiếng Anh vào ô nhập liệu chính!');
+        });
+    }
+
     promptChips.forEach(chip => {
         chip.addEventListener('click', () => {
             if (genPrompt) genPrompt.value = chip.dataset.prompt || '';
@@ -2997,6 +3065,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (genStatFilesize) genStatFilesize.textContent = `${currentGenResult.file_sizes?.result_kb || 0} KB`;
                 if (genStatDuration) genStatDuration.textContent = `${meta.duration_sec || 0}s`;
                 if (genStatSeed) genStatSeed.textContent = meta.seed || 'Ngẫu nhiên';
+                if (genAuditPromptEn) genAuditPromptEn.textContent = meta.final_positive || meta.translated_prompt || 'N/A';
 
                 if (btnDownloadGenPng) {
                     btnDownloadGenPng.href = currentGenResult.download_url;
