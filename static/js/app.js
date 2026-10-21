@@ -4136,7 +4136,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Batch view
                         bgBatchResultsContainer.classList.remove('hidden');
                         bgBatchSuccessCount.textContent = result.count;
-                        if (btnDownloadBgZip) btnDownloadBgZip.href = result.download_url;
+                        if (btnDownloadBgZip) {
+                            const zipUrl = result.download_url || `/api/download/${result.zip_filename}`;
+                            btnDownloadBgZip.href = zipUrl;
+                            btnDownloadBgZip.setAttribute('download', result.zip_filename || 'ClarityAI_Batch_NoBG.zip');
+                            btnDownloadBgZip.onclick = async () => {
+                                try {
+                                    const fd = new FormData();
+                                    fd.append('filename', result.zip_filename);
+                                    await fetch('/api/save-to-downloads', { method: 'POST', body: fd });
+                                } catch (_) {}
+                                window.showToast(`📦 Đang tải file ZIP chung và lưu vào Downloads: ${result.zip_filename}`);
+                            };
+                        }
 
                         // Setup "Lưu Tất Cả Vào Downloads" button
                         const btnSaveBatchBgToDownloads = document.getElementById('btnSaveBatchBgToDownloads');
@@ -4190,7 +4202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         result.results.forEach(item => {
                             const baseName = item.original_filename ? (item.original_filename.substring(0, item.original_filename.lastIndexOf('.')) || item.original_filename) : 'image';
                             const cleanPngName = `ClarityAI_${baseName}_nobg.png`;
-                            const downloadUrl = `/api/download/${item.filename}?name=${encodeURIComponent(cleanPngName)}`;
+                            const cardDownloadUrl = `/api/download/${item.filename}?name=${encodeURIComponent(cleanPngName)}`;
 
                             const card = document.createElement('div');
                             card.className = 'batch-result-card';
@@ -4200,36 +4212,26 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                                 <div class="batch-result-info">
                                     <div class="batch-result-filename" title="${item.original_filename}">${item.original_filename}</div>
-                                    <div class="batch-result-dims"><i class="fa-solid fa-check"></i> ${item.stats.duration_sec}s</div>
-                                    <div class="batch-result-bottom" style="display: flex; gap: 6px; width: 100%;">
-                                        <a href="${downloadUrl}" download="${cleanPngName}" class="btn-download-single-png" style="flex: 1; text-align: center; text-decoration: none;">
-                                            <i class="fa-solid fa-download"></i> Tải PNG
+                                    <div class="batch-result-dims"><i class="fa-solid fa-check"></i> ${item.stats.duration_sec}s · PNG Trong Suốt</div>
+                                    <div class="batch-result-bottom" style="width: 100%; margin-top: 6px;">
+                                        <a href="${cardDownloadUrl}" download="${cleanPngName}" class="btn-card-download-png" title="Tải ảnh PNG và lưu trực tiếp vào Downloads">
+                                            <i class="fa-solid fa-download"></i> Tải PNG (Downloads)
                                         </a>
-                                        <button type="button" class="btn-save-single-bg-download" title="Lưu trực tiếp vào thư mục Downloads" style="padding: 6px 10px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; color: #38bdf8; cursor: pointer;">
-                                            <i class="fa-solid fa-folder-arrow-down"></i>
-                                        </button>
                                     </div>
                                 </div>
                             `;
 
-                            // Add click listener for individual save to downloads
-                            const btnSingleSave = card.querySelector('.btn-save-single-bg-download');
-                            if (btnSingleSave) {
-                                btnSingleSave.onclick = async () => {
-                                    const fd = new FormData();
-                                    fd.append('filename', item.filename);
-                                    fd.append('custom_name', cleanPngName);
+                            // Add click listener for individual save & download feedback
+                            const dlLink = card.querySelector('.btn-card-download-png');
+                            if (dlLink) {
+                                dlLink.onclick = async () => {
                                     try {
-                                        const r = await fetch('/api/save-to-downloads', { method: 'POST', body: fd });
-                                        const j = await r.json();
-                                        if (j.status === 'success') {
-                                            window.showToast(`💾 Đã lưu vào Downloads: ${j.saved_name || j.filename}`);
-                                        } else {
-                                            window.showToast(`⚠️ ${j.message}`);
-                                        }
-                                    } catch (e) {
-                                        window.showToast(`❌ Lỗi: ${e.message}`);
-                                    }
+                                        const fd = new FormData();
+                                        fd.append('filename', item.filename);
+                                        fd.append('custom_name', cleanPngName);
+                                        await fetch('/api/save-to-downloads', { method: 'POST', body: fd });
+                                    } catch (_) {}
+                                    window.showToast(`💾 Đã lưu và tải ảnh PNG: ${cleanPngName}`);
                                 };
                             }
 
@@ -4264,6 +4266,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         btnDownloadBgPng.href = `/api/download/${result.data.filename}?name=${encodeURIComponent(singlePngName)}`;
                         btnDownloadBgPng.setAttribute('download', singlePngName);
+                        btnDownloadBgPng.onclick = async () => {
+                            try {
+                                const fd = new FormData();
+                                fd.append('filename', result.data.filename);
+                                fd.append('custom_name', singlePngName);
+                                await fetch('/api/save-to-downloads', { method: 'POST', body: fd });
+                            } catch (_) {}
+                            window.showToast(`💾 Đã lưu và tải ảnh PNG: ${singlePngName}`);
+                        };
 
                         btnDownloadBgJpg.href = result.data.download_jpg_url || `/api/download-jpg/${result.data.filename}`;
                         btnDownloadBgJpg.setAttribute('download', singleJpgName);

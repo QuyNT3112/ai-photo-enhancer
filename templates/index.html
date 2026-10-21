@@ -1630,13 +1630,15 @@
                             <h3 class="batch-results-title">
                                 <i class="fa-solid fa-circle-check text-success"></i> Đã Tách Nền Xong <span id="bgBatchSuccessCount">0</span> Ảnh
                             </h3>
-                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                <button type="button" class="btn-download-zip" id="btnSaveBatchBgToDownloads" style="background: linear-gradient(135deg, #0284c7, #2563eb); border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                                    <i class="fa-solid fa-folder-arrow-down"></i> Lưu Tất Cả Vào Downloads
-                                </button>
-                                <a href="#" download class="btn-download-zip" id="btnDownloadBgZip" title="Tải file nén .ZIP về máy" style="opacity: 0.85; font-size: 0.82rem; background: rgba(255, 255, 255, 0.08);">
-                                    <i class="fa-solid fa-file-zipper"></i> Tải Tệp ZIP
+                            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                <a href="#" download id="btnDownloadBgZip" class="btn-batch-action btn-zip" title="Tải về toàn bộ ảnh tách nền trong 1 file nén .ZIP">
+                                    <i class="fa-solid fa-file-zipper"></i>
+                                    <span>Tải File ZIP Chung</span>
                                 </a>
+                                <button type="button" id="btnSaveBatchBgToDownloads" class="btn-batch-action btn-downloads" title="Lưu toàn bộ ảnh PNG vào thư mục Downloads của máy tính">
+                                    <i class="fa-solid fa-folder-arrow-down"></i>
+                                    <span>Lưu Tất Cả Vào Downloads</span>
+                                </button>
                             </div>
                         </div>
                         <div class="batch-results-grid" id="bgBatchResultsGrid"></div>

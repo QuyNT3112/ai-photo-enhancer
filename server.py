@@ -103,10 +103,15 @@ def api_save_to_downloads():
         if custom_name:
             target_name = secure_filename(custom_name)
             ext = os.path.splitext(safe_name)[1]
+            if not target_name:
+                target_name = f"ClarityAI_{safe_name}"
             if not target_name.lower().endswith(ext.lower()):
                 target_name += ext
         else:
-            target_name = f"ClarityAI_{safe_name}"
+            if safe_name.startswith('ClarityAI_'):
+                target_name = safe_name
+            else:
+                target_name = f"ClarityAI_{safe_name}"
 
         dst_path = os.path.join(downloads_dir, target_name)
         shutil.copy2(src_path, dst_path)
@@ -151,7 +156,13 @@ def api_save_batch_bg_to_downloads():
             orig_name = it.get('original_filename', filename)
             base_root, _ = os.path.splitext(orig_name)
             out_ext = os.path.splitext(filename)[1] or '.png'
-            target_name = f"ClarityAI_{secure_filename(base_root)}_nobg{out_ext}"
+            safe_base = secure_filename(base_root)
+            if not safe_base:
+                safe_base = 'image'
+            if safe_base.startswith('ClarityAI_'):
+                target_name = f"{safe_base}_nobg{out_ext}"
+            else:
+                target_name = f"ClarityAI_{safe_base}_nobg{out_ext}"
             dst_path = os.path.join(downloads_dir, target_name)
             shutil.copy2(src_path, dst_path)
             saved_files.append(target_name)
@@ -182,7 +193,10 @@ def api_download(filename):
             custom_safe += ext
         download_filename = custom_safe
     else:
-        download_filename = f"ClarityAI_{safe_name}"
+        if safe_name.startswith('ClarityAI_'):
+            download_filename = safe_name
+        else:
+            download_filename = f"ClarityAI_{safe_name}"
 
     # Determine accurate MIME type
     mimetypes_map = {
@@ -615,6 +629,7 @@ def api_remove_background():
                         'filename': out_name,
                         'original_filename': orig_name,
                         'result_url': f"/outputs/{out_name}",
+                        'download_url': f"/api/download/{out_name}",
                         'stats': st
                     })
                     base_root, _ = os.path.splitext(orig_name)

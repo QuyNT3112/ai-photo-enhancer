@@ -2215,6 +2215,79 @@ input:checked + .slider:before {
     gap: 6px;
 }
 
+.btn-batch-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 9px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    border: none;
+    color: #ffffff !important;
+}
+
+.btn-batch-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.btn-batch-action:active {
+    transform: translateY(0);
+}
+
+.btn-batch-action.btn-zip {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%) !important;
+    border: 1px solid rgba(167, 139, 250, 0.45) !important;
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35) !important;
+}
+
+.btn-batch-action.btn-zip:hover {
+    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
+    box-shadow: 0 6px 22px rgba(124, 58, 237, 0.5) !important;
+}
+
+.btn-batch-action.btn-downloads {
+    background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+    border: 1px solid rgba(56, 189, 248, 0.45) !important;
+    box-shadow: 0 4px 16px rgba(2, 132, 199, 0.35) !important;
+}
+
+.btn-batch-action.btn-downloads:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 6px 22px rgba(2, 132, 199, 0.5) !important;
+}
+
+.btn-card-download-png {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(59, 130, 246, 0.18));
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    border-radius: 7px;
+    color: #38bdf8 !important;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.btn-card-download-png:hover {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.32), rgba(59, 130, 246, 0.32));
+    border-color: #38bdf8;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(56, 189, 248, 0.25);
+    transform: translateY(-1px);
+}
+
 .btn-download-single-png,
 .btn-download-single-file {
     background: rgba(6, 182, 212, 0.15);
