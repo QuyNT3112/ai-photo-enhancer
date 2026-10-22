@@ -2701,10 +2701,37 @@
                                 </div>
                             </div>
 
+                            <!-- Scope Selection Bar (Local vs Web vs Combined) -->
+                            <div class="vsearch-scope-bar">
+                                <span class="vsearch-scope-label"><i class="fa-solid fa-earth-americas text-cyan"></i> Nguồn tìm kiếm:</span>
+                                <div class="vsearch-scope-pills" id="vsearchScopePills">
+                                    <button type="button" class="vsearch-scope-pill active" data-scope="all" id="btnScopeAll">
+                                        <i class="fa-solid fa-layer-group text-cyan"></i> Toàn Cầu (Web + Máy)
+                                    </button>
+                                    <button type="button" class="vsearch-scope-pill" data-scope="web" id="btnScopeWeb">
+                                        <i class="fa-solid fa-globe text-emerald"></i> Web Internet (Bing, Wikimedia, Flickr)
+                                    </button>
+                                    <button type="button" class="vsearch-scope-pill" data-scope="local" id="btnScopeLocal">
+                                        <i class="fa-solid fa-hard-drive text-purple"></i> Thư Viện Máy (Cục bộ)
+                                    </button>
+                                </div>
+                            </div>
+
                             <!-- Filter & Fine-Tuning Bar -->
                             <div class="vsearch-filters-bar">
-                                <div class="filter-item">
-                                    <label for="vsearchCategorySelect"><i class="fa-solid fa-folder text-cyan"></i> Thư mục:</label>
+                                <!-- Web Source Selector -->
+                                <div class="filter-item" id="filterWebSourceWrap">
+                                    <label for="vsearchWebSourceSelect"><i class="fa-solid fa-network-wired text-emerald"></i> Nguồn Web:</label>
+                                    <select id="vsearchWebSourceSelect" class="vsearch-select">
+                                        <option value="all" selected>🌐 Tất Cả Nguồn Web (Tổng hợp)</option>
+                                        <option value="bing">🔍 Bing Images (Pinterest, Artstation, Báo chí...)</option>
+                                        <option value="wikimedia">🏛️ Wikimedia Commons (Bản quyền tự do)</option>
+                                        <option value="flickr">📷 Flickr (Nhiếp ảnh nghệ thuật)</option>
+                                    </select>
+                                </div>
+
+                                <div class="filter-item" id="filterCategoryWrap">
+                                    <label for="vsearchCategorySelect"><i class="fa-solid fa-folder text-cyan"></i> Thư mục máy:</label>
                                     <select id="vsearchCategorySelect" class="vsearch-select">
                                         <option value="all" selected>Toàn Bộ Thư Viện (Outputs + Uploads + Samples)</option>
                                         <option value="outputs">Chỉ Thư Mục Kết Quả (Outputs)</option>
@@ -2739,8 +2766,8 @@
                             <!-- Status & Results Header -->
                             <div class="vsearch-summary-bar" id="vsearchSummaryBar">
                                 <div class="summary-left">
-                                    <span id="vsearchSummaryText">Đang hiển thị thư viện ảnh</span>
-                                    <span class="vsearch-badge-count" id="vsearchBadgeCount">259 ảnh</span>
+                                    <span id="vsearchSummaryText">Đang hiển thị kết quả tìm kiếm</span>
+                                    <span class="vsearch-badge-count" id="vsearchBadgeCount">0 ảnh</span>
                                 </div>
                                 <div class="summary-right">
                                     <span class="model-tag-pill"><i class="fa-solid fa-microchip"></i> OpenAI CLIP ViT-B/32 (GPU CUDA)</span>
@@ -2789,9 +2816,13 @@
                         <h4 class="lightbox-filename" id="lightboxFilename">image.png</h4>
                     </div>
                     <div class="lightbox-meta-details">
-                        <div class="lightbox-detail-row">
-                            <span><i class="fa-solid fa-folder text-cyan"></i> Thư mục:</span>
-                            <strong id="lightboxCategory">Outputs</strong>
+                        <div class="lightbox-detail-row" id="lightboxSourceRow">
+                            <span><i class="fa-solid fa-globe text-cyan"></i> Nguồn ảnh:</span>
+                            <strong id="lightboxCategory">Bing Web</strong>
+                        </div>
+                        <div class="lightbox-detail-row" id="lightboxSourceLinkRow">
+                            <span><i class="fa-solid fa-arrow-up-right-from-square text-emerald"></i> Trang web gốc:</span>
+                            <a href="#" target="_blank" rel="noopener noreferrer" id="lightboxSourceLink" style="color: #38bdf8; text-decoration: underline; font-weight: 600; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">Mở trang web</a>
                         </div>
                         <div class="lightbox-detail-row">
                             <span><i class="fa-solid fa-expand text-purple"></i> Kích thước:</span>
@@ -2804,13 +2835,22 @@
                     </div>
                     <div class="lightbox-actions-column">
                         <button type="button" class="btn-lightbox-action btn-lightbox-similar" id="btnLightboxSearchSimilar">
-                            <i class="fa-solid fa-magnifying-glass-plus"></i> Tìm Ảnh Tương Tự Ảnh Này
+                            <i class="fa-solid fa-magnifying-glass-plus"></i> Tìm Ảnh Tương Tự Bằng CLIP
+                        </button>
+                        <button type="button" class="btn-lightbox-action btn-lightbox-enhance" id="btnLightboxSendEnhance">
+                            <i class="fa-solid fa-wand-magic-sparkles text-yellow"></i> Đưa Vào Siêu Làm Nét (Upscale)
+                        </button>
+                        <button type="button" class="btn-lightbox-action btn-lightbox-bg" id="btnLightboxSendBgRemover">
+                            <i class="fa-solid fa-scissors text-pink"></i> Đưa Vào Tách Nền AI
                         </button>
                         <button type="button" class="btn-lightbox-action btn-lightbox-chat" id="btnLightboxSendChat">
-                            <i class="fa-solid fa-comments"></i> Nạp Vào Chat Để Bóc Tách Prompt
+                            <i class="fa-solid fa-comments"></i> Nạp Vào Chatbot Tư Vấn
                         </button>
                         <button type="button" class="btn-lightbox-action btn-lightbox-gen" id="btnLightboxSendGen">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i> Chuyển Sang Tạo Ảnh (I2I)
+                            <i class="fa-solid fa-image"></i> Chuyển Sang Tạo Ảnh (I2I)
+                        </button>
+                        <button type="button" class="btn-lightbox-action btn-lightbox-save" id="btnLightboxSaveLibrary">
+                            <i class="fa-solid fa-floppy-disk text-emerald"></i> Lưu Vào Thư Viện Máy
                         </button>
                         <a href="#" download="" id="btnLightboxDownload" class="btn-lightbox-action btn-lightbox-dl">
                             <i class="fa-solid fa-download"></i> Tải Ảnh Về Máy

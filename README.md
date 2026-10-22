@@ -141,15 +141,24 @@
 - **Bảo toàn 100% chất lượng ảnh (Lossless Fidelity)**: Không giảm độ phân giải, giữ nguyên ICC Profile và EXIF, tự động xử lý hòa trộn nền sạch khi chuyển từ ảnh trong suốt sang JPG/BMP/PDF.
 - **Tải về linh hoạt**: Hỗ trợ nút **Tải lẻ giữ tên gốc**, nút **Tải File ZIP Chung** và nút **Lưu Tất Cả Vào Downloads**.
 
-### 9. 🔍 Tìm Kiếm Ảnh Thông Minh Bằng CLIP AI (Visual & Semantic Search Engine)
-- **Tích hợp sâu trong Chatbot & Trợ lý AI**: Tìm kiếm ngữ nghĩa sâu (Text-to-Image) và tìm kiếm ảnh tương đồng (Reverse Image Search) 100% cục bộ trên GPU NVIDIA RTX 3060 với mô hình **OpenAI CLIP ViT-B/32**.
-- **Tìm kiếm bằng từ khóa tự nhiên (Text-to-Image)**: Nhập từ khóa hoặc mô tả bằng tiếng Việt/tiếng Anh (ví dụ: *"rồng thần thoại"*, *"cyberpunk city"*, *"hoa anh đào"*), CLIP AI đối chiếu không gian vector 512 chiều trong **~0.03 giây** để trả về các ảnh phù hợp nhất kèm % độ tương đồng trực quan.
-- **Tìm kiếm theo ảnh tương tự (Reverse Image Search)**: Kéo thả ảnh, chọn file hoặc nhấn `Ctrl + V` dán trực tiếp từ clipboard vào khu vực Dropzone để tìm ngay những bức ảnh có phong cách, bố cục hoặc nội dung tương đồng trong thư viện.
-- **Hỏi đáp tự nhiên trong Chatbot**: Chỉ cần chat *"tìm ảnh rồng"*, *"search anime style"*, hoặc tải kèm ảnh hỏi *"tìm ảnh tương tự"*, Chatbot tự động nhận diện ý định và nhúng trực tiếp lưới ảnh kết quả vào trong bong bóng chat.
+### 9. 🔍 Tìm Kiếm Ảnh Thông Minh Bằng CLIP AI (Visual, Semantic & Global Web Search)
+- **Tích hợp sâu trong Chatbot & Trợ lý AI**: Tìm kiếm ngữ nghĩa sâu (Text-to-Image) và tìm kiếm ảnh tương đồng (Reverse Image Search) trên cả **Thư Viện Máy Cục Bộ** và **Toàn Bộ Các Trang Web Toàn Cầu (Bing Web, Wikimedia Commons, Flickr)**.
+- **Mở rộng tìm kiếm Web Toàn Cầu (Multi-Engine Web Search)**:
+  - 🌐 **Bing Images**: Quét hàng triệu trang web khắp internet (Pinterest, Artstation, Wallpaper sites, mạng xã hội, báo chí...).
+  - 🏛️ **Wikimedia Commons**: Kho tư liệu hình ảnh bách khoa toàn thư, bản quyền tự do, độ phân giải cao.
+  - 📷 **Flickr**: Kho ảnh nhiếp ảnh gia và nghệ thuật chất lượng cao.
+- **Tái Xếp Hạng Thông Minh Bằng CLIP AI (Neural CLIP Re-ranking)**:
+  - Toàn bộ ảnh thu thập từ web đều được mô hình **OpenAI CLIP ViT-B/32** đối chiếu vector đa phương thức trên GPU RTX 3060 CUDA để chấm điểm độ tương đồng thị giác thực tế (`% Tương đồng`).
+- **Tìm kiếm bằng ảnh tương tự trên Web (Reverse Image Web Search)**:
+  - Ứng dụng công nghệ Zero-shot CLIP Concept Probes để bóc tách chủ thể/phong cách của ảnh tải lên, truy vấn các website trên internet và tìm ra những tác phẩm tương đồng nhất.
+- **1-Click Tích hợp liên hoàn vào các công cụ trong Studio (Web-to-Studio Workflow)**:
+  - ⚡ **Đưa vào Siêu Làm Nét (Upscale 4K)**: Tải ảnh từ web về và tự động mở tab Phục hồi / Làm nét bằng Real-ESRGAN/GFPGAN.
+  - ✂️ **Đưa vào Tách Nền (Bg Remover)**: Xóa phông ảnh web thành PNG trong suốt chỉ với 1 click.
+  - 🎨 **Đưa vào Tạo Ảnh Biến Thể (I2I)**: Dùng ảnh web làm ảnh mẫu sáng tạo phong cách mới.
+  - 💬 **Đưa vào Chatbot**: Phân tích ánh sáng, bố cục, mã màu HEX.
+  - 💾 **Lưu Vào Thư Viện Máy**: Tải về và tự động đánh chỉ mục CLIP để lưu trữ lâu dài.
+- **Hỏi đáp tự nhiên trong Chatbot**: Chỉ cần gõ *"tìm ảnh rồng lửa trên web"*, *"tìm ảnh siêu xe trên internet"*, hoặc đính kèm ảnh hỏi *"tìm ảnh tương tự"*, Chatbot sẽ hiển thị các thẻ ảnh web và thư viện trực tiếp trong bong bóng chat.
 - **Bộ nhớ đệm thông minh (Incremental Cache)**: Tự động lưu cache vector vào `outputs/clip_visual_index.npz`. Khi quét lại thư viện, chỉ trích xuất cho ảnh mới, nạp lại hàng trăm bức ảnh chỉ trong **~0.10 giây**.
-- **Thanh công cụ & Lightbox tương tác đầy đủ**:
-  - Hộp thoại Lightbox toàn màn hình xem ảnh gốc sắc nét kèm thông số kỹ thuật (độ phân giải, thư mục nguồn, độ tương đồng).
-  - 1-Click chuyển ảnh sang **Tạo ảnh tương tự (I2I)**, **Nạp vào Chatbot** hoặc **Tải về máy**.
 
 ### 10. 🎨 Trải Nghiệm Giao Diện Người Dùng Đỉnh Cao (Dark Glassmorphism)
 - **Thanh trượt so sánh tương tác (Interactive Split Slider)**: Kéo qua lại trực tiếp trên ảnh để so sánh chất lượng Trước/Sau.

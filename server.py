@@ -2040,17 +2040,23 @@ def api_search_text():
         limit = int(data.get('limit') or 18)
         min_score = float(data.get('min_score') or 0.15)
         category_filter = data.get('category') or 'all'
+        scope = data.get('scope') or 'all'  # 'all', 'web', 'local'
+        web_source = data.get('web_source') or 'all'  # 'all', 'bing', 'wikimedia', 'flickr'
 
-        results = visual_search_engine.search_by_text(query, top_k=limit * 2, min_similarity=min_score)
-
-        if category_filter and category_filter != 'all':
-            results = [r for r in results if r.get('category') == category_filter]
-
-        results = results[:limit]
+        results = visual_search_engine.search_by_text(
+            query=query,
+            top_k=limit,
+            min_similarity=min_score,
+            scope=scope,
+            web_source=web_source,
+            category=category_filter
+        )
 
         return jsonify({
             'status': 'success',
             'query': query,
+            'scope': scope,
+            'web_source': web_source,
             'count': len(results),
             'results': results,
             'stats': visual_search_engine.get_stats()
@@ -2063,12 +2069,14 @@ def api_search_text():
 
 @app.route('/api/search/similar', methods=['POST'])
 def api_search_similar():
-    """Reverse Image Search: finds visually similar images using CLIP embeddings."""
+    """Reverse Image Search: finds visually similar images across local files and the web."""
     try:
         limit = int(request.form.get('limit') or 18)
         min_sim = float(request.form.get('min_similarity') or 0.20)
         category_filter = request.form.get('category') or 'all'
         exclude_self = request.form.get('exclude_self', 'true').lower() == 'true'
+        scope = request.form.get('scope') or 'all'  # 'all', 'web', 'local'
+        web_source = request.form.get('web_source') or 'all'
 
         image_path = None
         # Option 1: File uploaded
@@ -2095,24 +2103,44 @@ def api_search_similar():
 
         results = visual_search_engine.search_by_image(
             image_input=image_path,
-            top_k=limit * 2,
+            top_k=limit,
             min_similarity=min_sim,
-            exclude_self_path=image_path if exclude_self else None
+            exclude_self_path=image_path if exclude_self else None,
+            scope=scope,
+            web_source=web_source
         )
-
-        if category_filter and category_filter != 'all':
-            results = [r for r in results if r.get('category') == category_filter]
-
-        results = results[:limit]
 
         query_url = f"/uploads/{os.path.basename(image_path)}" if UPLOAD_DIR in image_path else f"/outputs/{os.path.basename(image_path)}"
 
         return jsonify({
             'status': 'success',
             'query_image': query_url,
+            'scope': scope,
+            'web_source': web_source,
             'count': len(results),
             'results': results,
             'stats': visual_search_engine.get_stats()
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/search/web/import', methods=['POST'])
+def api_search_web_import():
+    """Downloads a chosen web image to local uploads/ for immediate use in Enhance, BgRemover, or Generator."""
+    try:
+        data = request.get_json(silent=True) or request.form
+        image_url = data.get('url', '').strip()
+        custom_name = data.get('filename', '').strip() or None
+        if not image_url:
+            return jsonify({'status': 'error', 'message': 'Thiếu đường dẫn URL ảnh cần tải'}), 400
+
+        imported = visual_search_engine.download_web_image_to_local(image_url, custom_name)
+        return jsonify({
+            'status': 'success',
+            'data': imported
         })
     except Exception as e:
         import traceback

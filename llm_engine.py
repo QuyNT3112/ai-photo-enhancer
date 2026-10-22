@@ -775,16 +775,18 @@ class LLMEngine:
         # Check reverse image search request
         if has_image and any(k in msg_clean.lower() for k in ["tìm ảnh tương tự", "ảnh tương tự", "tìm giống", "tương tự", "similar", "reverse"]):
             from visual_search import visual_search_engine
-            results = visual_search_engine.search_by_image(image_path, top_k=8, min_similarity=0.20)
+            scope = "web" if any(w in msg_clean.lower() for w in ["trên web", "trên mạng", "internet", "toàn cầu"]) else "all"
+            results = visual_search_engine.search_by_image(image_path, top_k=8, min_similarity=0.20, scope=scope)
             count = len(results)
+            scope_label = "trên các trang Web Internet & Thư viện máy" if scope == "all" else "trên các trang Web Internet"
             if count > 0:
                 bot_reply = (
-                    f"### 🔍 Đã Tìm Thấy {count} Hình Ảnh Tương Tự Bằng Mô Hình CLIP AI!\n\n"
+                    f"### 🔍 Đã Tìm Thấy {count} Hình Ảnh Tương Tự Bằng Mô Hình CLIP AI ({scope_label})!\n\n"
                     f"Dựa trên các đặc trưng thị giác (màu sắc, bố cục, chủ thể) của ảnh bạn cung cấp, "
-                    f"dưới đây là các ảnh có độ tương đồng cao nhất trong thư viện:"
+                    f"dưới đây là các ảnh có độ tương đồng cao nhất:"
                 )
             else:
-                bot_reply = "⚠️ Chưa tìm thấy ảnh nào có độ tương đồng đủ cao với ảnh bạn cung cấp trong thư viện."
+                bot_reply = "⚠️ Chưa tìm thấy ảnh nào có độ tương đồng đủ cao với ảnh bạn cung cấp."
             return {
                 "status": "success",
                 "reply": bot_reply,
@@ -793,25 +795,33 @@ class LLMEngine:
             }
 
         # Check text-to-image search request in chat
-        search_triggers = ["tìm ảnh ", "tìm hình ", "tìm kiếm ảnh ", "tìm kiếm hình ", "search image ", "search ", "tìm các ảnh", "tìm những ảnh", "tìm bức ảnh"]
-        is_search_query = any(msg_clean.lower().startswith(p) for p in search_triggers) or any(k in msg_clean.lower() for k in ["tìm ảnh về", "tìm hình về", "tìm kiếm bức ảnh"])
+        search_triggers = ["tìm ảnh", "tìm hình", "tìm kiếm ảnh", "tìm kiếm hình", "search image", "search ", "tìm các ảnh", "tìm những ảnh", "tìm bức ảnh"]
+        is_search_query = any(msg_clean.lower().startswith(p) for p in search_triggers) or any(k in msg_clean.lower() for k in ["tìm ảnh về", "tìm hình về", "tìm kiếm bức ảnh", "tìm kiếm ảnh"])
         if is_search_query:
             search_q = msg_clean
             for p in ["tìm kiếm hình ảnh về", "tìm kiếm ảnh về", "tìm hình ảnh về", "tìm kiếm hình ảnh", "tìm kiếm ảnh", "tìm các ảnh", "tìm những ảnh", "tìm bức ảnh", "tìm ảnh về", "tìm hình về", "tìm ảnh ", "tìm hình ", "search image ", "search ", "tìm "]:
                 if search_q.lower().startswith(p):
                     search_q = search_q[len(p):].strip()
                     break
+
+            scope = "all"
+            if any(w in search_q.lower() for w in ["trên web", "trên mạng", "trên internet", "từ web"]):
+                scope = "web"
+                for w in ["trên web", "trên mạng", "trên internet", "từ web"]:
+                    search_q = re.sub(re.escape(w), "", search_q, flags=re.IGNORECASE).strip()
+
             if search_q:
                 from visual_search import visual_search_engine
-                results = visual_search_engine.search_by_text(search_q, top_k=8, min_similarity=0.15)
+                results = visual_search_engine.search_by_text(search_q, top_k=8, min_similarity=0.15, scope=scope)
                 count = len(results)
+                scope_label = "Web Internet & Thư Viện" if scope == "all" else "Web Toàn Cầu"
                 if count > 0:
                     bot_reply = (
-                        f"### 🔎 Đã Tìm Thấy {count} Hình Ảnh Phù Hợp Với Từ Khóa: *\"{search_q}\"*!\n\n"
-                        f"Mô hình **OpenAI CLIP ViT-B/32** đã đối chiếu ngữ nghĩa và trích xuất các hình ảnh sát nhất trong kho lưu trữ:"
+                        f"### 🔎 Đã Tìm Thấy {count} Hình Ảnh Phù Hợp ({scope_label}) Với Từ Khóa: *\"{search_q}\"*!\n\n"
+                        f"Mô hình **OpenAI CLIP ViT-B/32** đã đối chiếu ngữ nghĩa và trích xuất các hình ảnh sát nhất:"
                     )
                 else:
-                    bot_reply = f"⚠️ Không tìm thấy ảnh nào khớp với từ khóa *\"{search_q}\"*. Bạn có thể thử từ khóa tương tự hoặc tải thêm ảnh vào hệ thống!"
+                    bot_reply = f"⚠️ Không tìm thấy ảnh nào khớp với từ khóa *\"{search_q}\"*. Bạn có thể thử từ khóa tương tự hoặc chuyển sang chế độ tìm kiếm Web!"
                 return {
                     "status": "success",
                     "reply": bot_reply,
