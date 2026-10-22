@@ -2723,10 +2723,12 @@
                                 <div class="filter-item" id="filterWebSourceWrap">
                                     <label for="vsearchWebSourceSelect"><i class="fa-solid fa-network-wired text-emerald"></i> Nguồn Web:</label>
                                     <select id="vsearchWebSourceSelect" class="vsearch-select">
-                                        <option value="all" selected>🌐 Tất Cả Nguồn Web (Tổng hợp)</option>
-                                        <option value="bing">🔍 Bing Images (Pinterest, Artstation, Báo chí...)</option>
-                                        <option value="wikimedia">🏛️ Wikimedia Commons (Bản quyền tự do)</option>
-                                        <option value="flickr">📷 Flickr (Nhiếp ảnh nghệ thuật)</option>
+                                        <option value="all" selected>🌐 Tất Cả Nguồn Web (Google-Like Tổng Hợp)</option>
+                                        <option value="bing">🔍 Bing Images (Pinterest, Artstation, Mạng Xã Hội...)</option>
+                                        <option value="wallhaven">🌌 Wallhaven HD (Anime, Manga & Wallpaper 4K)</option>
+                                        <option value="safebooru">🎨 Safebooru Anime (Kho Tranh Minh Họa Nhân Vật)</option>
+                                        <option value="wikimedia">🏛️ Wikimedia Commons (Bản Quyền Tự Do)</option>
+                                        <option value="flickr">📷 Flickr (Nhiếp Ảnh Nghệ Thuật & Fanart)</option>
                                     </select>
                                 </div>
 
@@ -2762,6 +2764,9 @@
                                     <i class="fa-solid fa-arrows-rotate"></i> Cập Nhật Chỉ Mục
                                 </button>
                             </div>
+
+                            <!-- AI Franchise & Entity Recognition Card (Dynamic) -->
+                            <div class="vsearch-entity-card hidden" id="vsearchEntityCard"></div>
 
                             <!-- Status & Results Header -->
                             <div class="vsearch-summary-bar" id="vsearchSummaryBar">

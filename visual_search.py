@@ -34,6 +34,11 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
 
 import torch
 
+try:
+    from entity_knowledge import detect_franchise_entity
+except Exception:
+    detect_franchise_entity = lambda q: None
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, 'outputs')
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
@@ -316,11 +321,17 @@ class VisualSearchEngine:
     # MULTI-ENGINE WEB IMAGE SEARCH (BING, WIKIMEDIA, FLICKR)
     # =========================================================================
 
-    def _search_bing_images(self, query: str, limit: int = 25) -> List[Dict[str, Any]]:
-        """Searches Bing Images across the entire internet."""
+    def _search_bing_images(
+        self,
+        query: str,
+        limit: int = 25,
+        character_tag: Optional[str] = None,
+        character_icon: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Searches Bing Images across the entire internet with high-res filter."""
         results = []
         try:
-            url = f"https://www.bing.com/images/search?q={urllib.parse.quote(query)}&form=HDRSC2"
+            url = f"https://www.bing.com/images/search?q={urllib.parse.quote(query)}&qft=+filterui:photo-photo&form=IRFLTR"
             headers = {
                 "User-Agent": STANDARD_USER_AGENT,
                 "Accept-Language": "en-US,en;q=0.9",
@@ -343,6 +354,11 @@ class VisualSearchEngine:
 
                     if murl and murl.startswith("http"):
                         domain = urllib.parse.urlparse(purl).netloc.replace("www.", "") if purl else "Web"
+                        lower_title = title.lower()
+                        # For anime/dragon searches, ignore stock reptile dragon sites
+                        if "dragon" in query.lower() and ("publicdomainpictures.net" in domain or "fairy tale" in lower_title or "chinese dragon" in lower_title or "lizard" in lower_title):
+                            continue
+
                         ext = os.path.splitext(urllib.parse.urlparse(murl).path)[1].lower()
                         if ext not in ALLOWED_EXTENSIONS:
                             ext = ".jpg"
@@ -357,7 +373,9 @@ class VisualSearchEngine:
                             "source_url": purl or murl,
                             "engine": "Bing Web",
                             "is_web": True,
-                            "category": "web"
+                            "category": "web",
+                            "character_tag": character_tag,
+                            "character_icon": character_icon
                         })
                         if len(results) >= limit:
                             break
@@ -367,7 +385,108 @@ class VisualSearchEngine:
             print(f"[VisualSearch] Bing search error: {e}")
         return results
 
-    def _search_wikimedia_images(self, query: str, limit: int = 15) -> List[Dict[str, Any]]:
+    def _search_wallhaven_images(
+        self,
+        query: str,
+        limit: int = 16,
+        character_tag: Optional[str] = None,
+        character_icon: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Searches Wallhaven for ultra-high-resolution 4K/1080p anime and character artwork."""
+        results = []
+        try:
+            url = f"https://wallhaven.cc/api/v1/search?q={urllib.parse.quote(query)}&categories=111&purity=100&sorting=relevance"
+            headers = {"User-Agent": STANDARD_USER_AGENT}
+            r = requests.get(url, headers=headers, timeout=6)
+            if r.status_code == 200:
+                data = r.json().get("data", [])
+                for it in data[:limit]:
+                    full_url = it.get("path")
+                    if not full_url:
+                        continue
+                    thumb_url = it.get("thumbs", {}).get("large") or it.get("thumbs", {}).get("small") or full_url
+                    res_str = it.get("resolution", "")
+                    w, h = 0, 0
+                    if "x" in res_str:
+                        try:
+                            parts = res_str.split("x")
+                            w, h = int(parts[0]), int(parts[1])
+                        except Exception:
+                            pass
+                    synth_fname = f"wh_{it.get('id')}.jpg"
+                    results.append({
+                        "title": f"{query.title()} Artwork ({res_str})",
+                        "filename": synth_fname,
+                        "url": full_url,
+                        "thumbnail": thumb_url,
+                        "source_site": "Wallhaven HD",
+                        "source_url": it.get("url") or full_url,
+                        "width": w,
+                        "height": h,
+                        "engine": "Wallhaven",
+                        "is_web": True,
+                        "category": "web",
+                        "character_tag": character_tag,
+                        "character_icon": character_icon
+                    })
+        except Exception as e:
+            print(f"[VisualSearch] Wallhaven search error: {e}")
+        return results
+
+    def _search_safebooru_images(
+        self,
+        query: str,
+        limit: int = 12,
+        character_tag: Optional[str] = None,
+        character_icon: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Searches Safebooru for dedicated anime/manga character illustrations."""
+        results = []
+        try:
+            clean_tag = query.lower().strip().replace(" ", "_")
+            url = f"https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit={limit}&tags={urllib.parse.quote(clean_tag)}"
+            headers = {"User-Agent": STANDARD_USER_AGENT}
+            r = requests.get(url, headers=headers, timeout=5)
+            if r.status_code == 200 and r.text.strip().startswith("["):
+                try:
+                    items = r.json()
+                except Exception:
+                    items = []
+                if isinstance(items, list):
+                    for it in items:
+                        img_name = it.get("image")
+                        dir_name = it.get("directory")
+                        if not img_name or not dir_name:
+                            continue
+                        full_url = f"https://safebooru.org/images/{dir_name}/{img_name}"
+                        thumb_url = f"https://safebooru.org/thumbnails/{dir_name}/thumbnail_{img_name}"
+                        synth_fname = f"sb_{it.get('id', hashlib.md5(full_url.encode()).hexdigest()[:8])}.jpg"
+                        results.append({
+                            "title": f"Safebooru Anime ({query})",
+                            "filename": synth_fname,
+                            "url": full_url,
+                            "thumbnail": thumb_url,
+                            "source_site": "Safebooru Anime",
+                            "source_url": f"https://safebooru.org/index.php?page=post&s=view&id={it.get('id')}",
+                            "width": it.get("width"),
+                            "height": it.get("height"),
+                            "engine": "Safebooru",
+                            "is_web": True,
+                            "category": "web",
+                            "character_tag": character_tag,
+                            "character_icon": character_icon
+                        })
+        except Exception as e:
+            print(f"[VisualSearch] Safebooru search error: {e}")
+        return results
+
+    def _search_wikimedia_images(
+        self,
+        query: str,
+        limit: int = 15,
+        character_tag: Optional[str] = None,
+        character_icon: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Searches Wikimedia Commons for high-resolution public domain / free license images."""
         results = []
         try:
@@ -397,7 +516,6 @@ class VisualSearchEngine:
                 if not img_url:
                     continue
 
-                # Filter out non-raster graphics
                 lower_u = img_url.lower()
                 if lower_u.endswith(".svg") or lower_u.endswith(".ogg") or lower_u.endswith(".pdf"):
                     continue
@@ -419,7 +537,9 @@ class VisualSearchEngine:
                     "height": h,
                     "engine": "Wikimedia",
                     "is_web": True,
-                    "category": "web"
+                    "category": "web",
+                    "character_tag": character_tag,
+                    "character_icon": character_icon
                 })
                 if len(results) >= limit:
                     break
@@ -427,7 +547,13 @@ class VisualSearchEngine:
             print(f"[VisualSearch] Wikimedia search error: {e}")
         return results
 
-    def _search_flickr_images(self, query: str, limit: int = 15) -> List[Dict[str, Any]]:
+    def _search_flickr_images(
+        self,
+        query: str,
+        limit: int = 15,
+        character_tag: Optional[str] = None,
+        character_icon: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Searches Flickr for creative, artistic, and photography images."""
         results = []
         try:
@@ -443,7 +569,6 @@ class VisualSearchEngine:
                 m = it.get("media", {}).get("m")
                 if not m:
                     continue
-                # _m.jpg is small, _b.jpg is 1024px
                 large_url = m.replace("_m.", "_b.")
                 synth_fname = f"flickr_{hashlib.md5(large_url.encode()).hexdigest()[:10]}.jpg"
 
@@ -456,7 +581,9 @@ class VisualSearchEngine:
                     "source_url": it.get("link") or large_url,
                     "engine": "Flickr",
                     "is_web": True,
-                    "category": "web"
+                    "category": "web",
+                    "character_tag": character_tag,
+                    "character_icon": character_icon
                 })
         except Exception as e:
             print(f"[VisualSearch] Flickr search error: {e}")
@@ -471,14 +598,20 @@ class VisualSearchEngine:
         query_image: Optional[Image.Image] = None
     ) -> List[Dict[str, Any]]:
         """
-        Retrieves web images from Bing, Wikimedia, and Flickr, then optionally
-        re-ranks them with local CLIP ViT on CUDA for maximum semantic/visual relevance.
+        Retrieves web images across Google-like multi-sources (Bing, Wallhaven HD,
+        Safebooru Anime, Wikimedia Commons, Flickr) with AI Franchise & Character
+        Recognition, then re-ranks them with local CLIP ViT on CUDA.
         """
         q_clean = query.strip()
         if not q_clean and query_image is None:
             return []
 
-        # Automatic Vietnamese -> English prompt translation for rich global web coverage
+        # 1. AI Franchise & Entity Knowledge Detection
+        entity_info = None
+        if query_image is None:
+            entity_info = detect_franchise_entity(q_clean)
+
+        # Automatic prompt translation for global search engines
         translated_q = q_clean
         try:
             from generator import smart_translate_prompt  # type: ignore
@@ -489,20 +622,162 @@ class VisualSearchEngine:
             pass
 
         web_candidates = []
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=8) as executor:
             futures = []
-            if source in ("all", "bing"):
-                futures.append(executor.submit(self._search_bing_images, translated_q, limit))
-            if source in ("all", "wikimedia"):
-                futures.append(executor.submit(self._search_wikimedia_images, translated_q, limit // 2 or 6))
-            if source in ("all", "flickr"):
-                futures.append(executor.submit(self._search_flickr_images, translated_q, limit // 2 or 6))
+
+            if entity_info:
+                # Franchise universe recognized! (e.g. Dragon Ball, Naruto, One Piece, etc.)
+                active_char_id = entity_info.get("active_character_id", "all")
+                clean_franchise = entity_info.get("canonical_name") or entity_info["title"].split("(")[0].strip()
+
+                def _get_safebooru_tag(ch_dict, clean_name):
+                    safe_tag = ch_dict.get("safe_tag") or clean_name.lower().replace(" ", "_")
+                    if "goku" in safe_tag:
+                        return "son_goku"
+                    if "gohan" in safe_tag:
+                        return "son_gohan"
+                    if "trunks" in safe_tag:
+                        return "trunks"
+                    if "shenron" in safe_tag:
+                        return "shenron"
+                    if "frieza" in safe_tag or "fide" in safe_tag:
+                        return "freeza"
+                    if "cell" in safe_tag:
+                        return "cell"
+                    if "buu" in safe_tag:
+                        return "majin_buu"
+                    if "piccolo" in safe_tag:
+                        return "piccolo"
+                    if "vegeta" in safe_tag:
+                        return "vegeta"
+                    return safe_tag
+
+                if active_char_id == "all":
+                    # Mode A: Search entire franchise + parallel sub-searches for all major characters
+                    primary_query = f"{clean_franchise} anime characters wallpaper official art"
+
+                    # 1. Primary franchise queries across engines
+                    if source in ("all", "wallhaven"):
+                        futures.append(executor.submit(self._search_wallhaven_images, clean_franchise, 16))
+                    if source in ("all", "safebooru"):
+                        futures.append(executor.submit(self._search_safebooru_images, clean_franchise.lower().replace(" ", "_"), 12))
+                    if source in ("all", "bing"):
+                        futures.append(executor.submit(self._search_bing_images, f"{clean_franchise} anime wallpaper hd", 12))
+                    if source in ("all", "wikimedia"):
+                        futures.append(executor.submit(self._search_wikimedia_images, clean_franchise, 6))
+
+                    # 2. Concurrently dispatch key franchise characters
+                    chars = [c for c in entity_info.get("characters", []) if c.get("id") != "all"]
+                    for ch in chars[:7]:
+                        clean_ch_name = ch["name"].split("(")[0].strip()
+                        safe_ch_tag = _get_safebooru_tag(ch, clean_ch_name)
+
+                        if source in ("all", "wallhaven"):
+                            futures.append(executor.submit(
+                                self._search_wallhaven_images,
+                                f"{clean_franchise} {clean_ch_name}",
+                                4,
+                                ch["name"],
+                                ch["icon"]
+                            ))
+                        if source in ("all", "safebooru"):
+                            futures.append(executor.submit(
+                                self._search_safebooru_images,
+                                safe_ch_tag,
+                                4,
+                                ch["name"],
+                                ch["icon"]
+                            ))
+                        if source in ("all", "bing"):
+                            futures.append(executor.submit(
+                                self._search_bing_images,
+                                f"{clean_franchise} {clean_ch_name} anime wallpaper hd",
+                                3,
+                                ch["name"],
+                                ch["icon"]
+                            ))
+                else:
+                    # Mode B: Specific character selected within franchise (e.g. Vegeta)
+                    target_ch = next((c for c in entity_info.get("characters", []) if c["id"] == active_char_id), None)
+                    clean_ch_name = target_ch["name"].split("(")[0].strip() if target_ch else translated_q
+                    ch_name = target_ch["name"] if target_ch else translated_q
+                    ch_icon = target_ch["icon"] if target_ch else "⚡"
+                    safe_ch_tag = _get_safebooru_tag(target_ch or {}, clean_ch_name)
+
+                    if source in ("all", "wallhaven"):
+                        futures.append(executor.submit(
+                            self._search_wallhaven_images,
+                            f"{clean_franchise} {clean_ch_name}",
+                            12,
+                            ch_name,
+                            ch_icon
+                        ))
+                    if source in ("all", "safebooru"):
+                        futures.append(executor.submit(
+                            self._search_safebooru_images,
+                            safe_ch_tag,
+                            10,
+                            ch_name,
+                            ch_icon
+                        ))
+                    if source in ("all", "bing"):
+                        futures.append(executor.submit(
+                            self._search_bing_images,
+                            f"{clean_franchise} {clean_ch_name} anime wallpaper hd",
+                            limit,
+                            ch_name,
+                            ch_icon
+                        ))
+                    if source in ("all", "wikimedia"):
+                        futures.append(executor.submit(
+                            self._search_wikimedia_images,
+                            f"{clean_franchise} {clean_ch_name}",
+                            6,
+                            ch_name,
+                            ch_icon
+                        ))
+                    if source in ("all", "flickr"):
+                        futures.append(executor.submit(
+                            self._search_flickr_images,
+                            f"{clean_franchise} {clean_ch_name}",
+                            6,
+                            ch_name,
+                            ch_icon
+                        ))
+            else:
+                # Standard keyword search
+                if source in ("all", "bing"):
+                    futures.append(executor.submit(self._search_bing_images, translated_q, limit))
+                if source in ("all", "wallhaven"):
+                    futures.append(executor.submit(self._search_wallhaven_images, translated_q, limit // 2 or 8))
+                if source in ("all", "safebooru"):
+                    futures.append(executor.submit(self._search_safebooru_images, translated_q, 8))
+                if source in ("all", "wikimedia"):
+                    futures.append(executor.submit(self._search_wikimedia_images, translated_q, limit // 2 or 6))
+                if source in ("all", "flickr"):
+                    futures.append(executor.submit(self._search_flickr_images, translated_q, limit // 2 or 6))
 
             for f in as_completed(futures):
                 try:
                     web_candidates.extend(f.result())
                 except Exception:
                     pass
+
+        # Auto-tag any candidate whose title/url/filename mentions a known franchise character
+        if entity_info:
+            for c in web_candidates:
+                if not c.get("character_tag"):
+                    c_text = f"{c.get('title', '')} {c.get('filename', '')} {c.get('url', '')}".lower()
+                    for ch in entity_info.get("characters", []):
+                        if ch.get("id") == "all":
+                            continue
+                        for kw in ch.get("keywords", []):
+                            if len(kw) >= 3 and kw.lower() in c_text:
+                                c["character_tag"] = ch["name"]
+                                c["character_icon"] = ch["icon"]
+                                break
+                        if c.get("character_tag"):
+                            break
 
         # Deduplicate by image URL
         seen_urls = set()
@@ -523,15 +798,24 @@ class VisualSearchEngine:
                 if query_image is not None:
                     query_feat = self._extract_image_features([query_image.convert("RGB")])[0]  # (512,)
                 else:
-                    # Text feature
-                    expanded = [translated_q]
-                    if not translated_q.lower().startswith("a photo of"):
-                        expanded.append(f"a high quality photo of {translated_q}")
+                    # Domain-aware text feature
+                    if entity_info:
+                        clean_franchise = entity_info.get("canonical_name") or entity_info["title"].split("(")[0].strip()
+                        expanded = [
+                            f"official anime wallpaper of {clean_franchise} by Akira Toriyama characters",
+                            f"Japanese anime series {clean_franchise} high quality official illustration artwork",
+                            f"anime character battle scene in {clean_franchise} anime"
+                        ]
+                    else:
+                        expanded = [translated_q]
+                        if not translated_q.lower().startswith("a photo of"):
+                            expanded.append(f"a high quality photo of {translated_q}")
+
                     t_feats = self._extract_text_features(expanded)
                     query_feat = np.mean(t_feats, axis=0)
                     query_feat = query_feat / np.linalg.norm(query_feat)
 
-                # Fetch candidate thumbnails concurrently (up to 24 candidates, 3.5s timeout)
+                # Fetch candidate thumbnails concurrently
                 def fetch_thumb(item):
                     thumb_url = item.get("thumbnail") or item.get("url")
                     try:
@@ -544,8 +828,8 @@ class VisualSearchEngine:
                     return item, None
 
                 fetched_pairs = []
-                with ThreadPoolExecutor(max_workers=8) as ex:
-                    fetched_pairs = list(ex.map(fetch_thumb, unique_candidates[:limit + 10]))
+                with ThreadPoolExecutor(max_workers=10) as ex:
+                    fetched_pairs = list(ex.map(fetch_thumb, unique_candidates[:limit + 15]))
 
                 valid_items = []
                 valid_images = []
@@ -581,8 +865,8 @@ class VisualSearchEngine:
 
                 # Add fallback items with decreasing default scores
                 for idx, fb in enumerate(fallback_items):
-                    fb["score"] = 0.20 - idx * 0.005
-                    fb["match_percent"] = round(72.0 - idx * 1.5, 1)
+                    fb["score"] = 0.22 - idx * 0.005
+                    fb["match_percent"] = round(75.0 - idx * 1.5, 1)
                     fb["confidence_badge"] = "Tương đối"
 
                 unique_candidates = valid_items + fallback_items
@@ -767,12 +1051,22 @@ class VisualSearchEngine:
         except Exception:
             pass
 
-        expanded_texts = []
-        for q in queries:
-            expanded_texts.append(q)
-            if not q.lower().startswith("a photo of") and not q.lower().startswith("an image of"):
-                expanded_texts.append(f"a photo of {q}")
-                expanded_texts.append(f"an artistic rendering of {q}")
+        entity_info = detect_franchise_entity(query)
+        if entity_info:
+            expanded_texts = [
+                f"{entity_info['title']} {query} anime manga series characters official art",
+                f"anime character illustration of {query}",
+                f"{entity_info['title']} universe official anime scene"
+            ]
+            effective_min_sim = max(min_similarity, 0.22)
+        else:
+            expanded_texts = []
+            for q in queries:
+                expanded_texts.append(q)
+                if not q.lower().startswith("a photo of") and not q.lower().startswith("an image of"):
+                    expanded_texts.append(f"a photo of {q}")
+                    expanded_texts.append(f"an artistic rendering of {q}")
+            effective_min_sim = min_similarity
 
         text_feats = self._extract_text_features(expanded_texts)  # (M, 512)
         sim_matrix = np.dot(self.embeddings, text_feats.T)
@@ -787,7 +1081,7 @@ class VisualSearchEngine:
                 continue
 
             raw_score = float(max_sims[idx])
-            if raw_score < min_similarity:
+            if raw_score < effective_min_sim:
                 continue
 
             norm_score = max(0.0, min(1.0, (raw_score - 0.12) / 0.22))

@@ -3660,7 +3660,7 @@ document.addEventListener('DOMContentLoaded', () => {
             removeTypingIndicator(typingId);
 
             if (data.status === 'success') {
-                appendBotMessageBubble(data.reply, data.prompt_data, attachedFile, data.search_results);
+                appendBotMessageBubble(data.reply, data.prompt_data, attachedFile, data.search_results, data.entity_info);
                 chatConversationHistory.push({ role: 'user', content: text || 'Phân tích hình ảnh này' });
                 chatConversationHistory.push({ role: 'assistant', content: data.reply });
             } else {
@@ -3753,7 +3753,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) el.remove();
     }
 
-    function appendBotMessageBubble(replyMarkdown, promptData, originalFile, searchResults) {
+    function appendBotMessageBubble(replyMarkdown, promptData, originalFile, searchResults, entityInfo = null) {
         if (!chatMessagesContainer) return;
 
         const row = document.createElement('div');
@@ -3765,13 +3765,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchResults && searchResults.length > 0) {
             const cardsHtml = searchResults.map(r => {
                 const isWeb = !!r.is_web;
-                const sourceTag = isWeb ? `🌐 ${r.source_site || r.engine || 'Web'}` : '📁 Thư viện';
+                const charTag = r.character_tag ? `<span style="color:#fbbf24; font-weight:700;">${r.character_icon || '⚡'} ${escapeHtml(r.character_tag)}</span> · ` : '';
+                const sourceTag = isWeb ? `🌐 ${charTag}${r.source_site || r.engine || 'Web'}` : `📁 ${charTag}Thư viện`;
                 return `
                     <div class="chat-search-card" data-url="${escapeHtml(r.url)}" data-filename="${escapeHtml(r.filename)}" data-path="${escapeHtml(r.path || '')}" data-percent="${r.match_percent || 0}" data-category="${escapeHtml(r.category || '')}" data-size="${r.size_kb || 0}" data-dim="${r.width ? r.width + 'x' + r.height : ''}" data-isweb="${isWeb}" data-source="${escapeHtml(r.source_site || '')}" data-sourceurl="${escapeHtml(r.source_url || '')}" data-engine="${escapeHtml(r.engine || '')}">
                         <img src="${escapeHtml(r.thumbnail || r.url)}" alt="${escapeHtml(r.filename)}" class="chat-search-thumb" loading="lazy" />
                         <span class="chat-search-badge">${r.match_percent}%</span>
                         <div class="chat-search-title" title="${escapeHtml(r.title || r.filename)}">${escapeHtml(r.title || r.filename)}</div>
-                        <div style="font-size: 10px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(sourceTag)}</div>
+                        <div style="font-size: 10px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sourceTag}</div>
                     </div>
                 `;
             }).join('');
@@ -3784,6 +3785,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="chat-search-grid">
                         ${cardsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        let entityChipsHtml = '';
+        if (entityInfo && entityInfo.characters && entityInfo.characters.length > 0) {
+            const chips = entityInfo.characters.slice(0, 8).map(ch => `
+                <button type="button" class="chat-entity-chip" data-search="${escapeHtml(ch.search_query)}" data-name="${escapeHtml(ch.name)}" style="padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                    ${ch.icon || '⚡'} ${escapeHtml(ch.name)}
+                </button>
+            `).join('');
+
+            entityChipsHtml = `
+                <div class="chat-entity-chips-box" style="margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25);">
+                    <div style="font-size: 11px; font-weight: 700; color: #a78bfa; margin-bottom: 6px; text-transform: uppercase;">
+                        <i class="fa-solid fa-users"></i> Nhân vật ${escapeHtml(entityInfo.title)}:
+                    </div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        ${chips}
                     </div>
                 </div>
             `;
@@ -3813,11 +3834,24 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="chat-bubble bot-bubble">
                 <div class="chat-bubble-content">
                     ${parsedContent}
+                    ${entityChipsHtml}
                     ${searchGridHtml}
                     ${actionsHtml}
                 </div>
             </div>
         `;
+
+        // Wire Character Chips in Chat
+        row.querySelectorAll('.chat-entity-chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const s = btn.dataset.search;
+                if (typeof window.switchToVisualSearchTab === 'function') {
+                    window.switchToVisualSearchTab();
+                }
+                if (vsearchKeywordInput) vsearchKeywordInput.value = btn.dataset.name || s;
+                executeKeywordSearch(s);
+            });
+        });
 
         // Wire Search Cards in Chat
         row.querySelectorAll('.chat-search-card').forEach(card => {
@@ -4190,8 +4224,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
 
             if (data.status === 'success') {
+                if (data.entity_info) {
+                    renderEntityKnowledgeCard(data.entity_info);
+                } else {
+                    const entCard = document.getElementById('vsearchEntityCard');
+                    if (entCard) entCard.classList.add('hidden');
+                }
+
                 const scopeLabel = currentSearchScope === 'web' ? 'Web Toàn Cầu' : (currentSearchScope === 'local' ? 'Thư Viện Máy' : 'Toàn Cầu (Web + Máy)');
-                renderVisualSearchResults(data.results, `${scopeLabel} · Từ khóa: "${q}"`, elapsed);
+                renderVisualSearchResults(data.results, `${scopeLabel} · Từ khóa: "${q}"`, elapsed, data.entity_info);
             } else {
                 throw new Error(data.message || 'Lỗi tìm kiếm');
             }
@@ -4202,6 +4243,78 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             isVsearching = false;
         }
+    }
+
+    // 3b. AI Franchise & Entity Knowledge Card Renderer
+    function renderEntityKnowledgeCard(entityInfo) {
+        const card = document.getElementById('vsearchEntityCard');
+        if (!card) return;
+        if (!entityInfo) {
+            card.classList.add('hidden');
+            return;
+        }
+
+        const activeId = entityInfo.active_character_id || 'all';
+        const chipsHtml = (entityInfo.characters || []).map(ch => {
+            const isActive = (ch.id === activeId);
+            return `
+                <button type="button" class="entity-char-chip ${isActive ? 'active' : ''}" data-char-id="${escapeHtml(ch.id)}" data-query="${escapeHtml(ch.search_query)}" title="${escapeHtml(ch.vietnamese_name || ch.name)}">
+                    <span class="char-icon">${ch.icon || '⚡'}</span>
+                    <span class="char-name">${escapeHtml(ch.name)}</span>
+                    ${ch.badge ? `<span class="char-badge-sm">${escapeHtml(ch.badge)}</span>` : ''}
+                </button>
+            `;
+        }).join('');
+
+        card.innerHTML = `
+            <div class="entity-top-row">
+                <div class="entity-icon-orb">${entityInfo.icon || '🐉'}</div>
+                <div class="entity-meta-wrap">
+                    <div class="entity-badges-row">
+                        <span class="entity-category-tag"><i class="fa-solid fa-sparkles"></i> ${escapeHtml(entityInfo.category || 'Vũ Trụ AI')}</span>
+                        <span class="entity-status-pill"><i class="fa-solid fa-award"></i> ${escapeHtml(entityInfo.badge || 'Franchise Nhận Diện')}</span>
+                    </div>
+                    <h3 class="entity-title-main">
+                        ${escapeHtml(entityInfo.title)}
+                        ${entityInfo.original_title ? `<span style="font-size: 13px; font-weight: normal; color: #94a3b8;">(${escapeHtml(entityInfo.original_title)})</span>` : ''}
+                    </h3>
+                    <div class="entity-creator-text">
+                        Tác giả & Xuất bản: <strong>${escapeHtml(entityInfo.creator || '')}</strong>
+                    </div>
+                    <p class="entity-desc-text">${escapeHtml(entityInfo.description || '')}</p>
+                </div>
+            </div>
+            <div class="entity-characters-section">
+                <div class="entity-characters-header">
+                    <span class="entity-characters-label"><i class="fa-solid fa-users"></i> Khám Phá Nhân Vật & Yếu Tố Điển Hình:</span>
+                </div>
+                <div class="entity-char-chips-row">
+                    ${chipsHtml}
+                </div>
+            </div>
+        `;
+
+        card.classList.remove('hidden');
+
+        // Wire character chip clicks
+        card.querySelectorAll('.entity-char-chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const subQuery = btn.dataset.query;
+                const charId = btn.dataset.charId;
+                card.querySelectorAll('.entity-char-chip').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                if (vsearchKeywordInput) {
+                    if (charId === 'all') {
+                        vsearchKeywordInput.value = entityInfo.title.split('(')[0].trim();
+                    } else {
+                        const nameText = btn.querySelector('.char-name')?.textContent || '';
+                        vsearchKeywordInput.value = `${entityInfo.title.split('(')[0].trim()} ${nameText}`;
+                    }
+                }
+                executeKeywordSearch(subQuery);
+            });
+        });
     }
 
     if (btnExecKeywordSearch) {
@@ -4567,17 +4680,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const isWeb = !!item.is_web;
             const engine = item.engine || (isWeb ? 'Web' : 'Local');
             let engineBadgeClass = 'badge-web-bing';
-            if (engine.includes('Wiki')) engineBadgeClass = 'badge-web-wiki';
+            if (engine.includes('Wallhaven')) engineBadgeClass = 'badge-web-wallhaven';
+            else if (engine.includes('Safebooru')) engineBadgeClass = 'badge-web-safebooru';
+            else if (engine.includes('Wiki')) engineBadgeClass = 'badge-web-wiki';
             else if (engine.includes('Flickr')) engineBadgeClass = 'badge-web-flickr';
             else if (!isWeb) engineBadgeClass = 'badge-web-local';
 
             const sourceSite = item.source_site || (isWeb ? 'Web' : 'Thư viện máy');
+            const charBadgeHtml = item.character_tag
+                ? `<span class="vsearch-character-badge">${item.character_icon || '⚡'} ${escapeHtml(item.character_tag)}</span>`
+                : '';
 
             return `
                 <div class="vsearch-card" data-url="${escapeHtml(item.url)}" data-filename="${escapeHtml(item.filename)}" data-path="${escapeHtml(item.path || '')}" data-category="${escapeHtml(item.category || '')}" data-dim="${dimStr}" data-size="${item.size_kb || 0}" data-percent="${pct}" data-isweb="${isWeb}" data-source="${escapeHtml(sourceSite)}" data-engine="${escapeHtml(engine)}" data-sourceurl="${escapeHtml(item.source_url || '')}">
                     <div class="vsearch-card-thumb-wrap">
                         <img src="${escapeHtml(item.thumbnail || item.url)}" alt="${escapeHtml(item.filename)}" class="vsearch-card-thumb" loading="lazy" />
                         <span class="vsearch-match-badge ${badgeClass}">${pct}% Tương đồng</span>
+                        ${charBadgeHtml}
                         <span class="badge-web-source ${engineBadgeClass}"><i class="fa-solid fa-globe"></i> ${escapeHtml(sourceSite)}</span>
                         <div class="vsearch-card-overlay">
                             <button type="button" class="vsearch-overlay-btn btn-card-view-full" title="Xem ảnh lớn & thông số">

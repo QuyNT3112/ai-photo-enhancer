@@ -812,14 +812,30 @@ class LLMEngine:
 
             if search_q:
                 from visual_search import visual_search_engine
+                from entity_knowledge import detect_franchise_entity
+                entity_info = detect_franchise_entity(search_q)
+
                 results = visual_search_engine.search_by_text(search_q, top_k=8, min_similarity=0.15, scope=scope)
                 count = len(results)
                 scope_label = "Web Internet & Thư Viện" if scope == "all" else "Web Toàn Cầu"
                 if count > 0:
-                    bot_reply = (
-                        f"### 🔎 Đã Tìm Thấy {count} Hình Ảnh Phù Hợp ({scope_label}) Với Từ Khóa: *\"{search_q}\"*!\n\n"
-                        f"Mô hình **OpenAI CLIP ViT-B/32** đã đối chiếu ngữ nghĩa và trích xuất các hình ảnh sát nhất:"
-                    )
+                    if entity_info:
+                        char_md = "\n".join([
+                            f"- {ch['icon']} **{ch['name']}**: *{ch['badge']}*"
+                            for ch in entity_info.get("characters", [])[1:8]
+                        ])
+                        bot_reply = (
+                            f"### {entity_info['icon']} Đã Nhận Diện Vũ Trụ: **{entity_info['title']}**!\n\n"
+                            f"> **Tác giả / Nguồn gốc:** {entity_info['creator']} · {entity_info['category']}\n\n"
+                            f"{entity_info['description']}\n\n"
+                            f"**👥 Các nhân vật & yếu tố tiêu biểu đã nhận diện:**\n{char_md}\n\n"
+                            f"**🔍 Dưới đây là {count} hình ảnh các nhân vật & tác phẩm liên quan ({scope_label}):**"
+                        )
+                    else:
+                        bot_reply = (
+                            f"### 🔎 Đã Tìm Thấy {count} Hình Ảnh Phù Hợp ({scope_label}) Với Từ Khóa: *\"{search_q}\"*!\n\n"
+                            f"Mô hình **OpenAI CLIP ViT-B/32** đã đối chiếu ngữ nghĩa và trích xuất các hình ảnh sát nhất:"
+                        )
                 else:
                     bot_reply = f"⚠️ Không tìm thấy ảnh nào khớp với từ khóa *\"{search_q}\"*. Bạn có thể thử từ khóa tương tự hoặc chuyển sang chế độ tìm kiếm Web!"
                 return {
@@ -827,7 +843,8 @@ class LLMEngine:
                     "reply": bot_reply,
                     "search_results": results,
                     "is_search_result": True,
-                    "query": search_q
+                    "query": search_q,
+                    "entity_info": entity_info
                 }
         if self.active_provider == "local_qwen":
             reply = self._call_local_qwen(

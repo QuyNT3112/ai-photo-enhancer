@@ -2030,7 +2030,7 @@ def api_llm_chat():
 
 @app.route('/api/search/text', methods=['POST'])
 def api_search_text():
-    """Text-to-Image Semantic Search using OpenAI CLIP."""
+    """Text-to-Image Semantic Search using OpenAI CLIP with Franchise & Entity Recognition."""
     try:
         data = request.get_json() if request.is_json else request.form
         query = (data.get('query') or '').strip()
@@ -2041,7 +2041,13 @@ def api_search_text():
         min_score = float(data.get('min_score') or 0.15)
         category_filter = data.get('category') or 'all'
         scope = data.get('scope') or 'all'  # 'all', 'web', 'local'
-        web_source = data.get('web_source') or 'all'  # 'all', 'bing', 'wikimedia', 'flickr'
+        web_source = data.get('web_source') or 'all'  # 'all', 'bing', 'wallhaven', 'safebooru', 'wikimedia', 'flickr'
+
+        try:
+            from entity_knowledge import detect_franchise_entity
+            entity_info = detect_franchise_entity(query)
+        except Exception:
+            entity_info = None
 
         results = visual_search_engine.search_by_text(
             query=query,
@@ -2057,6 +2063,7 @@ def api_search_text():
             'query': query,
             'scope': scope,
             'web_source': web_source,
+            'entity_info': entity_info,
             'count': len(results),
             'results': results,
             'stats': visual_search_engine.get_stats()
@@ -2064,6 +2071,23 @@ def api_search_text():
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/search/entity-info', methods=['GET', 'POST'])
+def api_search_entity_info():
+    """Returns detected franchise knowledge, synopsis, and character lists."""
+    try:
+        q = request.args.get('query') or (request.get_json(silent=True) or {}).get('query') or request.form.get('query') or ''
+        from entity_knowledge import detect_franchise_entity
+        entity_info = detect_franchise_entity(q)
+        return jsonify({
+            'status': 'success',
+            'query': q,
+            'has_entity': entity_info is not None,
+            'entity_info': entity_info
+        })
+    except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
