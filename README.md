@@ -141,7 +141,17 @@
 - **Bảo toàn 100% chất lượng ảnh (Lossless Fidelity)**: Không giảm độ phân giải, giữ nguyên ICC Profile và EXIF, tự động xử lý hòa trộn nền sạch khi chuyển từ ảnh trong suốt sang JPG/BMP/PDF.
 - **Tải về linh hoạt**: Hỗ trợ nút **Tải lẻ giữ tên gốc**, nút **Tải File ZIP Chung** và nút **Lưu Tất Cả Vào Downloads**.
 
-### 9. 🎨 Trải Nghiệm Giao Diện Người Dùng Đỉnh Cao (Dark Glassmorphism)
+### 9. 🔍 Tìm Kiếm Ảnh Thông Minh Bằng CLIP AI (Visual & Semantic Search Engine)
+- **Tích hợp sâu trong Chatbot & Trợ lý AI**: Tìm kiếm ngữ nghĩa sâu (Text-to-Image) và tìm kiếm ảnh tương đồng (Reverse Image Search) 100% cục bộ trên GPU NVIDIA RTX 3060 với mô hình **OpenAI CLIP ViT-B/32**.
+- **Tìm kiếm bằng từ khóa tự nhiên (Text-to-Image)**: Nhập từ khóa hoặc mô tả bằng tiếng Việt/tiếng Anh (ví dụ: *"rồng thần thoại"*, *"cyberpunk city"*, *"hoa anh đào"*), CLIP AI đối chiếu không gian vector 512 chiều trong **~0.03 giây** để trả về các ảnh phù hợp nhất kèm % độ tương đồng trực quan.
+- **Tìm kiếm theo ảnh tương tự (Reverse Image Search)**: Kéo thả ảnh, chọn file hoặc nhấn `Ctrl + V` dán trực tiếp từ clipboard vào khu vực Dropzone để tìm ngay những bức ảnh có phong cách, bố cục hoặc nội dung tương đồng trong thư viện.
+- **Hỏi đáp tự nhiên trong Chatbot**: Chỉ cần chat *"tìm ảnh rồng"*, *"search anime style"*, hoặc tải kèm ảnh hỏi *"tìm ảnh tương tự"*, Chatbot tự động nhận diện ý định và nhúng trực tiếp lưới ảnh kết quả vào trong bong bóng chat.
+- **Bộ nhớ đệm thông minh (Incremental Cache)**: Tự động lưu cache vector vào `outputs/clip_visual_index.npz`. Khi quét lại thư viện, chỉ trích xuất cho ảnh mới, nạp lại hàng trăm bức ảnh chỉ trong **~0.10 giây**.
+- **Thanh công cụ & Lightbox tương tác đầy đủ**:
+  - Hộp thoại Lightbox toàn màn hình xem ảnh gốc sắc nét kèm thông số kỹ thuật (độ phân giải, thư mục nguồn, độ tương đồng).
+  - 1-Click chuyển ảnh sang **Tạo ảnh tương tự (I2I)**, **Nạp vào Chatbot** hoặc **Tải về máy**.
+
+### 10. 🎨 Trải Nghiệm Giao Diện Người Dùng Đỉnh Cao (Dark Glassmorphism)
 - **Thanh trượt so sánh tương tác (Interactive Split Slider)**: Kéo qua lại trực tiếp trên ảnh để so sánh chất lượng Trước/Sau.
 - **Nhiều chế độ quan sát**: Kéo thanh trượt, Đặt cạnh nhau (Side-by-Side), Phóng to chi tiết (Zoom 180%), Xem riêng ảnh gốc hoặc ảnh xử lý.
 - **Thao tác tải ảnh cực nhanh**: Kéo & thả tệp, chọn từ máy tính, hoặc **dán ảnh trực tiếp từ Clipboard (`Ctrl + V`)**.

@@ -35,6 +35,7 @@ from generator import ImageGenerator
 from llm_engine import LLMEngine
 from bg_remover import BackgroundRemover
 from format_converter import FormatConverter
+from visual_search import visual_search_engine
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
@@ -61,6 +62,10 @@ image_generator = ImageGenerator()
 llm_engine = LLMEngine()
 bg_remover = BackgroundRemover()
 format_converter = FormatConverter()
+try:
+    visual_search_engine.build_or_update_index()
+except Exception as _e:
+    print(f"[Server] Visual search indexing deferred: {_e}")
 print("[Server] AI & Media Engines ready!")
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp', 'jfif', 'tiff', 'tif', 'ico', 'pdf', 'avif', 'gif'}
@@ -2016,6 +2021,128 @@ def api_llm_chat():
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ============================================================================
+# VISUAL SEARCH (KEYWORD & REVERSE IMAGE SEARCH WITH CLIP)
+# ============================================================================
+
+@app.route('/api/search/text', methods=['POST'])
+def api_search_text():
+    """Text-to-Image Semantic Search using OpenAI CLIP."""
+    try:
+        data = request.get_json() if request.is_json else request.form
+        query = (data.get('query') or '').strip()
+        if not query:
+            return jsonify({'status': 'error', 'message': 'Vui lòng nhập từ khóa tìm kiếm'}), 400
+
+        limit = int(data.get('limit') or 18)
+        min_score = float(data.get('min_score') or 0.15)
+        category_filter = data.get('category') or 'all'
+
+        results = visual_search_engine.search_by_text(query, top_k=limit * 2, min_similarity=min_score)
+
+        if category_filter and category_filter != 'all':
+            results = [r for r in results if r.get('category') == category_filter]
+
+        results = results[:limit]
+
+        return jsonify({
+            'status': 'success',
+            'query': query,
+            'count': len(results),
+            'results': results,
+            'stats': visual_search_engine.get_stats()
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/search/similar', methods=['POST'])
+def api_search_similar():
+    """Reverse Image Search: finds visually similar images using CLIP embeddings."""
+    try:
+        limit = int(request.form.get('limit') or 18)
+        min_sim = float(request.form.get('min_similarity') or 0.20)
+        category_filter = request.form.get('category') or 'all'
+        exclude_self = request.form.get('exclude_self', 'true').lower() == 'true'
+
+        image_path = None
+        # Option 1: File uploaded
+        if 'image' in request.files and request.files['image'] and request.files['image'].filename:
+            f = request.files['image']
+            fname = f.filename or 'query.jpg'
+            if allowed_file(fname):
+                ext = fname.rsplit('.', 1)[1].lower() if '.' in fname else 'jpg'
+                temp_name = f"query_{uuid.uuid4().hex[:10]}.{ext}"
+                image_path = os.path.join(UPLOAD_DIR, temp_name)
+                f.save(image_path)
+        # Option 2: Image URL or filename provided
+        elif request.form.get('image_url') or request.form.get('filename'):
+            raw_url = request.form.get('image_url') or request.form.get('filename') or ''
+            clean_name = os.path.basename(raw_url.split('?')[0])
+            for d in [OUTPUT_DIR, UPLOAD_DIR, SAMPLES_DIR]:
+                candidate = os.path.join(d, clean_name)
+                if os.path.exists(candidate):
+                    image_path = candidate
+                    break
+
+        if not image_path or not os.path.exists(image_path):
+            return jsonify({'status': 'error', 'message': 'Không tìm thấy ảnh để tìm kiếm tương tự'}), 400
+
+        results = visual_search_engine.search_by_image(
+            image_input=image_path,
+            top_k=limit * 2,
+            min_similarity=min_sim,
+            exclude_self_path=image_path if exclude_self else None
+        )
+
+        if category_filter and category_filter != 'all':
+            results = [r for r in results if r.get('category') == category_filter]
+
+        results = results[:limit]
+
+        query_url = f"/uploads/{os.path.basename(image_path)}" if UPLOAD_DIR in image_path else f"/outputs/{os.path.basename(image_path)}"
+
+        return jsonify({
+            'status': 'success',
+            'query_image': query_url,
+            'count': len(results),
+            'results': results,
+            'stats': visual_search_engine.get_stats()
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/search/stats', methods=['GET'])
+def api_search_stats():
+    """Returns visual search index statistics and model status."""
+    try:
+        return jsonify({
+            'status': 'success',
+            'stats': visual_search_engine.get_stats()
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/search/reindex', methods=['POST'])
+def api_search_reindex():
+    """Triggers an incremental or forced re-indexing of library images."""
+    try:
+        force = request.form.get('force', 'false').lower() == 'true'
+        res = visual_search_engine.build_or_update_index(force=force)
+        return jsonify({
+            'status': 'success',
+            'info': res
+        })
+    except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 

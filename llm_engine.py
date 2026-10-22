@@ -772,7 +772,53 @@ class LLMEngine:
                     "has_image_result": True
                 }
 
-        # Check local Qwen or external LLMs if active
+        # Check reverse image search request
+        if has_image and any(k in msg_clean.lower() for k in ["tìm ảnh tương tự", "ảnh tương tự", "tìm giống", "tương tự", "similar", "reverse"]):
+            from visual_search import visual_search_engine
+            results = visual_search_engine.search_by_image(image_path, top_k=8, min_similarity=0.20)
+            count = len(results)
+            if count > 0:
+                bot_reply = (
+                    f"### 🔍 Đã Tìm Thấy {count} Hình Ảnh Tương Tự Bằng Mô Hình CLIP AI!\n\n"
+                    f"Dựa trên các đặc trưng thị giác (màu sắc, bố cục, chủ thể) của ảnh bạn cung cấp, "
+                    f"dưới đây là các ảnh có độ tương đồng cao nhất trong thư viện:"
+                )
+            else:
+                bot_reply = "⚠️ Chưa tìm thấy ảnh nào có độ tương đồng đủ cao với ảnh bạn cung cấp trong thư viện."
+            return {
+                "status": "success",
+                "reply": bot_reply,
+                "search_results": results,
+                "is_search_result": True
+            }
+
+        # Check text-to-image search request in chat
+        search_triggers = ["tìm ảnh ", "tìm hình ", "tìm kiếm ảnh ", "tìm kiếm hình ", "search image ", "search ", "tìm các ảnh", "tìm những ảnh", "tìm bức ảnh"]
+        is_search_query = any(msg_clean.lower().startswith(p) for p in search_triggers) or any(k in msg_clean.lower() for k in ["tìm ảnh về", "tìm hình về", "tìm kiếm bức ảnh"])
+        if is_search_query:
+            search_q = msg_clean
+            for p in ["tìm kiếm hình ảnh về", "tìm kiếm ảnh về", "tìm hình ảnh về", "tìm kiếm hình ảnh", "tìm kiếm ảnh", "tìm các ảnh", "tìm những ảnh", "tìm bức ảnh", "tìm ảnh về", "tìm hình về", "tìm ảnh ", "tìm hình ", "search image ", "search ", "tìm "]:
+                if search_q.lower().startswith(p):
+                    search_q = search_q[len(p):].strip()
+                    break
+            if search_q:
+                from visual_search import visual_search_engine
+                results = visual_search_engine.search_by_text(search_q, top_k=8, min_similarity=0.15)
+                count = len(results)
+                if count > 0:
+                    bot_reply = (
+                        f"### 🔎 Đã Tìm Thấy {count} Hình Ảnh Phù Hợp Với Từ Khóa: *\"{search_q}\"*!\n\n"
+                        f"Mô hình **OpenAI CLIP ViT-B/32** đã đối chiếu ngữ nghĩa và trích xuất các hình ảnh sát nhất trong kho lưu trữ:"
+                    )
+                else:
+                    bot_reply = f"⚠️ Không tìm thấy ảnh nào khớp với từ khóa *\"{search_q}\"*. Bạn có thể thử từ khóa tương tự hoặc tải thêm ảnh vào hệ thống!"
+                return {
+                    "status": "success",
+                    "reply": bot_reply,
+                    "search_results": results,
+                    "is_search_result": True,
+                    "query": search_q
+                }
         if self.active_provider == "local_qwen":
             reply = self._call_local_qwen(
                 msg_clean,

@@ -3660,7 +3660,7 @@ document.addEventListener('DOMContentLoaded', () => {
             removeTypingIndicator(typingId);
 
             if (data.status === 'success') {
-                appendBotMessageBubble(data.reply, data.prompt_data, attachedFile);
+                appendBotMessageBubble(data.reply, data.prompt_data, attachedFile, data.search_results);
                 chatConversationHistory.push({ role: 'user', content: text || 'Phân tích hình ảnh này' });
                 chatConversationHistory.push({ role: 'assistant', content: data.reply });
             } else {
@@ -3685,7 +3685,14 @@ document.addEventListener('DOMContentLoaded', () => {
         let imgHtml = '';
         if (file) {
             const previewUrl = URL.createObjectURL(file);
-            imgHtml = `<img src="${previewUrl}" alt="Ảnh tải lên" class="user-msg-image-thumb">`;
+            imgHtml = `
+                <div class="user-msg-image-wrap">
+                    <img src="${previewUrl}" alt="Ảnh tải lên" class="user-msg-image-thumb">
+                    <button type="button" class="btn-chat-bubble-similar" title="Tìm các ảnh tương tự ảnh này">
+                        <i class="fa-solid fa-magnifying-glass-plus"></i> Tìm Ảnh Tương Tự
+                    </button>
+                </div>
+            `;
         }
 
         const msgContent = text ? `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>` : '';
@@ -3701,6 +3708,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
         `;
+
+        if (file) {
+            const btnSim = row.querySelector('.btn-chat-bubble-similar');
+            if (btnSim) {
+                btnSim.addEventListener('click', () => {
+                    if (typeof window.triggerReverseImageSearchWithFile === 'function') {
+                        window.triggerReverseImageSearchWithFile(file);
+                    }
+                });
+            }
+        }
 
         chatMessagesContainer.appendChild(row);
         chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
@@ -3735,13 +3753,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) el.remove();
     }
 
-    function appendBotMessageBubble(replyMarkdown, promptData, originalFile) {
+    function appendBotMessageBubble(replyMarkdown, promptData, originalFile, searchResults) {
         if (!chatMessagesContainer) return;
 
         const row = document.createElement('div');
         row.className = 'chat-bubble-row bot';
 
         const parsedContent = parseSimpleMarkdown(replyMarkdown);
+
+        let searchGridHtml = '';
+        if (searchResults && searchResults.length > 0) {
+            const cardsHtml = searchResults.map(r => `
+                <div class="chat-search-card" data-url="${escapeHtml(r.url)}" data-filename="${escapeHtml(r.filename)}" data-path="${escapeHtml(r.path || '')}" data-percent="${r.match_percent || 0}" data-category="${escapeHtml(r.category || '')}" data-size="${r.size_kb || 0}" data-dim="${r.width ? r.width + 'x' + r.height : ''}">
+                    <img src="${escapeHtml(r.url)}" alt="${escapeHtml(r.filename)}" class="chat-search-thumb" loading="lazy" />
+                    <span class="chat-search-badge">${r.match_percent}%</span>
+                    <div class="chat-search-title" title="${escapeHtml(r.filename)}">${escapeHtml(r.filename)}</div>
+                </div>
+            `).join('');
+
+            searchGridHtml = `
+                <div class="chat-search-bubble-wrap">
+                    <div style="font-size:12px; font-weight:700; color:#38bdf8; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
+                        <span><i class="fa-solid fa-images"></i> Kết quả đối chiếu CLIP AI (${searchResults.length} ảnh):</span>
+                        <button type="button" class="btn-chat-open-studio" style="background:none; border:none; color:#c084fc; font-size:11px; font-weight:700; cursor:pointer; text-decoration:underline;">Mở Studio Tìm Kiếm <i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+                    </div>
+                    <div class="chat-search-grid">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            `;
+        }
 
         let actionsHtml = '';
         if (promptData && promptData.generated_prompt) {
@@ -3767,10 +3808,39 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="chat-bubble bot-bubble">
                 <div class="chat-bubble-content">
                     ${parsedContent}
+                    ${searchGridHtml}
                     ${actionsHtml}
                 </div>
             </div>
         `;
+
+        // Wire Search Cards in Chat
+        row.querySelectorAll('.chat-search-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const item = {
+                    url: card.dataset.url,
+                    filename: card.dataset.filename,
+                    path: card.dataset.path,
+                    match_percent: card.dataset.percent,
+                    category: card.dataset.category,
+                    size_kb: card.dataset.size,
+                    width: card.dataset.dim ? card.dataset.dim.split('x')[0] : 512,
+                    height: card.dataset.dim ? card.dataset.dim.split('x')[1] : 512
+                };
+                if (typeof window.openVisualSearchLightbox === 'function') {
+                    window.openVisualSearchLightbox(item);
+                }
+            });
+        });
+
+        const btnOpenStudio = row.querySelector('.btn-chat-open-studio');
+        if (btnOpenStudio) {
+            btnOpenStudio.addEventListener('click', () => {
+                if (typeof window.switchToVisualSearchTab === 'function') {
+                    window.switchToVisualSearchTab();
+                }
+            });
+        }
 
         // Wire Action Buttons
         if (promptData) {
@@ -3890,6 +3960,689 @@ document.addEventListener('DOMContentLoaded', () => {
         div.textContent = text;
         return div.innerHTML;
     }
+
+    // ========================================================================
+    // 13B. TÌM KIẾM HÌNH ẢNH THÔNG MINH (KEYWORD & REVERSE SIMILARITY SEARCH - CLIP)
+    // ========================================================================
+    const btnChatSubtabConv = document.getElementById('btnChatSubtabConv');
+    const btnChatSubtabSearch = document.getElementById('btnChatSubtabSearch');
+    const panelChatConversation = document.getElementById('panelChatConversation');
+    const panelVisualSearch = document.getElementById('panelVisualSearch');
+    const searchEngineStatusBadge = document.getElementById('searchEngineStatusBadge');
+
+    // Sidebar search
+    const sidebarSearchInput = document.getElementById('sidebarSearchInput');
+    const btnSidebarSearch = document.getElementById('btnSidebarSearch');
+    const searchIndexedCount = document.getElementById('searchIndexedCount');
+    const btnSidebarReindex = document.getElementById('btnSidebarReindex');
+
+    // Visual Search Studio DOM
+    const btnSearchModeText = document.getElementById('btnSearchModeText');
+    const btnSearchModeImage = document.getElementById('btnSearchModeImage');
+    const searchControlsKeyword = document.getElementById('searchControlsKeyword');
+    const searchControlsImage = document.getElementById('searchControlsImage');
+
+    const vsearchKeywordInput = document.getElementById('vsearchKeywordInput');
+    const btnClearVsearchKeyword = document.getElementById('btnClearVsearchKeyword');
+    const btnExecKeywordSearch = document.getElementById('btnExecKeywordSearch');
+
+    const vsearchImageDropzone = document.getElementById('vsearchImageDropzone');
+    const vsearchImageFileInput = document.getElementById('vsearchImageFileInput');
+    const vsearchDropzoneEmpty = document.getElementById('vsearchDropzoneEmpty');
+    const vsearchDropzonePreview = document.getElementById('vsearchDropzonePreview');
+    const vsearchTargetThumb = document.getElementById('vsearchTargetThumb');
+    const vsearchTargetName = document.getElementById('vsearchTargetName');
+    const vsearchTargetDim = document.getElementById('vsearchTargetDim');
+    const vsearchTargetSize = document.getElementById('vsearchTargetSize');
+    const btnRemoveTargetImg = document.getElementById('btnRemoveTargetImg');
+    const btnExecSimilarSearch = document.getElementById('btnExecSimilarSearch');
+
+    const vsearchCategorySelect = document.getElementById('vsearchCategorySelect');
+    const vsearchMinScore = document.getElementById('vsearchMinScore');
+    const vsearchMinScoreVal = document.getElementById('vsearchMinScoreVal');
+    const vsearchLimitSelect = document.getElementById('vsearchLimitSelect');
+    const btnVsearchReindex = document.getElementById('btnVsearchReindex');
+
+    const vsearchSummaryText = document.getElementById('vsearchSummaryText');
+    const vsearchBadgeCount = document.getElementById('vsearchBadgeCount');
+    const vsearchResultsGrid = document.getElementById('vsearchResultsGrid');
+
+    // Lightbox Modal DOM
+    const vsearchLightboxModal = document.getElementById('vsearchLightboxModal');
+    const vsearchLightboxBackdrop = document.getElementById('vsearchLightboxBackdrop');
+    const btnCloseLightbox = document.getElementById('btnCloseLightbox');
+    const lightboxImage = document.getElementById('lightboxImage');
+    const lightboxMatchBadge = document.getElementById('lightboxMatchBadge');
+    const lightboxFilename = document.getElementById('lightboxFilename');
+    const lightboxCategory = document.getElementById('lightboxCategory');
+    const lightboxDimensions = document.getElementById('lightboxDimensions');
+    const lightboxFileSize = document.getElementById('lightboxFileSize');
+    const btnLightboxSearchSimilar = document.getElementById('btnLightboxSearchSimilar');
+    const btnLightboxSendChat = document.getElementById('btnLightboxSendChat');
+    const btnLightboxSendGen = document.getElementById('btnLightboxSendGen');
+    const btnLightboxDownload = document.getElementById('btnLightboxDownload');
+
+    let currentVsearchTargetFile = null;
+    let currentVsearchTargetUrl = null;
+    let currentVsearchActiveItem = null;
+    let isVsearching = false;
+    let hasLoadedInitialIndex = false;
+
+    // 1. Sub-tab Navigation
+    function switchChatSubtab(subtab) {
+        if (subtab === 'conv') {
+            if (btnChatSubtabConv) btnChatSubtabConv.classList.add('active');
+            if (btnChatSubtabSearch) btnChatSubtabSearch.classList.remove('active');
+            if (panelChatConversation) panelChatConversation.classList.remove('hidden');
+            if (panelVisualSearch) panelVisualSearch.classList.add('hidden');
+        } else if (subtab === 'search') {
+            if (btnChatSubtabSearch) btnChatSubtabSearch.classList.add('active');
+            if (btnChatSubtabConv) btnChatSubtabConv.classList.remove('active');
+            if (panelVisualSearch) panelVisualSearch.classList.remove('hidden');
+            if (panelChatConversation) panelChatConversation.classList.add('hidden');
+
+            if (!hasLoadedInitialIndex) {
+                hasLoadedInitialIndex = true;
+                fetchVisualSearchStats();
+                // Load recent images or suggestions initially
+                executeKeywordSearch('dragon');
+            }
+        }
+    }
+
+    if (btnChatSubtabConv) {
+        btnChatSubtabConv.addEventListener('click', () => switchChatSubtab('conv'));
+    }
+    if (btnChatSubtabSearch) {
+        btnChatSubtabSearch.addEventListener('click', () => switchChatSubtab('search'));
+    }
+    window.switchToVisualSearchTab = () => switchChatSubtab('search');
+
+    // 2. Search Mode Switching (Keyword vs Image)
+    function setVisualSearchMode(mode) {
+        if (mode === 'text') {
+            if (btnSearchModeText) btnSearchModeText.classList.add('active');
+            if (btnSearchModeImage) btnSearchModeImage.classList.remove('active');
+            if (searchControlsKeyword) searchControlsKeyword.classList.remove('hidden');
+            if (searchControlsImage) searchControlsImage.classList.add('hidden');
+            if (vsearchKeywordInput) vsearchKeywordInput.focus();
+        } else if (mode === 'image') {
+            if (btnSearchModeImage) btnSearchModeImage.classList.add('active');
+            if (btnSearchModeText) btnSearchModeText.classList.remove('active');
+            if (searchControlsImage) searchControlsImage.classList.remove('hidden');
+            if (searchControlsKeyword) searchControlsKeyword.classList.add('hidden');
+        }
+    }
+
+    if (btnSearchModeText) {
+        btnSearchModeText.addEventListener('click', () => setVisualSearchMode('text'));
+    }
+    if (btnSearchModeImage) {
+        btnSearchModeImage.addEventListener('click', () => setVisualSearchMode('image'));
+    }
+
+    // 3. Keyword Search Execution
+    async function executeKeywordSearch(query) {
+        const q = (query || (vsearchKeywordInput ? vsearchKeywordInput.value : '')).trim();
+        if (!q) {
+            showToast('Vui lòng nhập từ khóa tìm kiếm!', 'error');
+            return;
+        }
+
+        if (vsearchKeywordInput) {
+            vsearchKeywordInput.value = q;
+            if (btnClearVsearchKeyword) btnClearVsearchKeyword.classList.remove('hidden');
+        }
+
+        if (isVsearching) return;
+        isVsearching = true;
+        renderVisualSearchSkeleton();
+
+        const limit = vsearchLimitSelect ? parseInt(vsearchLimitSelect.value) : 18;
+        const minPct = vsearchMinScore ? parseInt(vsearchMinScore.value) : 15;
+        const minScore = (minPct / 100.0);
+        const category = vsearchCategorySelect ? vsearchCategorySelect.value : 'all';
+
+        const startTime = Date.now();
+
+        try {
+            const res = await fetch('/api/search/text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query: q,
+                    limit: limit,
+                    min_score: minScore,
+                    category: category
+                })
+            });
+
+            const data = await res.json();
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+
+            if (data.status === 'success') {
+                renderVisualSearchResults(data.results, `Từ khóa: "${q}"`, elapsed);
+            } else {
+                throw new Error(data.message || 'Lỗi tìm kiếm');
+            }
+        } catch (err) {
+            console.error('Visual keyword search error:', err);
+            renderVisualSearchEmpty(`Lỗi tìm kiếm: ${err.message}. Vui lòng thử lại!`);
+            showToast('Lỗi tìm kiếm: ' + err.message, 'error');
+        } finally {
+            isVsearching = false;
+        }
+    }
+
+    if (btnExecKeywordSearch) {
+        btnExecKeywordSearch.addEventListener('click', () => executeKeywordSearch());
+    }
+
+    if (vsearchKeywordInput) {
+        vsearchKeywordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                executeKeywordSearch();
+            }
+        });
+
+        vsearchKeywordInput.addEventListener('input', () => {
+            if (btnClearVsearchKeyword) {
+                btnClearVsearchKeyword.classList.toggle('hidden', !vsearchKeywordInput.value);
+            }
+        });
+    }
+
+    if (btnClearVsearchKeyword) {
+        btnClearVsearchKeyword.addEventListener('click', () => {
+            if (vsearchKeywordInput) {
+                vsearchKeywordInput.value = '';
+                vsearchKeywordInput.focus();
+            }
+            btnClearVsearchKeyword.classList.add('hidden');
+        });
+    }
+
+    // Quick suggestion chips
+    document.querySelectorAll('.vsearch-quick-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const q = chip.dataset.query;
+            if (q) executeKeywordSearch(q);
+        });
+    });
+
+    // Sidebar search triggers
+    if (btnSidebarSearch && sidebarSearchInput) {
+        const runSidebarSearch = () => {
+            const q = sidebarSearchInput.value.trim();
+            if (!q) return;
+            switchChatSubtab('search');
+            setVisualSearchMode('text');
+            executeKeywordSearch(q);
+        };
+        btnSidebarSearch.addEventListener('click', runSidebarSearch);
+        sidebarSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                runSidebarSearch();
+            }
+        });
+    }
+
+    document.querySelectorAll('.search-tag-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const q = chip.dataset.search;
+            if (q) {
+                switchChatSubtab('search');
+                setVisualSearchMode('text');
+                executeKeywordSearch(q);
+            }
+        });
+    });
+
+    // 4. Reverse Image Search (Similar Image) Execution
+    async function executeSimilarSearch() {
+        if (!currentVsearchTargetFile && !currentVsearchTargetUrl) {
+            showToast('Vui lòng chọn hoặc tải lên một bức ảnh mục tiêu!', 'error');
+            return;
+        }
+
+        if (isVsearching) return;
+        isVsearching = true;
+        renderVisualSearchSkeleton();
+
+        const limit = vsearchLimitSelect ? parseInt(vsearchLimitSelect.value) : 18;
+        const minPct = vsearchMinScore ? parseInt(vsearchMinScore.value) : 20;
+        const minSimilarity = (minPct / 100.0);
+        const category = vsearchCategorySelect ? vsearchCategorySelect.value : 'all';
+
+        const startTime = Date.now();
+        const formData = new FormData();
+        formData.append('limit', limit);
+        formData.append('min_similarity', minSimilarity);
+        formData.append('category', category);
+        formData.append('exclude_self', 'true');
+
+        if (currentVsearchTargetFile) {
+            formData.append('image', currentVsearchTargetFile);
+        } else if (currentVsearchTargetUrl) {
+            formData.append('image_url', currentVsearchTargetUrl);
+        }
+
+        try {
+            const res = await fetch('/api/search/similar', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+
+            if (data.status === 'success') {
+                const targetName = currentVsearchTargetFile ? currentVsearchTargetFile.name : (currentVsearchTargetUrl ? currentVsearchTargetUrl.split('/').pop() : 'Ảnh mục tiêu');
+                renderVisualSearchResults(data.results, `Ảnh tương tự: "${targetName}"`, elapsed);
+            } else {
+                throw new Error(data.message || 'Lỗi tìm kiếm ảnh tương tự');
+            }
+        } catch (err) {
+            console.error('Visual similar search error:', err);
+            renderVisualSearchEmpty(`Lỗi tìm kiếm ảnh tương tự: ${err.message}.`);
+            showToast('Lỗi: ' + err.message, 'error');
+        } finally {
+            isVsearching = false;
+        }
+    }
+
+    if (btnExecSimilarSearch) {
+        btnExecSimilarSearch.addEventListener('click', executeSimilarSearch);
+    }
+
+    function setVisualSearchTargetFile(file) {
+        if (!file) return;
+        currentVsearchTargetFile = file;
+        currentVsearchTargetUrl = null;
+
+        if (vsearchDropzoneEmpty) vsearchDropzoneEmpty.classList.add('hidden');
+        if (vsearchDropzonePreview) vsearchDropzonePreview.classList.remove('hidden');
+
+        if (vsearchTargetThumb) {
+            vsearchTargetThumb.src = URL.createObjectURL(file);
+        }
+        if (vsearchTargetName) vsearchTargetName.textContent = file.name;
+        if (vsearchTargetSize) vsearchTargetSize.textContent = `${(file.size / 1024).toFixed(1)} KB`;
+
+        const img = new Image();
+        img.onload = () => {
+            if (vsearchTargetDim) vsearchTargetDim.textContent = `${img.naturalWidth} x ${img.naturalHeight} px`;
+        };
+        img.src = URL.createObjectURL(file);
+
+        if (btnExecSimilarSearch) btnExecSimilarSearch.disabled = false;
+        showToast('🎯 Đã nạp ảnh mục tiêu, bấm "Tìm Kiếm Ảnh Tương Tự" để quét!');
+    }
+
+    function setVisualSearchTargetUrl(url, name, dimensions, sizeKb) {
+        if (!url) return;
+        currentVsearchTargetUrl = url;
+        currentVsearchTargetFile = null;
+
+        if (vsearchDropzoneEmpty) vsearchDropzoneEmpty.classList.add('hidden');
+        if (vsearchDropzonePreview) vsearchDropzonePreview.classList.remove('hidden');
+
+        if (vsearchTargetThumb) vsearchTargetThumb.src = url;
+        if (vsearchTargetName) vsearchTargetName.textContent = name || url.split('/').pop();
+        if (vsearchTargetSize) vsearchTargetSize.textContent = sizeKb ? `${sizeKb} KB` : '';
+        if (vsearchTargetDim) vsearchTargetDim.textContent = dimensions || '';
+
+        if (btnExecSimilarSearch) btnExecSimilarSearch.disabled = false;
+    }
+
+    function clearVisualSearchTarget() {
+        currentVsearchTargetFile = null;
+        currentVsearchTargetUrl = null;
+        if (vsearchDropzoneEmpty) vsearchDropzoneEmpty.classList.remove('hidden');
+        if (vsearchDropzonePreview) vsearchDropzonePreview.classList.add('hidden');
+        if (vsearchImageFileInput) vsearchImageFileInput.value = '';
+        if (btnExecSimilarSearch) btnExecSimilarSearch.disabled = true;
+    }
+
+    if (btnRemoveTargetImg) {
+        btnRemoveTargetImg.addEventListener('click', (e) => {
+            e.stopPropagation();
+            clearVisualSearchTarget();
+        });
+    }
+
+    if (vsearchImageDropzone) {
+        vsearchImageDropzone.addEventListener('click', () => {
+            if (!currentVsearchTargetFile && !currentVsearchTargetUrl && vsearchImageFileInput) {
+                vsearchImageFileInput.click();
+            }
+        });
+
+        vsearchImageDropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            vsearchImageDropzone.classList.add('dragover');
+        });
+
+        vsearchImageDropzone.addEventListener('dragleave', () => {
+            vsearchImageDropzone.classList.remove('dragover');
+        });
+
+        vsearchImageDropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            vsearchImageDropzone.classList.remove('dragover');
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                setVisualSearchTargetFile(e.dataTransfer.files[0]);
+            }
+        });
+    }
+
+    if (vsearchImageFileInput) {
+        vsearchImageFileInput.addEventListener('change', () => {
+            if (vsearchImageFileInput.files && vsearchImageFileInput.files.length > 0) {
+                setVisualSearchTargetFile(vsearchImageFileInput.files[0]);
+            }
+        });
+    }
+
+    // Global trigger for reverse search from chat
+    window.triggerReverseImageSearchWithFile = (file) => {
+        switchChatSubtab('search');
+        setVisualSearchMode('image');
+        setVisualSearchTargetFile(file);
+        executeSimilarSearch();
+    };
+
+    // 5. Min Score Slider live badge
+    if (vsearchMinScore && vsearchMinScoreVal) {
+        vsearchMinScore.addEventListener('input', () => {
+            vsearchMinScoreVal.textContent = `${vsearchMinScore.value}%`;
+        });
+    }
+
+    // 6. Rendering Results
+    function renderVisualSearchSkeleton() {
+        if (!vsearchResultsGrid) return;
+        let skeletonHtml = '';
+        for (let i = 0; i < 6; i++) {
+            skeletonHtml += `
+                <div class="vsearch-card" style="opacity: 0.6; pointer-events:none;">
+                    <div class="vsearch-card-thumb-wrap" style="background: rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center;">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; color: var(--primary);"></i>
+                    </div>
+                    <div class="vsearch-card-info">
+                        <div style="height: 12px; background: rgba(255,255,255,0.1); border-radius:4px; margin-bottom: 6px;"></div>
+                        <div style="height: 10px; width: 60%; background: rgba(255,255,255,0.06); border-radius:4px;"></div>
+                    </div>
+                </div>
+            `;
+        }
+        vsearchResultsGrid.innerHTML = skeletonHtml;
+        if (vsearchSummaryText) vsearchSummaryText.textContent = 'Đang trích xuất vector CLIP & đối chiếu ngữ nghĩa...';
+    }
+
+    function renderVisualSearchEmpty(message) {
+        if (!vsearchResultsGrid) return;
+        vsearchResultsGrid.innerHTML = `
+            <div class="vsearch-empty-state">
+                <i class="fa-solid fa-magnifying-glass vsearch-empty-icon"></i>
+                <div class="vsearch-empty-title">Không tìm thấy hình ảnh phù hợp</div>
+                <div class="vsearch-empty-desc">${escapeHtml(message || 'Không có hình ảnh nào đạt ngưỡng tương đồng. Hãy thử hạ thấp thanh trượt độ tương đồng hoặc nhập từ khóa mô tả khác.')}</div>
+                <button type="button" class="btn-primary-sm" onclick="window.resetVsearchFilters()" style="margin: auto; display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-arrows-rotate"></i> Xem Toàn Bộ Ảnh Thư Viện
+                </button>
+            </div>
+        `;
+        if (vsearchSummaryText) vsearchSummaryText.textContent = 'Không có kết quả';
+        if (vsearchBadgeCount) vsearchBadgeCount.textContent = '0 ảnh';
+    }
+
+    window.resetVsearchFilters = () => {
+        if (vsearchMinScore) {
+            vsearchMinScore.value = 10;
+            if (vsearchMinScoreVal) vsearchMinScoreVal.textContent = '10%';
+        }
+        if (vsearchCategorySelect) vsearchCategorySelect.value = 'all';
+        executeKeywordSearch('photo');
+    };
+
+    function renderVisualSearchResults(results, queryDesc, elapsed) {
+        if (!vsearchResultsGrid) return;
+
+        if (!results || results.length === 0) {
+            renderVisualSearchEmpty();
+            return;
+        }
+
+        if (vsearchSummaryText) {
+            vsearchSummaryText.textContent = `Tìm thấy ${results.length} hình ảnh • ${queryDesc || ''} • Thời gian: ${elapsed || '0.04'}s`;
+        }
+        if (vsearchBadgeCount) {
+            vsearchBadgeCount.textContent = `${results.length} ảnh`;
+        }
+
+        const cardsHtml = results.map(item => {
+            const pct = parseFloat(item.match_percent) || 0;
+            let badgeClass = 'badge-purple';
+            if (pct >= 85) badgeClass = 'badge-emerald';
+            else if (pct >= 70) badgeClass = 'badge-cyan';
+
+            const dimStr = item.width ? `${item.width}x${item.height}` : '';
+
+            return `
+                <div class="vsearch-card" data-url="${escapeHtml(item.url)}" data-filename="${escapeHtml(item.filename)}" data-path="${escapeHtml(item.path || '')}" data-category="${escapeHtml(item.category || '')}" data-dim="${dimStr}" data-size="${item.size_kb || 0}" data-percent="${pct}">
+                    <div class="vsearch-card-thumb-wrap">
+                        <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.filename)}" class="vsearch-card-thumb" loading="lazy" />
+                        <span class="vsearch-match-badge ${badgeClass}">${pct}% Tương đồng</span>
+                        <span class="vsearch-cat-badge">${escapeHtml(item.category || '')}</span>
+                        <div class="vsearch-card-overlay">
+                            <button type="button" class="vsearch-overlay-btn btn-card-view-full" title="Xem ảnh lớn (Lightbox)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            <button type="button" class="vsearch-overlay-btn btn-card-search-similar" title="Tìm ảnh tương tự ảnh này">
+                                <i class="fa-solid fa-magnifying-glass-plus"></i>
+                            </button>
+                            <button type="button" class="vsearch-overlay-btn btn-card-send-chat" title="Nạp vào Chat để bóc tách Prompt">
+                                <i class="fa-solid fa-comments"></i>
+                            </button>
+                            <button type="button" class="vsearch-overlay-btn btn-card-send-gen" title="Chuyển sang Studio Tạo Ảnh">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </button>
+                            <a href="${escapeHtml(item.url)}" download="${escapeHtml(item.filename)}" class="vsearch-overlay-btn btn-card-download" title="Tải về máy">
+                                <i class="fa-solid fa-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="vsearch-card-info">
+                        <div class="vsearch-card-name" title="${escapeHtml(item.filename)}">${escapeHtml(item.filename)}</div>
+                        <div class="vsearch-card-meta">
+                            <span>${dimStr}</span>
+                            <span>${item.size_kb || 0} KB</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        vsearchResultsGrid.innerHTML = cardsHtml;
+
+        // Wire Action Buttons in Cards
+        vsearchResultsGrid.querySelectorAll('.vsearch-card').forEach(card => {
+            const item = {
+                url: card.dataset.url,
+                filename: card.dataset.filename,
+                path: card.dataset.path,
+                category: card.dataset.category,
+                dim: card.dataset.dim,
+                size_kb: card.dataset.size,
+                match_percent: card.dataset.percent
+            };
+
+            const btnView = card.querySelector('.btn-card-view-full');
+            if (btnView) btnView.addEventListener('click', () => openLightbox(item));
+
+            const thumb = card.querySelector('.vsearch-card-thumb');
+            if (thumb) thumb.addEventListener('click', () => openLightbox(item));
+
+            const btnSim = card.querySelector('.btn-card-search-similar');
+            if (btnSim) {
+                btnSim.addEventListener('click', () => {
+                    setVisualSearchMode('image');
+                    setVisualSearchTargetUrl(item.url, item.filename, item.dim, item.size_kb);
+                    executeSimilarSearch();
+                });
+            }
+
+            const btnChat = card.querySelector('.btn-card-send-chat');
+            if (btnChat) {
+                btnChat.addEventListener('click', () => {
+                    switchChatSubtab('conv');
+                    if (chatInputText) {
+                        chatInputText.value = `Hãy giải phẫu phong cách nghệ thuật, ánh sáng và tạo prompt tái tạo cho bức ảnh "${item.filename}"`;
+                        chatInputText.focus();
+                    }
+                    showToast('💬 Đã nạp ảnh vào cuộc trò chuyện Chatbot!');
+                });
+            }
+
+            const btnGen = card.querySelector('.btn-card-send-gen');
+            if (btnGen) {
+                btnGen.addEventListener('click', () => {
+                    switchAppTab('generator');
+                    setGenMode('i2i');
+                    if (genPrompt) genPrompt.value = `masterpiece, cinematic lighting, 8k, high details of ${item.filename.replace(/[_-]/g, ' ')}`;
+                    showToast('🎨 Đã chuyển sang Studio Tạo Ảnh (Image-to-Image)!');
+                });
+            }
+        });
+    }
+
+    // 7. Lightbox Modal
+    function openLightbox(item) {
+        if (!vsearchLightboxModal || !item) return;
+        currentVsearchActiveItem = item;
+
+        if (lightboxImage) lightboxImage.src = item.url;
+        if (lightboxFilename) lightboxFilename.textContent = item.filename;
+        if (lightboxCategory) lightboxCategory.textContent = item.category || 'Library';
+        if (lightboxDimensions) lightboxDimensions.textContent = item.dim ? `${item.dim} px` : '--';
+        if (lightboxFileSize) lightboxFileSize.textContent = `${item.size_kb || '--'} KB`;
+
+        if (lightboxMatchBadge) {
+            lightboxMatchBadge.textContent = `${item.match_percent || 0}% Tương đồng`;
+        }
+
+        if (btnLightboxDownload) {
+            btnLightboxDownload.href = item.url;
+            btnLightboxDownload.download = item.filename;
+        }
+
+        vsearchLightboxModal.classList.remove('hidden');
+    }
+    window.openVisualSearchLightbox = openLightbox;
+
+    function closeLightbox() {
+        if (vsearchLightboxModal) vsearchLightboxModal.classList.add('hidden');
+    }
+
+    if (btnCloseLightbox) btnCloseLightbox.addEventListener('click', closeLightbox);
+    if (vsearchLightboxBackdrop) vsearchLightboxBackdrop.addEventListener('click', closeLightbox);
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && vsearchLightboxModal && !vsearchLightboxModal.classList.contains('hidden')) {
+            closeLightbox();
+        }
+    });
+
+    if (btnLightboxSearchSimilar) {
+        btnLightboxSearchSimilar.addEventListener('click', () => {
+            if (currentVsearchActiveItem) {
+                closeLightbox();
+                switchChatSubtab('search');
+                setVisualSearchMode('image');
+                setVisualSearchTargetUrl(
+                    currentVsearchActiveItem.url,
+                    currentVsearchActiveItem.filename,
+                    currentVsearchActiveItem.dim,
+                    currentVsearchActiveItem.size_kb
+                );
+                executeSimilarSearch();
+            }
+        });
+    }
+
+    if (btnLightboxSendChat) {
+        btnLightboxSendChat.addEventListener('click', () => {
+            if (currentVsearchActiveItem) {
+                closeLightbox();
+                switchChatSubtab('conv');
+                if (chatInputText) {
+                    chatInputText.value = `Hãy giải phẫu phong cách nghệ thuật, bảng màu và viết prompt tái tạo cho ảnh ${currentVsearchActiveItem.filename}`;
+                    chatInputText.focus();
+                }
+                showToast('💬 Đã nạp ảnh vào Chatbot!');
+            }
+        });
+    }
+
+    if (btnLightboxSendGen) {
+        btnLightboxSendGen.addEventListener('click', () => {
+            if (currentVsearchActiveItem) {
+                closeLightbox();
+                switchAppTab('generator');
+                setGenMode('i2i');
+                if (genPrompt) genPrompt.value = `cinematic lighting, ultra detailed, masterpiece of ${currentVsearchActiveItem.filename.replace(/[_-]/g, ' ')}`;
+                showToast('🎨 Đã chuyển sang Studio Tạo Ảnh!');
+            }
+        });
+    }
+
+    // 8. Re-index library
+    async function triggerLibraryReindex() {
+        showToast('🔄 Đang quét và lập chỉ mục CLIP cho toàn bộ thư viện...', 'info');
+        try {
+            const formData = new FormData();
+            formData.append('force', 'true');
+            const res = await fetch('/api/search/reindex', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                showToast(`✅ Đã lập chỉ mục CLIP thành công cho ${data.info.total_indexed} hình ảnh (${data.info.elapsed_sec}s)!`);
+                fetchVisualSearchStats();
+                executeKeywordSearch();
+            } else {
+                throw new Error(data.message || 'Lỗi lập chỉ mục');
+            }
+        } catch (err) {
+            showToast('Lỗi lập chỉ mục: ' + err.message, 'error');
+        }
+    }
+
+    if (btnVsearchReindex) btnVsearchReindex.addEventListener('click', triggerLibraryReindex);
+    if (btnSidebarReindex) btnSidebarReindex.addEventListener('click', triggerLibraryReindex);
+
+    // 9. Fetch initial stats on page load
+    async function fetchVisualSearchStats() {
+        try {
+            const res = await fetch('/api/search/stats');
+            const data = await res.json();
+            if (data.status === 'success' && data.stats) {
+                const total = data.stats.total_indexed || 0;
+                if (searchIndexedCount) searchIndexedCount.textContent = `${total} ảnh`;
+                if (vsearchBadgeCount) vsearchBadgeCount.textContent = `${total} ảnh`;
+                if (searchEngineStatusBadge) {
+                    searchEngineStatusBadge.textContent = data.stats.cuda_available ? 'CLIP ViT-B/32 (GPU CUDA)' : 'CLIP ViT-B/32 (CPU)';
+                }
+            }
+        } catch (e) {
+            console.warn('Could not fetch visual search stats:', e);
+        }
+    }
+
+    // Call stats on startup
+    fetchVisualSearchStats();
 
     // ==========================================
     // 16. BACKGROUND REMOVER CLIENT LOGIC (RMBG-1.4)

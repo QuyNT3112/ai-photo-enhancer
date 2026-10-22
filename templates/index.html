@@ -2491,6 +2491,41 @@
                     </div>
                 </div>
 
+                <!-- 4. Visual Search Hub Shortcut Card -->
+                <div class="glass-card visual-search-sidebar-card">
+                    <div class="card-header">
+                        <div class="step-badge" style="background: linear-gradient(135deg, #06b6d4, #8b5cf6);"><i class="fa-solid fa-magnifying-glass"></i></div>
+                        <h2 class="card-title">Tìm Kiếm Ảnh CLIP AI</h2>
+                    </div>
+                    <p class="search-sidebar-desc">Truy xuất ảnh thông minh bằng ngữ nghĩa tiếng Việt/Anh hoặc tải ảnh để tìm các ảnh tương đồng thị giác.</p>
+                    
+                    <div class="sidebar-search-box">
+                        <input type="text" id="sidebarSearchInput" class="custom-input" placeholder="Nhập từ khóa (rồng, anime, mèo...)" />
+                        <button type="button" class="btn-primary-sm" id="btnSidebarSearch" title="Tìm kiếm ngay">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    </div>
+
+                    <div class="search-sidebar-tags">
+                        <span class="search-tag-chip" data-search="rồng vàng"><i class="fa-solid fa-fire text-orange"></i> Rồng Vàng</span>
+                        <span class="search-tag-chip" data-search="cyberpunk neon"><i class="fa-solid fa-city text-cyan"></i> Cyberpunk</span>
+                        <span class="search-tag-chip" data-search="cô gái anime"><i class="fa-solid fa-sparkles text-pink"></i> Anime</span>
+                        <span class="search-tag-chip" data-search="chân dung bokeh"><i class="fa-solid fa-camera text-yellow"></i> Chân Dung</span>
+                        <span class="search-tag-chip" data-search="thác nước thiên nhiên"><i class="fa-solid fa-water text-blue"></i> Thiên Nhiên</span>
+                        <span class="search-tag-chip" data-search="mèo đáng yêu"><i class="fa-solid fa-cat text-emerald"></i> Mèo Cute</span>
+                    </div>
+
+                    <div class="search-sidebar-stats">
+                        <div class="stats-item">
+                            <span class="stats-label"><i class="fa-solid fa-database text-cyan"></i> Kho ảnh CLIP:</span>
+                            <span class="stats-val" id="searchIndexedCount">-- ảnh</span>
+                        </div>
+                        <button type="button" class="btn-reindex-sub" id="btnSidebarReindex" title="Quét lại thư mục ảnh">
+                            <i class="fa-solid fa-arrows-rotate"></i> Quét lại
+                        </button>
+                    </div>
+                </div>
+
             </aside>
 
             <!-- Right Panel: Interactive Chat & Visual Workspace -->
@@ -2503,7 +2538,7 @@
                                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                             </div>
                             <div class="chat-bot-meta">
-                                <h3 class="chat-title">Trợ Lý AI Nhiếp Ảnh, Màu Sắc & Biến Ảnh Thành Prompt</h3>
+                                <h3 class="chat-title">Trợ Lý AI Nhiếp Ảnh, Màu Sắc & Tìm Kiếm Ảnh CLIP</h3>
                                 <div class="chat-status-subtitle">
                                     <span class="chat-online-dot"></span>
                                     <span id="chatActiveEngineText">Clarity AI Hybrid Engine (Local & Free)</span>
@@ -2518,61 +2553,204 @@
                         </div>
                     </div>
 
-                    <!-- Chat Messages Flow Container -->
-                    <div class="chat-messages-container" id="chatMessagesContainer">
-                        <!-- Initial Welcome Message -->
-                        <div class="chat-bubble-row bot">
-                            <div class="chat-avatar bot-avatar">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i>
-                            </div>
-                            <div class="chat-bubble bot-bubble">
-                                <div class="chat-bubble-content">
-                                    <p>Xin chào! Tôi là <strong>Trợ lý AI Nhiếp Ảnh, Màu Sắc & Tối Ưu Prompt</strong> của Clarity AI Studio. ✨</p>
-                                    <p>Tôi có thể giúp bạn:</p>
-                                    <ul>
-                                        <li>🎨 <strong>Tối ưu Prompt:</strong> Gõ ý tưởng tự nhiên (tiếng Việt hoặc tiếng Anh), tôi sẽ mở rộng thành Prompt 8K chuẩn Stable Diffusion & Midjourney.</li>
-                                        <li>📸 <strong>Biến Ảnh Thành Prompt:</strong> Đính kèm hoặc dán ảnh (<kbd>Ctrl+V</kbd>), tôi sẽ trích xuất bảng màu HEX, giải phẫu ánh sáng và tạo prompt tái tạo phong cách ảnh.</li>
-                                        <li>🌈 <strong>Tư vấn màu sắc & Nhiếp ảnh:</strong> Hỏi đáp về bảng màu Cyberpunk, Pastel mùa thu, ánh sáng Rembrandt, tiêu cự ống kính và cách dùng studio.</li>
-                                    </ul>
-                                    <p><em>Hãy thử nhập câu hỏi hoặc kéo thả một tấm ảnh vào khung bên dưới để bắt đầu!</em></p>
+                    <!-- Sub-tabs for Chatbot View: Conversation vs Visual Search Studio -->
+                    <div class="chat-subtabs-nav">
+                        <button type="button" class="chat-subtab-btn active" id="btnChatSubtabConv">
+                            <i class="fa-solid fa-comments"></i> Trò Chuyện & Tư Vấn Prompt
+                        </button>
+                        <button type="button" class="chat-subtab-btn" id="btnChatSubtabSearch">
+                            <i class="fa-solid fa-magnifying-glass"></i> Tìm Kiếm Ảnh Thông Minh (CLIP AI)
+                            <span class="badge-subtab-new">Mới</span>
+                        </button>
+                        <div class="chat-subtabs-status">
+                            <span class="chat-online-dot"></span>
+                            <span id="searchEngineStatusBadge">CLIP ViT-B/32 (CUDA)</span>
+                        </div>
+                    </div>
+
+                    <!-- SUBVIEW 1: Conversational Chat Flow Container -->
+                    <div class="chat-subview-panel" id="panelChatConversation">
+                        <!-- Chat Messages Flow Container -->
+                        <div class="chat-messages-container" id="chatMessagesContainer">
+                            <!-- Initial Welcome Message -->
+                            <div class="chat-bubble-row bot">
+                                <div class="chat-avatar bot-avatar">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                </div>
+                                <div class="chat-bubble bot-bubble">
+                                    <div class="chat-bubble-content">
+                                        <p>Xin chào! Tôi là <strong>Trợ lý AI Nhiếp Ảnh, Màu Sắc & Tìm Kiếm Ảnh Thông Minh</strong> của Clarity AI Studio. ✨</p>
+                                        <p>Tôi có thể giúp bạn:</p>
+                                        <ul>
+                                            <li>🔍 <strong>Tìm Kiếm Ảnh CLIP AI:</strong> Gõ trực tiếp <em>"tìm ảnh rồng vàng"</em>, <em>"tìm hình anime cyberpunk"</em> hoặc chuyển sang tab <strong>Tìm Kiếm Ảnh</strong> để đối chiếu hình ảnh ngữ nghĩa.</li>
+                                            <li>🖼️ <strong>Tìm Kiếm Ảnh Tương Tự:</strong> Đính kèm ảnh và yêu cầu <em>"tìm ảnh tương tự"</em>, mô hình CLIP sẽ quét và đề xuất các tác phẩm tương đồng nhất.</li>
+                                            <li>🎨 <strong>Tối ưu Prompt:</strong> Gõ ý tưởng tự nhiên (tiếng Việt hoặc tiếng Anh), tôi sẽ mở rộng thành Prompt 8K chuẩn Stable Diffusion & Midjourney.</li>
+                                            <li>📸 <strong>Biến Ảnh Thành Prompt:</strong> Trích xuất bảng màu HEX, giải phẫu ánh sáng và tạo prompt tái tạo phong cách ảnh.</li>
+                                        </ul>
+                                        <p><em>Hãy thử nhập câu hỏi, gõ "tìm ảnh rồng" hoặc chuyển sang tab "Tìm Kiếm Ảnh Thông Minh" ở trên!</em></p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Attached Image Preview Bar (Appears when image is selected) -->
-                    <div class="chat-attached-image-bar hidden" id="chatAttachedImageBar">
-                        <div class="attached-img-thumb-wrap">
-                            <img src="" alt="Ảnh đính kèm" id="chatAttachedThumb" class="attached-img-thumb">
-                            <div class="attached-img-info">
-                                <span class="attached-img-name" id="chatAttachedName">anh_mau.jpg</span>
-                                <span class="attached-img-size" id="chatAttachedSize">-- KB</span>
+                        <!-- Attached Image Preview Bar (Appears when image is selected) -->
+                        <div class="chat-attached-image-bar hidden" id="chatAttachedImageBar">
+                            <div class="attached-img-thumb-wrap">
+                                <img src="" alt="Ảnh đính kèm" id="chatAttachedThumb" class="attached-img-thumb">
+                                <div class="attached-img-info">
+                                    <span class="attached-img-name" id="chatAttachedName">anh_mau.jpg</span>
+                                    <span class="attached-img-size" id="chatAttachedSize">-- KB</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-remove-attached-img" id="btnRemoveAttachedImg" title="Hủy đính kèm ảnh">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <!-- Chat Input Controls -->
+                        <div class="chat-input-wrapper">
+                            <div class="chat-input-box" id="chatDropTarget">
+                                <input type="file" id="chatFileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden">
+                                
+                                <button type="button" class="btn-attach-image" id="btnAttachChatImage" title="Tải ảnh lên để biến thành Prompt hoặc tìm ảnh tương tự (hoặc dán Ctrl+V)">
+                                    <i class="fa-solid fa-image"></i>
+                                    <span class="attach-label">Đính Kèm Ảnh</span>
+                                </button>
+
+                                <textarea id="chatInputText" class="chat-textarea" rows="1" placeholder="Hỏi về màu sắc, nhập 'tìm ảnh rồng vàng' hoặc ý tưởng... (Enter gửi, Shift+Enter xuống dòng)"></textarea>
+
+                                <button type="button" class="btn-send-message" id="btnSendChatMessage" title="Gửi tin nhắn">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
+                            </div>
+                            <div class="chat-input-hints">
+                                <span><i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp</span>
+                                <span><i class="fa-solid fa-magnifying-glass text-cyan"></i> Gõ "tìm ảnh [từ khóa]" để tìm ảnh ngữ nghĩa tức thì</span>
+                                <span><i class="fa-solid fa-bolt text-yellow"></i> 100% Offline & GPU RTX 3060</span>
                             </div>
                         </div>
-                        <button type="button" class="btn-remove-attached-img" id="btnRemoveAttachedImg" title="Hủy đính kèm ảnh">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
                     </div>
 
-                    <!-- Chat Input Controls -->
-                    <div class="chat-input-wrapper">
-                        <div class="chat-input-box" id="chatDropTarget">
-                            <input type="file" id="chatFileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden">
-                            
-                            <button type="button" class="btn-attach-image" id="btnAttachChatImage" title="Tải ảnh lên để biến thành Prompt (hoặc dán Ctrl+V)">
-                                <i class="fa-solid fa-image"></i>
-                                <span class="attach-label">Đính Kèm Ảnh</span>
-                            </button>
+                    <!-- SUBVIEW 2: Dedicated Visual Search Studio -->
+                    <div class="chat-subview-panel hidden" id="panelVisualSearch">
+                        <div class="vsearch-container">
+                            <!-- Mode Switcher: Text Keyword vs Similar Image -->
+                            <div class="vsearch-mode-selector">
+                                <button type="button" class="vsearch-mode-pill active" id="btnSearchModeText">
+                                    <i class="fa-solid fa-font"></i> Tìm Kiếm Theo Từ Khóa (Text-to-Image)
+                                </button>
+                                <button type="button" class="vsearch-mode-pill" id="btnSearchModeImage">
+                                    <i class="fa-solid fa-image"></i> Tìm Kiếm Theo Hình Ảnh Tương Tự (Reverse Search)
+                                </button>
+                            </div>
 
-                            <textarea id="chatInputText" class="chat-textarea" rows="1" placeholder="Hỏi về màu sắc, nhiếp ảnh, hoặc nhập ý tưởng tự nhiên... (Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+                            <!-- Controls for Mode 1: Keyword Text Search -->
+                            <div class="vsearch-input-zone" id="searchControlsKeyword">
+                                <div class="vsearch-input-wrapper">
+                                    <i class="fa-solid fa-magnifying-glass vsearch-input-icon"></i>
+                                    <input type="text" id="vsearchKeywordInput" class="vsearch-main-input" placeholder="Mô tả bức ảnh bạn muốn tìm (VD: rồng vàng thần thoại lửa, cô gái anime hoa anh đào, thành phố cyberpunk lúc nửa đêm...)" />
+                                    <button type="button" class="btn-clear-search hidden" id="btnClearVsearchKeyword" title="Xóa từ khóa"><i class="fa-solid fa-xmark"></i></button>
+                                    <button type="button" class="btn-vsearch-exec" id="btnExecKeywordSearch">
+                                        <i class="fa-solid fa-magnifying-glass"></i> Tìm Ảnh Ngay
+                                    </button>
+                                </div>
 
-                            <button type="button" class="btn-send-message" id="btnSendChatMessage" title="Gửi tin nhắn">
-                                <i class="fa-solid fa-paper-plane"></i>
-                            </button>
-                        </div>
-                        <div class="chat-input-hints">
-                            <span><i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp</span>
-                            <span><i class="fa-solid fa-bolt text-cyan"></i> 100% Chạy Offline trên máy tính</span>
+                                <div class="vsearch-quick-tags">
+                                    <span class="vsearch-quick-label"><i class="fa-regular fa-lightbulb text-yellow"></i> Gợi ý:</span>
+                                    <button type="button" class="vsearch-quick-chip" data-query="Rồng vàng thần thoại lửa">🔥 Rồng Thần Thoại</button>
+                                    <button type="button" class="vsearch-quick-chip" data-query="Cyberpunk neon city đêm">🌃 Cyberpunk Neon</button>
+                                    <button type="button" class="vsearch-quick-chip" data-query="Anime cô gái hoa anh đào">🌸 Anime Shinkai</button>
+                                    <button type="button" class="vsearch-quick-chip" data-query="Chân dung xóa phông bokeh">👤 Chân Dung Bokeh</button>
+                                    <button type="button" class="vsearch-quick-chip" data-query="Thác nước phong cảnh thiên nhiên hùng vĩ">🌊 Thác Nước</button>
+                                    <button type="button" class="vsearch-quick-chip" data-query="Sticker chú mèo con dễ thương">🐱 Mèo Cute</button>
+                                    <button type="button" class="vsearch-quick-chip" data-query="Vũ trụ dải ngân hà huyền bí">🌌 Vũ Trụ</button>
+                                </div>
+                            </div>
+
+                            <!-- Controls for Mode 2: Similar Image Search -->
+                            <div class="vsearch-input-zone hidden" id="searchControlsImage">
+                                <div class="vsearch-dropzone-row">
+                                    <div class="vsearch-dropzone" id="vsearchImageDropzone">
+                                        <input type="file" id="vsearchImageFileInput" accept="image/png, image/jpeg, image/webp, image/bmp" class="file-input-hidden">
+                                        <div class="vsearch-dropzone-empty" id="vsearchDropzoneEmpty">
+                                            <div class="vsearch-drop-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                                            <div class="vsearch-drop-title">Kéo thả ảnh vào đây hoặc bấm để chọn tệp</div>
+                                            <div class="vsearch-drop-subtitle">Hỗ trợ dán ảnh trực tiếp bằng phím tắt <kbd>Ctrl</kbd> + <kbd>V</kbd></div>
+                                        </div>
+                                        <div class="vsearch-dropzone-preview hidden" id="vsearchDropzonePreview">
+                                            <img src="" alt="Ảnh mục tiêu" id="vsearchTargetThumb" class="vsearch-target-thumb" />
+                                            <div class="vsearch-target-meta">
+                                                <span class="vsearch-target-name" id="vsearchTargetName">image.jpg</span>
+                                                <span class="vsearch-target-dim" id="vsearchTargetDim">-- x -- px</span>
+                                                <span class="vsearch-target-size" id="vsearchTargetSize">-- KB</span>
+                                                <button type="button" class="btn-remove-target-img" id="btnRemoveTargetImg" title="Xóa ảnh mục tiêu">
+                                                    <i class="fa-solid fa-xmark"></i> Đổi ảnh khác
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="vsearch-action-column">
+                                        <button type="button" class="btn-vsearch-exec btn-vsearch-exec-large" id="btnExecSimilarSearch" disabled>
+                                            <i class="fa-solid fa-wand-magic-sparkles"></i> Tìm Kiếm Ảnh Tương Tự
+                                        </button>
+                                        <div class="vsearch-hint-box">
+                                            <i class="fa-solid fa-circle-info text-cyan"></i>
+                                            <span>Mô hình CLIP ViT-B/32 sẽ phân tích màu sắc, đường nét và ngữ nghĩa tổng thể để tìm ra các ảnh có nét tương đồng cao nhất.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Filter & Fine-Tuning Bar -->
+                            <div class="vsearch-filters-bar">
+                                <div class="filter-item">
+                                    <label for="vsearchCategorySelect"><i class="fa-solid fa-folder text-cyan"></i> Thư mục:</label>
+                                    <select id="vsearchCategorySelect" class="vsearch-select">
+                                        <option value="all" selected>Toàn Bộ Thư Viện (Outputs + Uploads + Samples)</option>
+                                        <option value="outputs">Chỉ Thư Mục Kết Quả (Outputs)</option>
+                                        <option value="uploads">Chỉ Thư Mục Tải Lên (Uploads)</option>
+                                        <option value="samples">Chỉ Ảnh Mẫu (Samples)</option>
+                                    </select>
+                                </div>
+
+                                <div class="filter-item">
+                                    <label for="vsearchMinScore"><i class="fa-solid fa-sliders text-purple"></i> Độ tương đồng tối thiểu:</label>
+                                    <div class="slider-val-wrap">
+                                        <input type="range" id="vsearchMinScore" min="10" max="80" value="15" step="5" class="vsearch-range" />
+                                        <span id="vsearchMinScoreVal" class="slider-badge">15%</span>
+                                    </div>
+                                </div>
+
+                                <div class="filter-item">
+                                    <label for="vsearchLimitSelect"><i class="fa-solid fa-list-ol text-pink"></i> Số lượng:</label>
+                                    <select id="vsearchLimitSelect" class="vsearch-select">
+                                        <option value="12">12 ảnh</option>
+                                        <option value="18" selected>18 ảnh</option>
+                                        <option value="24">24 ảnh</option>
+                                        <option value="48">48 ảnh</option>
+                                    </select>
+                                </div>
+
+                                <button type="button" class="btn-reindex-bar" id="btnVsearchReindex" title="Quét lại toàn bộ thư viện">
+                                    <i class="fa-solid fa-arrows-rotate"></i> Cập Nhật Chỉ Mục
+                                </button>
+                            </div>
+
+                            <!-- Status & Results Header -->
+                            <div class="vsearch-summary-bar" id="vsearchSummaryBar">
+                                <div class="summary-left">
+                                    <span id="vsearchSummaryText">Đang hiển thị thư viện ảnh</span>
+                                    <span class="vsearch-badge-count" id="vsearchBadgeCount">259 ảnh</span>
+                                </div>
+                                <div class="summary-right">
+                                    <span class="model-tag-pill"><i class="fa-solid fa-microchip"></i> OpenAI CLIP ViT-B/32 (GPU CUDA)</span>
+                                </div>
+                            </div>
+
+                            <!-- Results Gallery Grid -->
+                            <div class="vsearch-results-grid" id="vsearchResultsGrid">
+                                <!-- Dynamically populated by app.js -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2594,6 +2772,53 @@
     <div class="toast-notification hidden" id="toast">
         <i class="fa-solid fa-circle-info" id="toastIcon"></i>
         <span id="toastMsg">Thông báo</span>
+    </div>
+
+    <!-- Visual Search Image Lightbox Modal -->
+    <div class="vsearch-lightbox-modal hidden" id="vsearchLightboxModal">
+        <div class="vsearch-lightbox-backdrop" id="vsearchLightboxBackdrop"></div>
+        <div class="vsearch-lightbox-content">
+            <button type="button" class="btn-close-lightbox" id="btnCloseLightbox" title="Đóng (Esc)"><i class="fa-solid fa-xmark"></i></button>
+            <div class="vsearch-lightbox-body">
+                <div class="lightbox-img-wrap">
+                    <img src="" alt="Ảnh phóng to" id="lightboxImage" class="lightbox-img" />
+                </div>
+                <div class="lightbox-sidebar">
+                    <div class="lightbox-meta-header">
+                        <span class="lightbox-match-badge" id="lightboxMatchBadge">98% Tương đồng</span>
+                        <h4 class="lightbox-filename" id="lightboxFilename">image.png</h4>
+                    </div>
+                    <div class="lightbox-meta-details">
+                        <div class="lightbox-detail-row">
+                            <span><i class="fa-solid fa-folder text-cyan"></i> Thư mục:</span>
+                            <strong id="lightboxCategory">Outputs</strong>
+                        </div>
+                        <div class="lightbox-detail-row">
+                            <span><i class="fa-solid fa-expand text-purple"></i> Kích thước:</span>
+                            <strong id="lightboxDimensions">512 x 512 px</strong>
+                        </div>
+                        <div class="lightbox-detail-row">
+                            <span><i class="fa-solid fa-hard-drive text-emerald"></i> Dung lượng:</span>
+                            <strong id="lightboxFileSize">240 KB</strong>
+                        </div>
+                    </div>
+                    <div class="lightbox-actions-column">
+                        <button type="button" class="btn-lightbox-action btn-lightbox-similar" id="btnLightboxSearchSimilar">
+                            <i class="fa-solid fa-magnifying-glass-plus"></i> Tìm Ảnh Tương Tự Ảnh Này
+                        </button>
+                        <button type="button" class="btn-lightbox-action btn-lightbox-chat" id="btnLightboxSendChat">
+                            <i class="fa-solid fa-comments"></i> Nạp Vào Chat Để Bóc Tách Prompt
+                        </button>
+                        <button type="button" class="btn-lightbox-action btn-lightbox-gen" id="btnLightboxSendGen">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Chuyển Sang Tạo Ảnh (I2I)
+                        </button>
+                        <a href="#" download="" id="btnLightboxDownload" class="btn-lightbox-action btn-lightbox-dl">
+                            <i class="fa-solid fa-download"></i> Tải Ảnh Về Máy
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
