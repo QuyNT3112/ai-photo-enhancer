@@ -3648,7 +3648,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('image', attachedFile);
             }
             if (chatConversationHistory.length > 0) {
-                formData.append('history', JSON.stringify(chatConversationHistory.slice(-4)));
+                formData.append('history', JSON.stringify(chatConversationHistory.slice(-10)));
             }
 
             const res = await fetch('/api/llm/chat', {

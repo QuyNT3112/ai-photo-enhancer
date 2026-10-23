@@ -344,25 +344,50 @@ class ImageGenerator:
         self.current_model_id = model_id
         print(f"[ImageGenerator] Pipeline {model_id} ready in {time.time() - t0:.2f}s!")
 
-    def _resolve_aspect_dimensions(self, ratio_str: str, custom_w: Optional[int] = None, custom_h: Optional[int] = None):
-        """Calculates pixel dimensions aligned to multiples of 64 optimized for SD1.5 without duplication."""
+    def _resolve_base_dimensions(self, ratio_str: str, custom_w: Optional[int] = None, custom_h: Optional[int] = None):
+        """Calculates diffusion base dimensions aligned to multiples of 64 optimal for SD1.5 without distortion."""
         if custom_w and custom_h and custom_w > 0 and custom_h > 0:
             w = (int(custom_w) // 64) * 64
             h = (int(custom_h) // 64) * 64
             return max(256, min(1024, w)), max(256, min(1024, h))
 
-        # Optimized SD1.5 resolutions avoiding repetitive double heads
-        ratio_map = {
+        base_map = {
             "1:1": (512, 512),
-            "9:16": (512, 768),
-            "16:9": (768, 512),
-            "4:3": (640, 480),
-            "3:4": (480, 640),
+            "9:16": (576, 1024),
+            "16:9": (1024, 576),
+            "4:3": (768, 576),
+            "3:4": (576, 768),
             "square": (512, 512),
-            "vertical": (512, 768),
-            "horizontal": (768, 512)
+            "vertical": (576, 1024),
+            "horizontal": (1024, 576)
         }
-        return ratio_map.get(ratio_str, (512, 512))
+        return base_map.get(ratio_str, (512, 512))
+
+    def _resolve_target_dimensions(self, ratio_str: str, custom_w: Optional[int] = None, custom_h: Optional[int] = None):
+        """
+        Calculates final output dimensions as requested:
+        - Dọc (Vertical 9:16): 1080 x 1920
+        - Ngang (Horizontal 16:9): 1920 x 1080
+        - Vuông (Square 1:1): 512 x 512
+        """
+        if custom_w and custom_h and custom_w > 0 and custom_h > 0:
+            return int(custom_w), int(custom_h)
+
+        target_map = {
+            "1:1": (512, 512),
+            "9:16": (1080, 1920),
+            "16:9": (1920, 1080),
+            "4:3": (1440, 1080),
+            "3:4": (1080, 1440),
+            "square": (512, 512),
+            "vertical": (1080, 1920),
+            "horizontal": (1920, 1080)
+        }
+        return target_map.get(ratio_str, (512, 512))
+
+    def _resolve_aspect_dimensions(self, ratio_str: str, custom_w: Optional[int] = None, custom_h: Optional[int] = None):
+        """Maintains backward compatibility returning target dimensions."""
+        return self._resolve_target_dimensions(ratio_str, custom_w, custom_h)
 
     def _format_prompt(self, prompt: str, style_key: str = "auto", negative_prompt: Optional[str] = None, model_id: str = ""):
         """
@@ -446,11 +471,16 @@ class ImageGenerator:
         seed: int = -1,
         model_id: str = "runwayml/stable-diffusion-v1-5"
     ):
-        """Generates an image from text prompt with full semantic understanding."""
+        """
+        Generates an image from text prompt.
+        Produces exact target dimensions: 1080x1920 (dọc), 1920x1080 (ngang), 512x512 (vuông).
+        """
         t0 = time.time()
         self._ensure_pipeline(model_id)
 
-        w, h = self._resolve_aspect_dimensions(aspect_ratio, width, height)
+        base_w, base_h = self._resolve_base_dimensions(aspect_ratio, width, height)
+        target_w, target_h = self._resolve_target_dimensions(aspect_ratio, width, height)
+
         full_prompt, full_negative, prompt_en, effective_style = self._format_prompt(
             prompt=prompt,
             style_key=style_preset,
@@ -469,20 +499,25 @@ class ImageGenerator:
         steps = max(10, min(50, int(steps or 25)))
         cfg_scale = max(1.0, min(20.0, float(cfg_scale or 7.5)))
 
-        safe_print(f"[ImageGenerator] T2I: '{prompt[:35]}...' -> EN: '{prompt_en[:35]}...' ({w}x{h}, {steps} steps, style: {effective_style}, seed {actual_seed})")
+        safe_print(f"[ImageGenerator] T2I: '{prompt[:35]}...' -> EN: '{prompt_en[:35]}...' (Base: {base_w}x{base_h} -> Target: {target_w}x{target_h}, {steps} steps, style: {effective_style}, seed {actual_seed})")
 
         with torch.inference_mode():
             result = self.t2i_pipe(
                 prompt=full_prompt,
                 negative_prompt=full_negative,
-                width=w,
-                height=h,
+                width=base_w,
+                height=base_h,
                 num_inference_steps=steps,
                 guidance_scale=cfg_scale,
                 generator=generator
             )
 
-        image = result.images[0]
+        raw_image = result.images[0]
+        if raw_image.size != (target_w, target_h):
+            image = raw_image.resize((target_w, target_h), Image.Resampling.LANCZOS)
+        else:
+            image = raw_image
+
         duration = round(time.time() - t0, 2)
 
         meta = {
@@ -492,8 +527,10 @@ class ImageGenerator:
             "final_positive": full_prompt,
             "style_preset": style_preset,
             "applied_style": effective_style,
-            "width": w,
-            "height": h,
+            "width": target_w,
+            "height": target_h,
+            "base_width": base_w,
+            "base_height": base_h,
             "steps": steps,
             "cfg_scale": cfg_scale,
             "seed": actual_seed,
@@ -509,6 +546,7 @@ class ImageGenerator:
         prompt: str,
         negative_prompt: Optional[str] = None,
         style_preset: str = "auto",
+        aspect_ratio: str = "auto",
         strength: float = 0.45,
         steps: int = 25,
         cfg_scale: float = 7.5,
@@ -517,7 +555,7 @@ class ImageGenerator:
     ):
         """
         Generates a transformed image from an existing input image.
-        Uses strength 0.45 default to preserve the source image style, composition, and colors.
+        Outputs exact dimensions: 1080x1920 (dọc), 1920x1080 (ngang), 512x512 (vuông).
         """
         t0 = time.time()
         self._ensure_pipeline(model_id)
@@ -539,20 +577,24 @@ class ImageGenerator:
             model_id=model_id
         )
 
-        # Maintain exact aspect ratio aligned to multiples of 64
         orig_w, orig_h = input_image.size
-        # For optimal SD1.5 diffusion quality, ensure target dimensions are at least 512 on the longer side (and max 768)
-        if max(orig_w, orig_h) < 512:
-            scale = 512.0 / max(orig_w, orig_h)
+
+        # Resolve dimensions based on aspect_ratio or orientation of input image:
+        # Dọc: 1080x1920 (base: 576x1024), Ngang: 1920x1080 (base: 1024x576), Vuông: 512x512
+        if aspect_ratio in ("9:16", "vertical") or (aspect_ratio in ("auto", "original", "", None) and orig_h > orig_w * 1.05):
+            target_w, target_h = 1080, 1920
+            base_w, base_h = 576, 1024
+        elif aspect_ratio in ("16:9", "horizontal") or (aspect_ratio in ("auto", "original", "", None) and orig_w > orig_h * 1.05):
+            target_w, target_h = 1920, 1080
+            base_w, base_h = 1024, 576
+        elif aspect_ratio in ("1:1", "square") or (aspect_ratio in ("auto", "original", "", None)):
+            target_w, target_h = 512, 512
+            base_w, base_h = 512, 512
         else:
-            scale = min(768.0 / max(orig_w, orig_h), 1.0)
+            target_w, target_h = self._resolve_target_dimensions(aspect_ratio)
+            base_w, base_h = self._resolve_base_dimensions(aspect_ratio)
 
-        target_w = max(384, int(round((orig_w * scale) / 64.0)) * 64)
-        target_h = max(384, int(round((orig_h * scale) / 64.0)) * 64)
-        target_w = min(1024, target_w)
-        target_h = min(1024, target_h)
-
-        resized_image = input_image.convert("RGB").resize((target_w, target_h), Image.Resampling.LANCZOS)
+        resized_image = input_image.convert("RGB").resize((base_w, base_h), Image.Resampling.LANCZOS)
 
         # Seed handling
         if seed is None or int(seed) < 0:
@@ -566,7 +608,7 @@ class ImageGenerator:
         cfg_scale = max(1.0, min(20.0, float(cfg_scale or 7.5)))
         strength = max(0.1, min(0.95, float(strength or 0.45)))
 
-        safe_print(f"[ImageGenerator] I2I: '{prompt[:35]}...' -> EN: '{prompt_en[:35]}...' ({target_w}x{target_h}, strength {strength}, style: {effective_style}, seed {actual_seed})")
+        safe_print(f"[ImageGenerator] I2I: '{prompt[:35]}...' -> EN: '{prompt_en[:35]}...' (Base: {base_w}x{base_h} -> Target: {target_w}x{target_h}, strength {strength}, style: {effective_style}, seed {actual_seed})")
 
         with torch.inference_mode():
             result = self.i2i_pipe(
@@ -579,7 +621,12 @@ class ImageGenerator:
                 generator=generator
             )
 
-        image = result.images[0]
+        raw_image = result.images[0]
+        if raw_image.size != (target_w, target_h):
+            image = raw_image.resize((target_w, target_h), Image.Resampling.LANCZOS)
+        else:
+            image = raw_image
+
         duration = round(time.time() - t0, 2)
 
         meta = {
@@ -593,6 +640,8 @@ class ImageGenerator:
             "original_height": orig_h,
             "width": target_w,
             "height": target_h,
+            "base_width": base_w,
+            "base_height": base_h,
             "strength": strength,
             "steps": steps,
             "cfg_scale": cfg_scale,

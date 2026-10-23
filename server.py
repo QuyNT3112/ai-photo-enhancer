@@ -1804,6 +1804,7 @@ def api_generate_image():
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 style_preset=style_preset,
+                aspect_ratio=aspect_ratio,
                 strength=strength,
                 steps=steps,
                 cfg_scale=cfg_scale,
