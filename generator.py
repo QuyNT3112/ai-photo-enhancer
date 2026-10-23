@@ -309,8 +309,18 @@ class ImageGenerator:
                 requires_safety_checker=False
             )
 
-        # Optimize Scheduler
-        self.t2i_pipe.scheduler = DPMSolverMultistepScheduler.from_config(self.t2i_pipe.scheduler.config)
+        # Optimize Scheduler (DPM-Solver++ 2M Karras for ultra-fast high quality ~15-20 steps)
+        try:
+            sched_config = dict(self.t2i_pipe.scheduler.config)
+            # Fix diffusers DEIS / final_sigmas_type conflict on models like DreamShaper v8
+            if sched_config.get("algorithm_type") == "deis" and sched_config.get("final_sigmas_type", "zero") == "zero":
+                sched_config["final_sigmas_type"] = "sigma_min"
+            sched_config["algorithm_type"] = "dpmsolver++"
+            sched_config["use_karras_sigmas"] = True
+            self.t2i_pipe.scheduler = DPMSolverMultistepScheduler.from_config(sched_config)
+            safe_print(f"[ImageGenerator] DPMSolverMultistepScheduler (DPM++ 2M Karras) configured successfully for {model_id}")
+        except Exception as e:
+            safe_print(f"[ImageGenerator] Warning: Could not initialize DPMSolverMultistepScheduler ({e}), keeping default pipeline scheduler.")
 
         # Move to device & optimize memory
         self.t2i_pipe.to(self.device)
