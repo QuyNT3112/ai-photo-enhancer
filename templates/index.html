@@ -65,6 +65,10 @@
                     <i class="fa-solid fa-repeat"></i> Đổi Định Dạng Ảnh
                     <span class="badge-tab-new">MỚI</span>
                 </button>
+                <button type="button" class="nav-main-tab" id="tabBtnCoordinates">
+                    <i class="fa-solid fa-crosshairs"></i> Tọa Độ Điểm (X, Y)
+                    <span class="badge-tab-new">MỚI</span>
+                </button>
             </nav>
 
             <div class="nav-status">
@@ -2783,6 +2787,323 @@
                             <div class="vsearch-results-grid" id="vsearchResultsGrid">
                                 <!-- Dynamically populated by app.js -->
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW: IMAGE COORDINATE SYSTEM & POINT INSPECTOR -->
+    <!-- ========================================== -->
+    <div id="viewCoordinates" class="app-view hidden">
+        <main class="main-container">
+            <!-- Left Panel: Settings & Control & Point List -->
+            <aside class="sidebar-panel">
+                
+                <!-- 1. Tải Ảnh Lên -->
+                <div class="glass-card upload-section">
+                    <div class="card-header">
+                        <div class="step-badge">1</div>
+                        <h2 class="card-title">Tải Ảnh Xác Định Tọa Độ</h2>
+                        <span class="file-counter-badge hidden" id="coordFileBadge">1 ảnh</span>
+                    </div>
+
+                    <div class="drop-zone" id="coordDropZone">
+                        <input type="file" id="coordFileInput" accept="image/*" class="file-input-hidden">
+                        <div class="drop-content" id="coordDropPrompt">
+                            <div class="upload-icon-circle">
+                                <i class="fa-solid fa-crosshairs"></i>
+                            </div>
+                            <p class="drop-title">Kéo & thả ảnh vào đây để đo tọa độ</p>
+                            <p class="drop-sub">hoặc <span class="highlight-link">chọn ảnh từ máy tính</span></p>
+                            <div class="paste-hint">
+                                <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp
+                            </div>
+                            <p class="file-limit-text">Hỗ trợ JPG, PNG, WEBP, BMP, GIF (Hiển thị pixel gốc chính xác 100%)</p>
+                        </div>
+
+                        <!-- Single Preview Wrapper -->
+                        <div class="upload-preview-wrapper hidden" id="coordPreviewWrapper">
+                            <img src="" alt="Thumbnail" id="coordThumb" class="upload-thumb">
+                            <div class="upload-file-meta">
+                                <div class="file-name" id="coordFileName">image.png</div>
+                                <div class="file-dims" id="coordFileDims">639 x 818 px</div>
+                            </div>
+                            <button type="button" class="btn-remove-file" id="btnRemoveCoordImg" title="Đổi ảnh khác">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Sample Presets -->
+                    <div class="sample-presets">
+                        <span class="sample-label"><i class="fa-regular fa-lightbulb"></i> Thử nhanh ảnh mẫu:</span>
+                        <div class="sample-btn-group">
+                            <button type="button" class="btn-sample" id="btnSampleCoordFrame">
+                                <i class="fa-solid fa-vector-square text-pink"></i> Mẫu Khung Ảnh (O-xy)
+                            </button>
+                            <button type="button" class="btn-sample" id="btnSampleCoordPortrait">
+                                <i class="fa-solid fa-user text-cyan"></i> Mẫu Chân Dung
+                            </button>
+                            <button type="button" class="btn-sample" id="btnSampleCoordAnime">
+                                <i class="fa-solid fa-paint-brush text-violet"></i> Mẫu Anime
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Reuse Last Processed Image -->
+                    <div style="margin-top: 10px;">
+                        <button type="button" class="btn-secondary-action w-100" id="btnCoordReuseLast">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Dùng ảnh vừa xử lý gần nhất
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. Cấu Hình Hệ Trục Tọa Độ -->
+                <div class="glass-card config-section">
+                    <div class="card-header">
+                        <div class="step-badge">2</div>
+                        <h2 class="card-title">Thiết Lập Hệ Trục O-xy</h2>
+                    </div>
+
+                    <!-- Gốc Tọa Độ (Origin) -->
+                    <div class="form-group">
+                        <label class="form-label" for="coordOriginSelect">
+                            <i class="fa-solid fa-compass text-amber"></i> Vị trí gốc tọa độ O(0, 0):
+                        </label>
+                        <select id="coordOriginSelect" class="custom-select">
+                            <option value="top-left" selected>Góc Trên - Trái (Top-Left · x ➜ phải, y 🠗 xuống [Mặc định])</option>
+                            <option value="bottom-left">Góc Dưới - Trái (Bottom-Left · Đề-các: x ➜ phải, y 🠕 lên)</option>
+                            <option value="center">Tâm Ảnh (Center · O(0,0) tại giữa ảnh)</option>
+                        </select>
+                    </div>
+
+                    <!-- Đơn Vị Hiển Thị (Unit) -->
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label class="form-label" for="coordUnitSelect">
+                            <i class="fa-solid fa-ruler-combined text-cyan"></i> Đơn vị tọa độ:
+                        </label>
+                        <select id="coordUnitSelect" class="custom-select">
+                            <option value="pixel" selected>Pixel Gốc (px · Giá trị nguyên theo độ phân giải ảnh thực tế)</option>
+                            <option value="normalized">Chuẩn Hóa (Normalized 0.0000 - 1.0000 · Chuẩn AI/YOLO)</option>
+                            <option value="percent">Phần Trăm (% · 0.0% - 100.0%)</option>
+                        </select>
+                    </div>
+
+                    <!-- Visual Options -->
+                    <div class="form-group" style="margin-top: 14px;">
+                        <label class="form-label">
+                            <i class="fa-solid fa-eye text-emerald"></i> Hiển thị trực quan:
+                        </label>
+                        <div class="coord-toggles-grid">
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="chkCoordShowAxes" checked>
+                                <span>Trục O-xy & Mũi tên đỏ</span>
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="chkCoordShowRulers" checked>
+                                <span>Thước chia vạch (Rulers)</span>
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="chkCoordShowCrosshair" checked>
+                                <span>Đường ngắm chữ thập</span>
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="chkCoordShowGrid">
+                                <span>Lưới tọa độ (Grid)</span>
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="chkCoordShowLoupe" checked>
+                                <span>Kính lúp phóng to (Loupe 4x)</span>
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="chkCoordConnectPoints">
+                                <span>Nối đường giữa các điểm</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Danh Sách Điểm Đã Ghim & Đo Đạc -->
+                <div class="glass-card points-section">
+                    <div class="card-header" style="justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div class="step-badge">3</div>
+                            <h2 class="card-title">Điểm Đã Ghim (<span id="coordPointCount">0</span>)</h2>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            <button type="button" class="btn-xs-danger" id="btnClearCoordPoints" title="Xóa toàn bộ điểm đã ghim">
+                                <i class="fa-solid fa-trash-can"></i> Xóa hết
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Instruction hint -->
+                    <div class="coord-hint-box">
+                        <i class="fa-solid fa-circle-info text-cyan"></i>
+                        <span>Click chuột trái lên ảnh để <strong>ghim điểm</strong>. Giữ <strong>Phím Cách (Space)</strong> hoặc chuột giữa để kéo di chuyển ảnh. Cuộn chuột để <strong>Phóng to / Thu nhỏ</strong>.</span>
+                    </div>
+
+                    <!-- Points List Container -->
+                    <div class="coord-points-table-wrap">
+                        <table class="coord-table" id="coordPointsTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>X</th>
+                                    <th>Y</th>
+                                    <th>Màu</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="coordPointsTableBody">
+                                <tr id="coordEmptyPointsRow">
+                                    <td colspan="5" style="text-align: center; color: #64748b; padding: 20px 8px;">
+                                        <i class="fa-solid fa-location-dot" style="font-size: 20px; display: block; margin-bottom: 6px; opacity: 0.5;"></i>
+                                        Chưa có điểm nào được ghim.<br>Hãy click vào ảnh bên phải để đánh dấu.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Measurement Stats (Distance & Bounding Box) -->
+                    <div class="coord-stats-card hidden" id="coordStatsCard">
+                        <div class="coord-stat-item">
+                            <span class="coord-stat-label"><i class="fa-solid fa-arrows-left-right text-cyan"></i> Khoảng cách 2 điểm cuối:</span>
+                            <span class="coord-stat-val" id="coordStatDistance">0 px</span>
+                        </div>
+                        <div class="coord-stat-item">
+                            <span class="coord-stat-label"><i class="fa-solid fa-vector-square text-pink"></i> Khung bao (Bounding Box):</span>
+                            <span class="coord-stat-val" id="coordStatBBox">0 x 0 px</span>
+                        </div>
+                    </div>
+
+                    <!-- Export Actions -->
+                    <div class="coord-export-actions">
+                        <div class="btn-group-row">
+                            <button type="button" class="btn-export-sm" id="btnCopyCoordText" title="Sao chép dạng (x, y)">
+                                <i class="fa-regular fa-copy"></i> Copy (X, Y)
+                            </button>
+                            <button type="button" class="btn-export-sm" id="btnCopyCoordJson" title="Sao chép dạng JSON">
+                                <i class="fa-solid fa-code"></i> Copy JSON
+                            </button>
+                            <button type="button" class="btn-export-sm" id="btnExportCoordCsv" title="Tải file CSV">
+                                <i class="fa-solid fa-file-csv"></i> Xuất CSV
+                            </button>
+                        </div>
+                        <button type="button" class="btn-primary-action w-100" id="btnDownloadAnnotatedImg" style="margin-top: 10px;">
+                            <i class="fa-solid fa-download"></i> Tải Ảnh Kèm Trục & Tọa Độ Đã Ghim
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Interactive Canvas Viewer -->
+            <section class="preview-panel">
+                <div class="glass-card preview-card" style="display: flex; flex-direction: column; height: 100%; min-height: 720px; position: relative;">
+                    
+                    <!-- Top Realtime HUD & Canvas Toolbar -->
+                    <div class="coord-top-bar">
+                        <!-- Left: Realtime Coordinate Readout -->
+                        <div class="coord-live-readout" id="coordLiveReadout">
+                            <div class="readout-pill readout-pos">
+                                <i class="fa-solid fa-crosshairs text-red-pulse"></i>
+                                <span>Tọa độ:</span>
+                                <strong id="hudCoordX">X: ---</strong>
+                                <strong id="hudCoordY">Y: ---</strong>
+                            </div>
+                            <div class="readout-pill readout-color">
+                                <span class="color-swatch-mini" id="hudColorSwatch"></span>
+                                <strong id="hudColorHex">#------</strong>
+                                <span id="hudColorRgb" class="text-muted">(R, G, B)</span>
+                            </div>
+                            <div class="readout-pill readout-dims">
+                                <i class="fa-solid fa-image text-cyan"></i>
+                                <span id="hudImgDims">Kích thước: Chưa có ảnh</span>
+                            </div>
+                        </div>
+
+                        <!-- Right: Viewport & Zoom Controls -->
+                        <div class="coord-viewport-controls">
+                            <button type="button" class="btn-ctrl-icon" id="btnCoordZoomIn" title="Phóng to (+)">
+                                <i class="fa-solid fa-magnifying-glass-plus"></i>
+                            </button>
+                            <button type="button" class="btn-ctrl-icon" id="btnCoordZoomOut" title="Thu nhỏ (-)">
+                                <i class="fa-solid fa-magnifying-glass-minus"></i>
+                            </button>
+                            <span class="zoom-level-badge" id="coordZoomLevelBadge">100%</span>
+                            <button type="button" class="btn-ctrl-icon" id="btnCoordZoom100" title="Kích thước 1:1">
+                                1:1
+                            </button>
+                            <button type="button" class="btn-ctrl-icon" id="btnCoordZoomFit" title="Vừa khung nhìn">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <button type="button" class="btn-ctrl-icon" id="btnCoordResetView" title="Đặt lại góc nhìn">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Main Interactive Canvas Viewport -->
+                    <div class="coord-viewport-container" id="coordViewportContainer">
+                        <!-- Empty Placeholder State -->
+                        <div class="preview-empty" id="coordEmptyState">
+                            <div class="empty-icon-circle">
+                                <i class="fa-solid fa-crosshairs"></i>
+                            </div>
+                            <h3 class="empty-title">Chưa Có Ảnh Để Xác Định Tọa Độ</h3>
+                            <p class="empty-sub">Tải ảnh lên hoặc chọn ảnh mẫu bên trái để đặt hệ trục tọa độ O-xy và di chuột xác định tọa độ mọi vị trí.</p>
+                            <div style="margin-top: 14px;">
+                                <button type="button" class="btn-sample-lg" id="btnEmptySampleFrame">
+                                    <i class="fa-solid fa-vector-square text-pink"></i> Thử Mẫu Khung Ảnh (O-xy)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Workspace (shown when image loaded) -->
+                        <div class="coord-canvas-workspace hidden" id="coordCanvasWorkspace">
+                            <!-- Overlay Top Ruler (X-axis ticks) -->
+                            <canvas id="coordRulerXCanvas" class="coord-ruler-x"></canvas>
+                            <!-- Overlay Left Ruler (Y-axis ticks) -->
+                            <canvas id="coordRulerYCanvas" class="coord-ruler-y"></canvas>
+                            <!-- Origin O indicator corner button -->
+                            <div class="coord-origin-box" id="coordOriginBox" title="Gốc tọa độ O(0,0)">O</div>
+
+                            <!-- Canvas Scroll/Pan Surface -->
+                            <div class="coord-surface" id="coordSurface">
+                                <!-- Base Image Canvas -->
+                                <canvas id="coordImageCanvas" class="coord-image-canvas"></canvas>
+                                <!-- Interactive Overlay Canvas (Axes, Ticks, Crosshairs, Pins) -->
+                                <canvas id="coordOverlayCanvas" class="coord-overlay-canvas"></canvas>
+                            </div>
+
+                            <!-- Floating Cursor Tooltip (follows mouse) -->
+                            <div class="coord-floating-tooltip hidden" id="coordFloatingTooltip">
+                                <div class="tooltip-coords" id="tooltipCoordsText">X: 0, Y: 0</div>
+                            </div>
+
+                            <!-- Floating Pixel Magnifier Loupe (4x / 8x) -->
+                            <div class="coord-pixel-loupe hidden" id="coordPixelLoupe">
+                                <canvas id="coordLoupeCanvas" width="130" height="130"></canvas>
+                                <div class="loupe-crosshair"></div>
+                                <div class="loupe-info" id="loupeInfoText">X: 0, Y: 0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Status Bar -->
+                    <div class="coord-bottom-bar">
+                        <div class="bottom-bar-left">
+                            <span class="status-indicator-dot active"></span>
+                            <span id="coordBottomStatus">Sẵn sàng · Di chuột để xem tọa độ · Click để ghim điểm</span>
+                        </div>
+                        <div class="bottom-bar-right">
+                            <span class="keyboard-tip"><kbd>Space</kbd> + Kéo: Di chuyển ảnh</span>
+                            <span class="keyboard-tip"><kbd>Lăn chuột</kbd>: Zoom</span>
+                            <span class="keyboard-tip"><kbd>Click</kbd>: Ghim điểm</span>
                         </div>
                     </div>
                 </div>

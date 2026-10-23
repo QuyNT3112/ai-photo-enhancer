@@ -987,6 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabBtnCompressor = document.getElementById('tabBtnCompressor');
     const tabBtnBgRemover = document.getElementById('tabBtnBgRemover');
     const tabBtnConverter = document.getElementById('tabBtnConverter');
+    const tabBtnCoordinates = document.getElementById('tabBtnCoordinates');
 
     const viewEnhancer = document.getElementById('viewEnhancer');
     const viewAspect = document.getElementById('viewAspect');
@@ -996,6 +997,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewCompressor = document.getElementById('viewCompressor');
     const viewBgRemover = document.getElementById('viewBgRemover');
     const viewConverter = document.getElementById('viewConverter');
+    const viewCoordinates = document.getElementById('viewCoordinates');
 
     function switchAppTab(activeTab) {
         // Tab buttons
@@ -1007,6 +1009,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabBtnCompressor) tabBtnCompressor.classList.toggle('active', activeTab === 'compress');
         if (tabBtnBgRemover) tabBtnBgRemover.classList.toggle('active', activeTab === 'bgremover');
         if (tabBtnConverter) tabBtnConverter.classList.toggle('active', activeTab === 'converter');
+        if (tabBtnCoordinates) tabBtnCoordinates.classList.toggle('active', activeTab === 'coordinates');
 
         // Views
         viewEnhancer.classList.toggle('hidden', activeTab !== 'enhancer');
@@ -1017,6 +1020,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (viewCompressor) viewCompressor.classList.toggle('hidden', activeTab !== 'compress');
         if (viewBgRemover) viewBgRemover.classList.toggle('hidden', activeTab !== 'bgremover');
         if (viewConverter) viewConverter.classList.toggle('hidden', activeTab !== 'converter');
+        if (viewCoordinates) {
+            viewCoordinates.classList.toggle('hidden', activeTab !== 'coordinates');
+            if (activeTab === 'coordinates' && window.coordInspectorRefit) {
+                setTimeout(window.coordInspectorRefit, 60);
+            }
+        }
 
         // Auto scroll to chat bottom if opening chatbot
         if (activeTab === 'chatbot') {
@@ -1048,6 +1057,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (tabBtnConverter) {
         tabBtnConverter.addEventListener('click', () => switchAppTab('converter'));
+    }
+    if (tabBtnCoordinates) {
+        tabBtnCoordinates.addEventListener('click', () => switchAppTab('coordinates'));
     }
 
     // ==========================================
@@ -6095,7 +6107,1354 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // =========================================================================
+    // 17. IMAGE COORDINATE SYSTEM & POINT INSPECTOR LOGIC
+    // =========================================================================
+    function initCoordinateInspector() {
+        const dropZone = document.getElementById('coordDropZone');
+        const fileInput = document.getElementById('coordFileInput');
+        const dropPrompt = document.getElementById('coordDropPrompt');
+        const previewWrapper = document.getElementById('coordPreviewWrapper');
+        const thumb = document.getElementById('coordThumb');
+        const fileNameEl = document.getElementById('coordFileName');
+        const fileDimsEl = document.getElementById('coordFileDims');
+        const btnRemoveImg = document.getElementById('btnRemoveCoordImg');
+        const fileBadge = document.getElementById('coordFileBadge');
+
+        // Presets & Reuse
+        const btnSampleFrame = document.getElementById('btnSampleCoordFrame');
+        const btnEmptySampleFrame = document.getElementById('btnEmptySampleFrame');
+        const btnSamplePortrait = document.getElementById('btnSampleCoordPortrait');
+        const btnSampleAnime = document.getElementById('btnSampleCoordAnime');
+        const btnReuseLast = document.getElementById('btnCoordReuseLast');
+
+        // Settings
+        const originSelect = document.getElementById('coordOriginSelect');
+        const unitSelect = document.getElementById('coordUnitSelect');
+        const chkShowAxes = document.getElementById('chkCoordShowAxes');
+        const chkShowRulers = document.getElementById('chkCoordShowRulers');
+        const chkShowCrosshair = document.getElementById('chkCoordShowCrosshair');
+        const chkShowGrid = document.getElementById('chkCoordShowGrid');
+        const chkShowLoupe = document.getElementById('chkCoordShowLoupe');
+        const chkConnectPoints = document.getElementById('chkCoordConnectPoints');
+
+        // Points list & Measurement
+        const pointsTableBody = document.getElementById('coordPointsTableBody');
+        const emptyPointsRow = document.getElementById('coordEmptyPointsRow');
+        const pointCountEl = document.getElementById('coordPointCount');
+        const btnClearPoints = document.getElementById('btnClearCoordPoints');
+        const statsCard = document.getElementById('coordStatsCard');
+        const statDistance = document.getElementById('coordStatDistance');
+        const statBBox = document.getElementById('coordStatBBox');
+
+        // Export buttons
+        const btnCopyText = document.getElementById('btnCopyCoordText');
+        const btnCopyJson = document.getElementById('btnCopyCoordJson');
+        const btnExportCsv = document.getElementById('btnExportCoordCsv');
+        const btnDownloadAnnotated = document.getElementById('btnDownloadAnnotatedImg');
+
+        // Viewport & Canvases
+        const emptyState = document.getElementById('coordEmptyState');
+        const workspace = document.getElementById('coordCanvasWorkspace');
+        const surface = document.getElementById('coordSurface');
+        const imageCanvas = document.getElementById('coordImageCanvas');
+        const overlayCanvas = document.getElementById('coordOverlayCanvas');
+        const rulerXCanvas = document.getElementById('coordRulerXCanvas');
+        const rulerYCanvas = document.getElementById('coordRulerYCanvas');
+        const originBox = document.getElementById('coordOriginBox');
+
+        // Floating cursor & loupe
+        const floatingTooltip = document.getElementById('coordFloatingTooltip');
+        const tooltipCoordsText = document.getElementById('tooltipCoordsText');
+        const pixelLoupe = document.getElementById('coordPixelLoupe');
+        const loupeCanvas = document.getElementById('coordLoupeCanvas');
+        const loupeInfoText = document.getElementById('loupeInfoText');
+
+        // HUD elements
+        const hudX = document.getElementById('hudCoordX');
+        const hudY = document.getElementById('hudCoordY');
+        const hudColorSwatch = document.getElementById('hudColorSwatch');
+        const hudColorHex = document.getElementById('hudColorHex');
+        const hudColorRgb = document.getElementById('hudColorRgb');
+        const hudImgDims = document.getElementById('hudImgDims');
+        const zoomBadge = document.getElementById('coordZoomLevelBadge');
+        const bottomStatus = document.getElementById('coordBottomStatus');
+
+        // Zoom controls
+        const btnZoomIn = document.getElementById('btnCoordZoomIn');
+        const btnZoomOut = document.getElementById('btnCoordZoomOut');
+        const btnZoom100 = document.getElementById('btnCoordZoom100');
+        const btnZoomFit = document.getElementById('btnCoordZoomFit');
+        const btnResetView = document.getElementById('btnCoordResetView');
+
+        if (!surface || !imageCanvas || !overlayCanvas) return;
+
+        // Contexts
+        const imgCtx = imageCanvas.getContext('2d');
+        const overlayCtx = overlayCanvas.getContext('2d');
+        const rulerXCtx = rulerXCanvas ? rulerXCanvas.getContext('2d') : null;
+        const rulerYCtx = rulerYCanvas ? rulerYCanvas.getContext('2d') : null;
+        const loupeCtx = loupeCanvas ? loupeCanvas.getContext('2d') : null;
+
+        // Offscreen canvas for fast pixel sampling
+        const offscreenCanvas = document.createElement('canvas');
+        const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+        // State variables
+        let currentImg = null;
+        let origWidth = 0;
+        let origHeight = 0;
+        let currentFileName = 'image.png';
+
+        let zoom = 1.0;
+        let panX = 0;
+        let panY = 0;
+        let isPanning = false;
+        let panStartX = 0;
+        let panStartY = 0;
+        let isSpacePressed = false;
+
+        let points = []; // [{ id, ix, iy, hex, rgb, formattedX, formattedY }]
+        let nextPointId = 1;
+        let mouseImagePos = null; // { ix, iy, screenX, screenY, inside }
+
+        // Helper: Format coordinate according to origin and unit
+        function calculateCoordinates(ix, iy) {
+            const origin = originSelect ? originSelect.value : 'top-left';
+            const unit = unitSelect ? unitSelect.value : 'pixel';
+
+            let rawX = ix;
+            let rawY = iy;
+
+            if (origin === 'bottom-left') {
+                rawX = ix;
+                rawY = origHeight - iy;
+            } else if (origin === 'center') {
+                rawX = ix - (origWidth / 2);
+                rawY = (origHeight / 2) - iy;
+            }
+
+            let formattedX = '';
+            let formattedY = '';
+            let numX = rawX;
+            let numY = rawY;
+
+            if (unit === 'pixel') {
+                const rx = Math.round(rawX);
+                const ry = Math.round(rawY);
+                formattedX = `${rx} px`;
+                formattedY = `${ry} px`;
+                numX = rx;
+                numY = ry;
+            } else if (unit === 'normalized') {
+                let nx = ix / origWidth;
+                let ny = iy / origHeight;
+                if (origin === 'bottom-left') ny = 1 - ny;
+                if (origin === 'center') {
+                    nx = (ix - (origWidth / 2)) / origWidth;
+                    ny = ((origHeight / 2) - iy) / origHeight;
+                }
+                formattedX = nx.toFixed(4);
+                formattedY = ny.toFixed(4);
+                numX = parseFloat(formattedX);
+                numY = parseFloat(formattedY);
+            } else if (unit === 'percent') {
+                let px = (ix / origWidth) * 100;
+                let py = (iy / origHeight) * 100;
+                if (origin === 'bottom-left') py = 100 - py;
+                if (origin === 'center') {
+                    px = ((ix - (origWidth / 2)) / origWidth) * 100;
+                    py = (((origHeight / 2) - iy) / origHeight) * 100;
+                }
+                formattedX = `${px.toFixed(1)}%`;
+                formattedY = `${py.toFixed(1)}%`;
+                numX = parseFloat(px.toFixed(1));
+                numY = parseFloat(py.toFixed(1));
+            }
+
+            return { rawX, rawY, formattedX, formattedY, numX, numY };
+        }
+
+        // Helper: Sample pixel color
+        function getPixelColor(ix, iy) {
+            const clx = Math.max(0, Math.min(origWidth - 1, Math.floor(ix)));
+            const cly = Math.max(0, Math.min(origHeight - 1, Math.floor(iy)));
+            try {
+                const p = offscreenCtx.getImageData(clx, cly, 1, 1).data;
+                const r = p[0], g = p[1], b = p[2], a = p[3];
+                const hex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+                const rgb = `rgb(${r}, ${g}, ${b})`;
+                return { r, g, b, a, hex, rgb };
+            } catch (_) {
+                return { r: 0, g: 0, b: 0, a: 255, hex: '#000000', rgb: 'rgb(0,0,0)' };
+            }
+        }
+
+        // Load image into workspace
+        function loadCoordImage(source, name = 'image.png') {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                currentImg = img;
+                origWidth = img.naturalWidth || img.width;
+                origHeight = img.naturalHeight || img.height;
+                currentFileName = name;
+
+                // Sync offscreen canvas for color picking & export
+                offscreenCanvas.width = origWidth;
+                offscreenCanvas.height = origHeight;
+                offscreenCtx.drawImage(img, 0, 0);
+
+                // Update Left Sidebar Preview
+                if (thumb) thumb.src = source;
+                if (fileNameEl) fileNameEl.textContent = name;
+                if (fileDimsEl) fileDimsEl.textContent = `${origWidth} x ${origHeight} px`;
+                if (dropPrompt) dropPrompt.classList.add('hidden');
+                if (previewWrapper) previewWrapper.classList.remove('hidden');
+                if (fileBadge) {
+                    fileBadge.textContent = '1 ảnh';
+                    fileBadge.classList.remove('hidden');
+                }
+
+                // Show workspace
+                if (emptyState) emptyState.classList.add('hidden');
+                if (workspace) workspace.classList.remove('hidden');
+                if (hudImgDims) hudImgDims.textContent = `Kích thước: ${origWidth} x ${origHeight} px`;
+
+                // Reset points
+                points = [];
+                nextPointId = 1;
+                updatePointsTable();
+
+                // Initial Fit
+                fitToWorkspace();
+                if (bottomStatus) bottomStatus.textContent = `Đã nạp: ${name} (${origWidth} x ${origHeight} px) · Di chuột để xem tọa độ`;
+                window.showToast(`🎯 Đã nạp ảnh thành công: ${origWidth} x ${origHeight} px`);
+            };
+            img.onerror = () => {
+                window.showToast('❌ Không thể tải hình ảnh. Vui lòng thử lại!');
+            };
+            img.src = source;
+        }
+
+        // Fit image nicely into surface viewport
+        function fitToWorkspace() {
+            if (!currentImg) return;
+            const sW = surface.clientWidth || 800;
+            const sH = surface.clientHeight || 580;
+            const pad = 60;
+            const availW = Math.max(100, sW - pad);
+            const availH = Math.max(100, sH - pad);
+
+            const scaleX = availW / origWidth;
+            const scaleY = availH / origHeight;
+            zoom = Math.min(1.0, Math.min(scaleX, scaleY));
+            if (zoom <= 0) zoom = 0.5;
+
+            // Center image in surface
+            panX = Math.round((sW - origWidth * zoom) / 2);
+            panY = Math.round((sH - origHeight * zoom) / 2);
+
+            redrawAll();
+        }
+
+        window.coordInspectorRefit = () => {
+            if (currentImg) {
+                fitToWorkspace();
+            }
+        };
+
+        // Redraw base image, overlay, rulers
+        function redrawAll() {
+            if (!currentImg) return;
+
+            // Base Image Canvas
+            imageCanvas.width = origWidth;
+            imageCanvas.height = origHeight;
+            imgCtx.clearRect(0, 0, origWidth, origHeight);
+            imgCtx.drawImage(currentImg, 0, 0);
+
+            imageCanvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+
+            // Overlay Canvas
+            const sW = surface.clientWidth;
+            const sH = surface.clientHeight;
+            overlayCanvas.width = sW;
+            overlayCanvas.height = sH;
+            overlayCtx.clearRect(0, 0, sW, sH);
+
+            drawOverlay();
+            drawRulers();
+
+            if (zoomBadge) zoomBadge.textContent = `${Math.round(zoom * 100)}%`;
+        }
+
+        // Draw overlay elements: Grid, Axes, Crosshair, Pins, Lines
+        function drawOverlay() {
+            if (!currentImg) return;
+
+            const x0 = panX;
+            const y0 = panY;
+            const ws = origWidth * zoom;
+            const hs = origHeight * zoom;
+            const x1 = x0 + ws;
+            const y1 = y0 + hs;
+
+            // 1. GRID
+            if (chkShowGrid && chkShowGrid.checked) {
+                overlayCtx.save();
+                overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+                overlayCtx.lineWidth = 1;
+                overlayCtx.setLineDash([4, 4]);
+
+                const stepPx = Math.max(20, Math.round(50 * zoom));
+                for (let x = x0; x <= x1; x += stepPx) {
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x, y0);
+                    overlayCtx.lineTo(x, y1);
+                    overlayCtx.stroke();
+                }
+                for (let y = y0; y <= y1; y += stepPx) {
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x0, y);
+                    overlayCtx.lineTo(x1, y);
+                    overlayCtx.stroke();
+                }
+                overlayCtx.restore();
+            }
+
+            // 2. CONNECTED LINES
+            if (chkConnectPoints && chkConnectPoints.checked && points.length >= 2) {
+                overlayCtx.save();
+                overlayCtx.strokeStyle = '#06b6d4';
+                overlayCtx.lineWidth = 2;
+                overlayCtx.setLineDash([6, 4]);
+                overlayCtx.beginPath();
+
+                for (let i = 0; i < points.length; i++) {
+                    const sx = points[i].ix * zoom + panX;
+                    const sy = points[i].iy * zoom + panY;
+                    if (i === 0) overlayCtx.moveTo(sx, sy);
+                    else overlayCtx.lineTo(sx, sy);
+                }
+                overlayCtx.stroke();
+                overlayCtx.restore();
+
+                // Draw distance label on segments
+                overlayCtx.save();
+                overlayCtx.font = 'bold 11px Outfit, sans-serif';
+                for (let i = 1; i < points.length; i++) {
+                    const p1 = points[i - 1];
+                    const p2 = points[i];
+                    const sx1 = p1.ix * zoom + panX;
+                    const sy1 = p1.iy * zoom + panY;
+                    const sx2 = p2.ix * zoom + panX;
+                    const sy2 = p2.iy * zoom + panY;
+                    const midX = (sx1 + sx2) / 2;
+                    const midY = (sy1 + sy2) / 2;
+
+                    const dist = Math.round(Math.hypot(p2.ix - p1.ix, p2.iy - p1.iy));
+                    const text = `${dist} px`;
+                    const tW = overlayCtx.measureText(text).width;
+
+                    overlayCtx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                    overlayCtx.fillRect(midX - tW / 2 - 4, midY - 9, tW + 8, 18);
+                    overlayCtx.strokeStyle = '#06b6d4';
+                    overlayCtx.lineWidth = 1;
+                    overlayCtx.strokeRect(midX - tW / 2 - 4, midY - 9, tW + 8, 18);
+
+                    overlayCtx.fillStyle = '#38bdf8';
+                    overlayCtx.textAlign = 'center';
+                    overlayCtx.textBaseline = 'middle';
+                    overlayCtx.fillText(text, midX, midY);
+                }
+                overlayCtx.restore();
+            }
+
+            // 3. PINNED POINTS
+            points.forEach((pt) => {
+                const sx = pt.ix * zoom + panX;
+                const sy = pt.iy * zoom + panY;
+
+                overlayCtx.save();
+                // Outer glow
+                overlayCtx.shadowColor = 'rgba(239, 68, 68, 0.7)';
+                overlayCtx.shadowBlur = 10;
+
+                // Red circle
+                overlayCtx.beginPath();
+                overlayCtx.arc(sx, sy, 12, 0, Math.PI * 2);
+                overlayCtx.fillStyle = '#ef4444';
+                overlayCtx.fill();
+
+                // White ring
+                overlayCtx.lineWidth = 2.5;
+                overlayCtx.strokeStyle = '#ffffff';
+                overlayCtx.stroke();
+
+                // Center dot
+                overlayCtx.shadowBlur = 0;
+                overlayCtx.beginPath();
+                overlayCtx.arc(sx, sy, 2, 0, Math.PI * 2);
+                overlayCtx.fillStyle = '#ffffff';
+                overlayCtx.fill();
+
+                // Point ID text
+                overlayCtx.fillStyle = '#ffffff';
+                overlayCtx.font = 'bold 10px Outfit, sans-serif';
+                overlayCtx.textAlign = 'center';
+                overlayCtx.textBaseline = 'middle';
+                overlayCtx.fillText(`${pt.id}`, sx, sy);
+
+                // Coordinate label pill next to pin
+                const label = `(${pt.formattedX}, ${pt.formattedY})`;
+                overlayCtx.font = 'bold 10.5px monospace';
+                const lW = overlayCtx.measureText(label).width;
+                const badgeX = sx + 16;
+                const badgeY = sy - 10;
+
+                overlayCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                overlayCtx.beginPath();
+                overlayCtx.roundRect(badgeX, badgeY, lW + 8, 18, 4);
+                overlayCtx.fill();
+                overlayCtx.strokeStyle = '#ef4444';
+                overlayCtx.lineWidth = 1;
+                overlayCtx.stroke();
+
+                overlayCtx.fillStyle = '#f87171';
+                overlayCtx.textAlign = 'left';
+                overlayCtx.textBaseline = 'middle';
+                overlayCtx.fillText(label, badgeX + 4, badgeY + 9);
+
+                overlayCtx.restore();
+            });
+
+            // 4. CROSSHAIR (Laser lines)
+            if (chkShowCrosshair && chkShowCrosshair.checked && mouseImagePos && mouseImagePos.inside) {
+                const cx = mouseImagePos.ix * zoom + panX;
+                const cy = mouseImagePos.iy * zoom + panY;
+
+                overlayCtx.save();
+                overlayCtx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+                overlayCtx.lineWidth = 1.5;
+                overlayCtx.setLineDash([4, 4]);
+
+                // Horizontal crosshair line
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(x0, cy);
+                overlayCtx.lineTo(x1, cy);
+                overlayCtx.stroke();
+
+                // Vertical crosshair line
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(cx, y0);
+                overlayCtx.lineTo(cx, y1);
+                overlayCtx.stroke();
+
+                // Center target ring
+                overlayCtx.setLineDash([]);
+                overlayCtx.beginPath();
+                overlayCtx.arc(cx, cy, 6, 0, Math.PI * 2);
+                overlayCtx.strokeStyle = '#38bdf8';
+                overlayCtx.lineWidth = 2;
+                overlayCtx.stroke();
+
+                overlayCtx.restore();
+            }
+
+            // 5. COORDINATE AXES (O-x-y) EXACTLY MATCHING USER DRAWING!
+            if (chkShowAxes && chkShowAxes.checked) {
+                const origin = originSelect ? originSelect.value : 'top-left';
+                overlayCtx.save();
+                overlayCtx.strokeStyle = '#ef4444';
+                overlayCtx.fillStyle = '#ef4444';
+                overlayCtx.lineWidth = 3.5;
+                overlayCtx.shadowColor = 'rgba(239, 68, 68, 0.5)';
+                overlayCtx.shadowBlur = 8;
+
+                if (origin === 'top-left') {
+                    // Top horizontal X-axis line extending right
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x0, y0);
+                    overlayCtx.lineTo(x1 + 30, y0);
+                    overlayCtx.stroke();
+
+                    // Arrow on X axis
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x1 + 30, y0);
+                    overlayCtx.lineTo(x1 + 18, y0 - 7);
+                    overlayCtx.lineTo(x1 + 18, y0 + 7);
+                    overlayCtx.closePath();
+                    overlayCtx.fill();
+
+                    // Label 'x'
+                    overlayCtx.font = 'italic bold 22px Outfit, sans-serif';
+                    overlayCtx.textAlign = 'left';
+                    overlayCtx.textBaseline = 'middle';
+                    overlayCtx.fillText('x', x1 + 36, y0 + 2);
+
+                    // Left vertical Y-axis line extending down
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x0, y0);
+                    overlayCtx.lineTo(x0, y1 + 30);
+                    overlayCtx.stroke();
+
+                    // Arrow on Y axis
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x0, y1 + 30);
+                    overlayCtx.lineTo(x0 - 7, y1 + 18);
+                    overlayCtx.lineTo(x0 + 7, y1 + 18);
+                    overlayCtx.closePath();
+                    overlayCtx.fill();
+
+                    // Label 'y'
+                    overlayCtx.fillText('y', x0 - 18, y1 + 34);
+
+                    // Origin 'O' corner badge
+                    overlayCtx.beginPath();
+                    overlayCtx.arc(x0, y0, 14, 0, Math.PI * 2);
+                    overlayCtx.fillStyle = '#ef4444';
+                    overlayCtx.fill();
+                    overlayCtx.strokeStyle = '#ffffff';
+                    overlayCtx.lineWidth = 2.5;
+                    overlayCtx.stroke();
+
+                    overlayCtx.font = 'bold 12px Outfit, sans-serif';
+                    overlayCtx.fillStyle = '#ffffff';
+                    overlayCtx.textAlign = 'center';
+                    overlayCtx.textBaseline = 'middle';
+                    overlayCtx.fillText('O', x0, y0);
+
+                } else if (origin === 'bottom-left') {
+                    // Bottom horizontal X-axis
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x0, y1);
+                    overlayCtx.lineTo(x1 + 30, y1);
+                    overlayCtx.stroke();
+
+                    // Arrow on X
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x1 + 30, y1);
+                    overlayCtx.lineTo(x1 + 18, y1 - 7);
+                    overlayCtx.lineTo(x1 + 18, y1 + 7);
+                    overlayCtx.closePath();
+                    overlayCtx.fill();
+                    overlayCtx.font = 'italic bold 22px Outfit, sans-serif';
+                    overlayCtx.fillText('x', x1 + 36, y1);
+
+                    // Vertical Y-axis extending up
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x0, y1);
+                    overlayCtx.lineTo(x0, y0 - 30);
+                    overlayCtx.stroke();
+
+                    // Arrow on Y
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x0, y0 - 30);
+                    overlayCtx.lineTo(x0 - 7, y0 - 18);
+                    overlayCtx.lineTo(x0 + 7, y0 - 18);
+                    overlayCtx.closePath();
+                    overlayCtx.fill();
+                    overlayCtx.fillText('y', x0 - 20, y0 - 28);
+
+                    // Origin O at bottom-left
+                    overlayCtx.beginPath();
+                    overlayCtx.arc(x0, y1, 14, 0, Math.PI * 2);
+                    overlayCtx.fillStyle = '#ef4444';
+                    overlayCtx.fill();
+                    overlayCtx.strokeStyle = '#ffffff';
+                    overlayCtx.lineWidth = 2.5;
+                    overlayCtx.stroke();
+                    overlayCtx.font = 'bold 12px Outfit, sans-serif';
+                    overlayCtx.fillStyle = '#ffffff';
+                    overlayCtx.textAlign = 'center';
+                    overlayCtx.textBaseline = 'middle';
+                    overlayCtx.fillText('O', x0, y1);
+
+                } else if (origin === 'center') {
+                    const midX = x0 + ws / 2;
+                    const midY = y0 + hs / 2;
+
+                    // Horizontal axis
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x0 - 25, midY);
+                    overlayCtx.lineTo(x1 + 25, midY);
+                    overlayCtx.stroke();
+
+                    // Arrow on X
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(x1 + 25, midY);
+                    overlayCtx.lineTo(x1 + 15, midY - 6);
+                    overlayCtx.lineTo(x1 + 15, midY + 6);
+                    overlayCtx.closePath();
+                    overlayCtx.fill();
+                    overlayCtx.font = 'italic bold 18px Outfit, sans-serif';
+                    overlayCtx.fillText('+x', x1 + 30, midY);
+                    overlayCtx.fillText('-x', x0 - 45, midY);
+
+                    // Vertical axis
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(midX, y0 - 25);
+                    overlayCtx.lineTo(midX, y1 + 25);
+                    overlayCtx.stroke();
+
+                    // Arrow on Y
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(midX, y0 - 25);
+                    overlayCtx.lineTo(midX - 6, y0 - 15);
+                    overlayCtx.lineTo(midX + 6, y0 - 15);
+                    overlayCtx.closePath();
+                    overlayCtx.fill();
+                    overlayCtx.fillText('+y', midX + 8, y0 - 20);
+                    overlayCtx.fillText('-y', midX + 8, y1 + 22);
+
+                    // Origin O at center
+                    overlayCtx.beginPath();
+                    overlayCtx.arc(midX, midY, 11, 0, Math.PI * 2);
+                    overlayCtx.fillStyle = '#ef4444';
+                    overlayCtx.fill();
+                    overlayCtx.strokeStyle = '#fff';
+                    overlayCtx.lineWidth = 2;
+                    overlayCtx.stroke();
+                    overlayCtx.font = 'bold 10px Outfit, sans-serif';
+                    overlayCtx.fillStyle = '#fff';
+                    overlayCtx.textAlign = 'center';
+                    overlayCtx.textBaseline = 'middle';
+                    overlayCtx.fillText('O', midX, midY);
+                }
+
+                overlayCtx.restore();
+            }
+        }
+
+        // Draw rulers
+        function drawRulers() {
+            if (!currentImg || !chkShowRulers || !chkShowRulers.checked) {
+                if (rulerXCanvas) rulerXCanvas.style.display = 'none';
+                if (rulerYCanvas) rulerYCanvas.style.display = 'none';
+                if (originBox) originBox.style.display = 'none';
+                return;
+            }
+
+            if (!rulerXCtx || !rulerYCtx) return;
+
+            rulerXCanvas.style.display = 'block';
+            rulerYCanvas.style.display = 'block';
+            originBox.style.display = 'flex';
+
+            const wX = surface.clientWidth;
+            const hY = surface.clientHeight;
+
+            rulerXCanvas.width = wX;
+            rulerXCanvas.height = 24;
+            rulerYCanvas.width = 24;
+            rulerYCanvas.height = hY;
+
+            // X Ruler
+            rulerXCtx.clearRect(0, 0, wX, 24);
+            rulerXCtx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+            rulerXCtx.fillRect(0, 0, wX, 24);
+
+            rulerXCtx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+            rulerXCtx.fillStyle = '#94a3b8';
+            rulerXCtx.font = '9px monospace';
+            rulerXCtx.lineWidth = 1;
+
+            const step = zoom >= 2 ? 20 : (zoom >= 0.8 ? 50 : 100);
+            for (let ix = 0; ix <= origWidth; ix += step) {
+                const sx = ix * zoom + panX;
+                if (sx >= 0 && sx <= wX) {
+                    const isMajor = ix % (step * 2) === 0;
+                    rulerXCtx.beginPath();
+                    rulerXCtx.moveTo(sx, 24);
+                    rulerXCtx.lineTo(sx, isMajor ? 10 : 16);
+                    rulerXCtx.stroke();
+
+                    if (isMajor) {
+                        rulerXCtx.fillText(`${ix}`, sx + 3, 11);
+                    }
+                }
+            }
+
+            // Y Ruler
+            rulerYCtx.clearRect(0, 0, 24, hY);
+            rulerYCtx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+            rulerYCtx.fillRect(0, 0, 24, hY);
+
+            rulerYCtx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+            rulerYCtx.fillStyle = '#94a3b8';
+            rulerYCtx.font = '9px monospace';
+            rulerYCtx.lineWidth = 1;
+
+            for (let iy = 0; iy <= origHeight; iy += step) {
+                const sy = iy * zoom + panY;
+                if (sy >= 0 && sy <= hY) {
+                    const isMajor = iy % (step * 2) === 0;
+                    rulerYCtx.beginPath();
+                    rulerYCtx.moveTo(24, sy);
+                    rulerYCtx.lineTo(isMajor ? 10 : 16, sy);
+                    rulerYCtx.stroke();
+
+                    if (isMajor) {
+                        rulerYCtx.save();
+                        rulerYCtx.translate(11, sy - 3);
+                        rulerYCtx.fillText(`${iy}`, 0, 0);
+                        rulerYCtx.restore();
+                    }
+                }
+            }
+        }
+
+        // Loupe update
+        function updateLoupe(ix, iy, color) {
+            if (!loupeCtx || !chkShowLoupe || !chkShowLoupe.checked) {
+                if (pixelLoupe) pixelLoupe.classList.add('hidden');
+                return;
+            }
+
+            if (pixelLoupe) pixelLoupe.classList.remove('hidden');
+
+            const patchSize = 13;
+            const half = Math.floor(patchSize / 2);
+            const srcX = Math.round(ix) - half;
+            const srcY = Math.round(iy) - half;
+
+            loupeCtx.imageSmoothingEnabled = false;
+            loupeCtx.clearRect(0, 0, 130, 130);
+
+            // Draw magnified patch from offscreen canvas
+            loupeCtx.drawImage(offscreenCanvas, srcX, srcY, patchSize, patchSize, 0, 0, 130, 130);
+
+            // Subtle pixel grid in loupe
+            loupeCtx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+            loupeCtx.lineWidth = 1;
+            const cellW = 130 / patchSize;
+            for (let i = 0; i <= patchSize; i++) {
+                loupeCtx.beginPath();
+                loupeCtx.moveTo(i * cellW, 0);
+                loupeCtx.lineTo(i * cellW, 130);
+                loupeCtx.stroke();
+
+                loupeCtx.beginPath();
+                loupeCtx.moveTo(0, i * cellW);
+                loupeCtx.lineTo(130, i * cellW);
+                loupeCtx.stroke();
+            }
+
+            const coords = calculateCoordinates(ix, iy);
+            if (loupeInfoText) {
+                loupeInfoText.textContent = `X: ${coords.formattedX} | Y: ${coords.formattedY} | ${color.hex}`;
+            }
+        }
+
+        // Add a pinned point
+        function addPinnedPoint(ix, iy) {
+            if (!currentImg) return;
+            const coords = calculateCoordinates(ix, iy);
+            const color = getPixelColor(ix, iy);
+
+            const pt = {
+                id: nextPointId++,
+                ix: Math.round(ix),
+                iy: Math.round(iy),
+                rawX: coords.rawX,
+                rawY: coords.rawY,
+                formattedX: coords.formattedX,
+                formattedY: coords.formattedY,
+                hex: color.hex,
+                rgb: color.rgb
+            };
+
+            points.push(pt);
+            updatePointsTable();
+            redrawAll();
+
+            window.showToast(`📍 Đã ghim điểm #${pt.id}: (${pt.formattedX}, ${pt.formattedY})`);
+        }
+
+        // Delete point
+        function deletePoint(id) {
+            points = points.filter(p => p.id !== id);
+            updatePointsTable();
+            redrawAll();
+        }
+
+        // Update Points Table & Measurement Stats
+        function updatePointsTable() {
+            if (!pointsTableBody) return;
+            if (pointCountEl) pointCountEl.textContent = points.length;
+
+            if (points.length === 0) {
+                pointsTableBody.innerHTML = `
+                    <tr id="coordEmptyPointsRow">
+                        <td colspan="5" style="text-align: center; color: #64748b; padding: 20px 8px;">
+                            <i class="fa-solid fa-location-dot" style="font-size: 20px; display: block; margin-bottom: 6px; opacity: 0.5;"></i>
+                            Chưa có điểm nào được ghim.<br>Hãy click vào ảnh bên phải để đánh dấu.
+                        </td>
+                    </tr>
+                `;
+                if (statsCard) statsCard.classList.add('hidden');
+                return;
+            }
+
+            pointsTableBody.innerHTML = '';
+            points.forEach(pt => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="coord-pin-badge">${pt.id}</span></td>
+                    <td><span class="coord-num-chip">${pt.formattedX}</span></td>
+                    <td><span class="coord-num-chip">${pt.formattedY}</span></td>
+                    <td>
+                        <span class="coord-color-chip">
+                            <span class="swatch" style="background-color: ${pt.hex};"></span>
+                            <span>${pt.hex}</span>
+                        </span>
+                    </td>
+                    <td style="text-align: right;">
+                        <button type="button" class="btn-del-point" data-id="${pt.id}" title="Xóa điểm này">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tr.querySelector('.btn-del-point').onclick = () => deletePoint(pt.id);
+                pointsTableBody.appendChild(tr);
+            });
+
+            // Measurement Stats
+            if (points.length >= 2) {
+                if (statsCard) statsCard.classList.remove('hidden');
+                const last = points[points.length - 1];
+                const prev = points[points.length - 2];
+                const dist = Math.round(Math.hypot(last.ix - prev.ix, last.iy - prev.iy));
+                if (statDistance) statDistance.textContent = `${dist} px (từ #${prev.id} đến #${last.id})`;
+
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                points.forEach(p => {
+                    minX = Math.min(minX, p.ix);
+                    maxX = Math.max(maxX, p.ix);
+                    minY = Math.min(minY, p.iy);
+                    maxY = Math.max(maxY, p.iy);
+                });
+                const boxW = Math.round(maxX - minX);
+                const boxH = Math.round(maxY - minY);
+                const area = (boxW * boxH).toLocaleString();
+                if (statBBox) statBBox.textContent = `${boxW} x ${boxH} px (S = ${area} px²)`;
+            } else {
+                if (statsCard) statsCard.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        // MOUSE & KEYBOARD EVENT HANDLERS
+        // ==========================================
+        surface.addEventListener('mousemove', (e) => {
+            if (!currentImg) return;
+            const rect = surface.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+
+            if (isPanning) {
+                panX += (e.clientX - panStartX);
+                panY += (e.clientY - panStartY);
+                panStartX = e.clientX;
+                panStartY = e.clientY;
+                redrawAll();
+                return;
+            }
+
+            // Calculate image pixel coords
+            const ix = (sx - panX) / zoom;
+            const iy = (sy - panY) / zoom;
+            const inside = (ix >= 0 && ix <= origWidth && iy >= 0 && iy <= origHeight);
+
+            mouseImagePos = { ix, iy, screenX: sx, screenY: sy, inside };
+
+            if (inside) {
+                const coords = calculateCoordinates(ix, iy);
+                const color = getPixelColor(ix, iy);
+
+                // HUD updates
+                if (hudX) hudX.textContent = `X: ${coords.formattedX}`;
+                if (hudY) hudY.textContent = `Y: ${coords.formattedY}`;
+                if (hudColorSwatch) hudColorSwatch.style.backgroundColor = color.hex;
+                if (hudColorHex) hudColorHex.textContent = color.hex;
+                if (hudColorRgb) hudColorRgb.textContent = color.rgb;
+
+                // Tooltip follow
+                if (floatingTooltip && tooltipCoordsText) {
+                    floatingTooltip.classList.remove('hidden');
+                    floatingTooltip.style.left = `${sx}px`;
+                    floatingTooltip.style.top = `${sy}px`;
+                    tooltipCoordsText.textContent = `X: ${coords.formattedX}, Y: ${coords.formattedY}`;
+                }
+
+                // Loupe update
+                updateLoupe(ix, iy, color);
+            } else {
+                if (floatingTooltip) floatingTooltip.classList.add('hidden');
+                if (pixelLoupe) pixelLoupe.classList.add('hidden');
+            }
+
+            drawOverlay();
+        });
+
+        surface.addEventListener('mouseleave', () => {
+            mouseImagePos = null;
+            if (floatingTooltip) floatingTooltip.classList.add('hidden');
+            if (pixelLoupe) pixelLoupe.classList.add('hidden');
+            if (currentImg) drawOverlay();
+        });
+
+        // Click to pin point
+        surface.addEventListener('click', (e) => {
+            if (!currentImg || isPanning) return;
+            const rect = surface.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+
+            const ix = (sx - panX) / zoom;
+            const iy = (sy - panY) / zoom;
+
+            if (ix >= 0 && ix <= origWidth && iy >= 0 && iy <= origHeight) {
+                addPinnedPoint(ix, iy);
+            }
+        });
+
+        // Mouse Pan (Space / Middle Click / Drag)
+        surface.addEventListener('mousedown', (e) => {
+            if (e.button === 1 || isSpacePressed) {
+                isPanning = true;
+                panStartX = e.clientX;
+                panStartY = e.clientY;
+                surface.classList.add('is-panning');
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isPanning) {
+                isPanning = false;
+                surface.classList.remove('is-panning');
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !e.target.matches('input, textarea, select')) {
+                isSpacePressed = true;
+                surface.classList.add('is-panning');
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                isSpacePressed = false;
+                if (!isPanning) surface.classList.remove('is-panning');
+            }
+        });
+
+        // Wheel Zoom (centered on cursor)
+        surface.addEventListener('wheel', (e) => {
+            if (!currentImg) return;
+            e.preventDefault();
+            const rect = surface.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            const prevZoom = zoom;
+            const factor = e.deltaY < 0 ? 1.15 : 0.85;
+            zoom = Math.max(0.1, Math.min(20.0, zoom * factor));
+
+            // Adjust pan so mouse point remains stationary
+            panX = mx - (mx - panX) * (zoom / prevZoom);
+            panY = my - (my - panY) * (zoom / prevZoom);
+
+            redrawAll();
+        }, { passive: false });
+
+        // Zoom button controls
+        if (btnZoomIn) {
+            btnZoomIn.onclick = () => {
+                if (!currentImg) return;
+                const prevZoom = zoom;
+                zoom = Math.min(20.0, zoom * 1.25);
+                const sW = surface.clientWidth / 2;
+                const sH = surface.clientHeight / 2;
+                panX = sW - (sW - panX) * (zoom / prevZoom);
+                panY = sH - (sH - panY) * (zoom / prevZoom);
+                redrawAll();
+            };
+        }
+        if (btnZoomOut) {
+            btnZoomOut.onclick = () => {
+                if (!currentImg) return;
+                const prevZoom = zoom;
+                zoom = Math.max(0.1, zoom * 0.8);
+                const sW = surface.clientWidth / 2;
+                const sH = surface.clientHeight / 2;
+                panX = sW - (sW - panX) * (zoom / prevZoom);
+                panY = sH - (sH - panY) * (zoom / prevZoom);
+                redrawAll();
+            };
+        }
+        if (btnZoom100) {
+            btnZoom100.onclick = () => {
+                if (!currentImg) return;
+                zoom = 1.0;
+                panX = Math.round((surface.clientWidth - origWidth) / 2);
+                panY = Math.round((surface.clientHeight - origHeight) / 2);
+                redrawAll();
+            };
+        }
+        if (btnZoomFit) {
+            btnZoomFit.onclick = fitToWorkspace;
+        }
+        if (btnResetView) {
+            btnResetView.onclick = fitToWorkspace;
+        }
+
+        // Toggles change redraw
+        [originSelect, unitSelect, chkShowAxes, chkShowRulers, chkShowCrosshair, chkShowGrid, chkShowLoupe, chkConnectPoints].forEach(el => {
+            if (el) el.addEventListener('change', () => {
+                // Update formatted coordinates for all points if unit/origin changed
+                points.forEach(p => {
+                    const c = calculateCoordinates(p.ix, p.iy);
+                    p.formattedX = c.formattedX;
+                    p.formattedY = c.formattedY;
+                });
+                updatePointsTable();
+                redrawAll();
+            });
+        });
+
+        // Clear points
+        if (btnClearPoints) {
+            btnClearPoints.onclick = () => {
+                points = [];
+                nextPointId = 1;
+                updatePointsTable();
+                redrawAll();
+                window.showToast('🗑️ Đã xóa toàn bộ điểm đã ghim!');
+            };
+        }
+
+        // Remove image
+        if (btnRemoveImg) {
+            btnRemoveImg.onclick = () => {
+                currentImg = null;
+                origWidth = 0;
+                origHeight = 0;
+                points = [];
+                nextPointId = 1;
+                if (previewWrapper) previewWrapper.classList.add('hidden');
+                if (dropPrompt) dropPrompt.classList.remove('hidden');
+                if (workspace) workspace.classList.add('hidden');
+                if (emptyState) emptyState.classList.remove('hidden');
+                if (fileBadge) fileBadge.classList.add('hidden');
+                updatePointsTable();
+                window.showToast('Đã đóng ảnh hiện tại.');
+            };
+        }
+
+        // ==========================================
+        // EXPORT ACTIONS
+        // ==========================================
+        if (btnCopyText) {
+            btnCopyText.onclick = () => {
+                if (points.length === 0) {
+                    window.showToast('⚠️ Chưa có điểm nào được ghim để sao chép!');
+                    return;
+                }
+                const text = points.map(p => `#${p.id}: (${p.formattedX}, ${p.formattedY})`).join(' | ');
+                navigator.clipboard.writeText(text).then(() => {
+                    window.showToast('📋 Đã sao chép tọa độ vào bộ nhớ tạm!');
+                });
+            };
+        }
+
+        if (btnCopyJson) {
+            btnCopyJson.onclick = () => {
+                if (points.length === 0) {
+                    window.showToast('⚠️ Chưa có điểm nào được ghim!');
+                    return;
+                }
+                const data = points.map(p => ({
+                    id: p.id,
+                    x: p.formattedX,
+                    y: p.formattedY,
+                    pixelX: p.ix,
+                    pixelY: p.iy,
+                    colorHex: p.hex
+                }));
+                navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
+                    window.showToast('📋 Đã sao chép dữ liệu JSON vào bộ nhớ tạm!');
+                });
+            };
+        }
+
+        if (btnExportCsv) {
+            btnExportCsv.onclick = () => {
+                if (points.length === 0) {
+                    window.showToast('⚠️ Chưa có điểm nào để xuất CSV!');
+                    return;
+                }
+                let csv = 'ID,X,Y,Pixel_X,Pixel_Y,Color_HEX\n';
+                points.forEach(p => {
+                    csv += `${p.id},"${p.formattedX}","${p.formattedY}",${p.ix},${p.iy},"${p.hex}"\n`;
+                });
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ClarityAI_Coordinates_${Date.now()}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                window.showToast('📊 Đã xuất file CSV thành công!');
+            };
+        }
+
+        // Download full-resolution image annotated with axes & pinned points
+        if (btnDownloadAnnotated) {
+            btnDownloadAnnotated.onclick = () => {
+                if (!currentImg) {
+                    window.showToast('⚠️ Chưa có hình ảnh để xuất!');
+                    return;
+                }
+
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = origWidth;
+                exportCanvas.height = origHeight;
+                const eCtx = exportCanvas.getContext('2d');
+
+                // 1. Draw base original image
+                eCtx.drawImage(currentImg, 0, 0);
+
+                // 2. Connected lines
+                if (chkConnectPoints && chkConnectPoints.checked && points.length >= 2) {
+                    eCtx.save();
+                    eCtx.strokeStyle = '#06b6d4';
+                    eCtx.lineWidth = Math.max(2, Math.round(origWidth / 400));
+                    eCtx.setLineDash([8, 6]);
+                    eCtx.beginPath();
+                    points.forEach((p, i) => {
+                        if (i === 0) eCtx.moveTo(p.ix, p.iy);
+                        else eCtx.lineTo(p.ix, p.iy);
+                    });
+                    eCtx.stroke();
+                    eCtx.restore();
+                }
+
+                // 3. Axes
+                if (chkShowAxes && chkShowAxes.checked) {
+                    eCtx.save();
+                    const origin = originSelect ? originSelect.value : 'top-left';
+                    const lw = Math.max(3, Math.round(origWidth / 250));
+                    eCtx.strokeStyle = '#ef4444';
+                    eCtx.fillStyle = '#ef4444';
+                    eCtx.lineWidth = lw;
+
+                    if (origin === 'top-left') {
+                        // Top line
+                        eCtx.beginPath();
+                        eCtx.moveTo(0, 0);
+                        eCtx.lineTo(origWidth, 0);
+                        eCtx.stroke();
+
+                        // Left line
+                        eCtx.beginPath();
+                        eCtx.moveTo(0, 0);
+                        eCtx.lineTo(0, origHeight);
+                        eCtx.stroke();
+
+                        // Origin badge O
+                        const rad = Math.max(14, Math.round(origWidth / 40));
+                        eCtx.beginPath();
+                        eCtx.arc(rad, rad, rad, 0, Math.PI * 2);
+                        eCtx.fillStyle = '#ef4444';
+                        eCtx.fill();
+                        eCtx.strokeStyle = '#ffffff';
+                        eCtx.lineWidth = Math.max(2, rad / 5);
+                        eCtx.stroke();
+
+                        eCtx.fillStyle = '#ffffff';
+                        eCtx.font = `bold ${Math.round(rad * 1.1)}px Outfit, sans-serif`;
+                        eCtx.textAlign = 'center';
+                        eCtx.textBaseline = 'middle';
+                        eCtx.fillText('O', rad, rad);
+
+                        // Axis labels
+                        eCtx.fillStyle = '#ef4444';
+                        eCtx.font = `italic bold ${Math.round(rad * 1.4)}px Outfit, sans-serif`;
+                        eCtx.fillText('x', origWidth - rad, rad * 1.5);
+                        eCtx.fillText('y', rad * 1.5, origHeight - rad);
+                    }
+                    eCtx.restore();
+                }
+
+                // 4. Pins
+                const pinRadius = Math.max(10, Math.round(origWidth / 70));
+                points.forEach(pt => {
+                    eCtx.save();
+                    eCtx.beginPath();
+                    eCtx.arc(pt.ix, pt.iy, pinRadius, 0, Math.PI * 2);
+                    eCtx.fillStyle = '#ef4444';
+                    eCtx.fill();
+                    eCtx.strokeStyle = '#ffffff';
+                    eCtx.lineWidth = Math.max(2, pinRadius / 4);
+                    eCtx.stroke();
+
+                    // Text ID
+                    eCtx.fillStyle = '#ffffff';
+                    eCtx.font = `bold ${Math.round(pinRadius * 0.9)}px Outfit, sans-serif`;
+                    eCtx.textAlign = 'center';
+                    eCtx.textBaseline = 'middle';
+                    eCtx.fillText(`${pt.id}`, pt.ix, pt.iy);
+
+                    // Label badge
+                    const label = `(${pt.formattedX}, ${pt.formattedY})`;
+                    eCtx.font = `bold ${Math.round(pinRadius * 0.8)}px monospace`;
+                    const tW = eCtx.measureText(label).width;
+                    const bX = pt.ix + pinRadius + 4;
+                    const bY = pt.iy - pinRadius / 2;
+                    const bH = pinRadius * 1.5;
+
+                    eCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                    eCtx.beginPath();
+                    eCtx.roundRect(bX, bY, tW + 8, bH, 4);
+                    eCtx.fill();
+                    eCtx.strokeStyle = '#ef4444';
+                    eCtx.lineWidth = 1.5;
+                    eCtx.stroke();
+
+                    eCtx.fillStyle = '#f87171';
+                    eCtx.textAlign = 'left';
+                    eCtx.textBaseline = 'middle';
+                    eCtx.fillText(label, bX + 4, bY + bH / 2);
+
+                    eCtx.restore();
+                });
+
+                exportCanvas.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const base = currentFileName.replace(/\.[^/.]+$/, '');
+                    a.href = url;
+                    a.download = `ClarityAI_Annotated_${base}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    window.showToast('📸 Đã xuất ảnh kèm hệ trục và tọa độ thành công!');
+                }, 'image/png');
+            };
+        }
+
+        // ==========================================
+        // FILE UPLOAD & PRESET HANDLERS
+        // ==========================================
+        if (dropZone && fileInput) {
+            dropZone.addEventListener('click', (e) => {
+                if (e.target.closest('.btn-remove-file')) return;
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files && fileInput.files[0]) {
+                    const f = fileInput.files[0];
+                    const reader = new FileReader();
+                    reader.onload = (e) => loadCoordImage(e.target.result, f.name);
+                    reader.readAsDataURL(f);
+                }
+            });
+
+            ['dragenter', 'dragover'].forEach(evt => {
+                dropZone.addEventListener(evt, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('drag-over');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(evt => {
+                dropZone.addEventListener(evt, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('drag-over');
+                });
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    const f = e.dataTransfer.files[0];
+                    const reader = new FileReader();
+                    reader.onload = (ev) => loadCoordImage(ev.target.result, f.name);
+                    reader.readAsDataURL(f);
+                }
+            });
+        }
+
+        // Clipboard Paste (Ctrl+V)
+        window.addEventListener('paste', (e) => {
+            const activeCoordTab = document.getElementById('tabBtnCoordinates');
+            if (!activeCoordTab || !activeCoordTab.classList.contains('active')) return;
+
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (ev) => loadCoordImage(ev.target.result, 'clipboard_image.png');
+                    reader.readAsDataURL(blob);
+                    window.showToast('📋 Đã dán ảnh từ bộ nhớ tạm clipboard!');
+                    break;
+                }
+            }
+        });
+
+        // Sample Presets
+        const sampleFrameUrl = '/static/samples/sample_coordinates_frame.png';
+        const samplePortraitUrl = '/static/samples/sample_portrait_lowres.jpg';
+        const sampleAnimeUrl = '/static/samples/sample_anime_lowres.jpg';
+
+        if (btnSampleFrame) {
+            btnSampleFrame.onclick = () => loadCoordImage(sampleFrameUrl, 'sample_frame_oxy.png');
+        }
+        if (btnEmptySampleFrame) {
+            btnEmptySampleFrame.onclick = () => loadCoordImage(sampleFrameUrl, 'sample_frame_oxy.png');
+        }
+        if (btnSamplePortrait) {
+            btnSamplePortrait.onclick = () => loadCoordImage(samplePortraitUrl, 'sample_portrait.jpg');
+        }
+        if (btnSampleAnime) {
+            btnSampleAnime.onclick = () => loadCoordImage(sampleAnimeUrl, 'sample_anime.jpg');
+        }
+
+        // Reuse Last Processed Image
+        if (btnReuseLast) {
+            btnReuseLast.onclick = () => {
+                const url = window.currentActiveResultUrl;
+                if (url) {
+                    const name = url.split('/').pop() || 'last_result.png';
+                    loadCoordImage(url, name);
+                } else {
+                    window.showToast('ℹ️ Chưa có ảnh nào vừa được xử lý gần đây.');
+                }
+            };
+        }
+
+        // Window resize re-renders overlay & rulers
+        window.addEventListener('resize', () => {
+            if (currentImg) {
+                redrawAll();
+            }
+        });
+    }
+
+    // Initialize Coordinate Inspector
+    initCoordinateInspector();
 });
+
 
 
 
