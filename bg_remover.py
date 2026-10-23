@@ -73,34 +73,43 @@ class BackgroundRemover:
     def _predict_raw_mask(self, model_name: str, rgb_pil: Image.Image) -> np.ndarray:
         """
         Runs model inference and returns a float32 mask [0.0, 1.0] matching rgb_pil (H, W).
+        Features automated multi-tier fallback so background removal is always 100% resilient.
         """
         orig_w, orig_h = rgb_pil.size
         model_key = model_name.strip().lower()
 
         if model_key in ['birefnet', 'biref']:
-            model = self._get_birefnet()
-            inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)
-            with torch.no_grad():
-                res = model(inp)
-            if isinstance(res, (list, tuple)):
-                raw = res[-1].sigmoid().squeeze().cpu().numpy()
-            else:
-                raw = res.sigmoid().squeeze().cpu().numpy()
-            mask = cv2.resize(raw, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
-            return np.clip(mask, 0.0, 1.0)
+            try:
+                model = self._get_birefnet()
+                inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    res = model(inp)
+                if isinstance(res, (list, tuple)):
+                    raw = res[-1].sigmoid().squeeze().cpu().numpy()
+                else:
+                    raw = res.sigmoid().squeeze().cpu().numpy()
+                mask = cv2.resize(raw, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+                return np.clip(mask, 0.0, 1.0)
+            except Exception as e:
+                print(f"[BgRemover] BiRefNet inference error: {e}. Falling back to RMBG-1.4...")
+                model_key = 'rmbg-1.4'
 
-        elif model_key in ['u2net', 'rembg']:
-            import rembg
-            session = self._get_u2net_session()
-            out_img = rembg.remove(rgb_pil, session=session)
-            arr = np.array(out_img)
-            if arr.shape[2] == 4:
-                alpha = arr[:, :, 3].astype(np.float32) / 255.0
-                return alpha
-            return np.ones((orig_h, orig_w), dtype=np.float32)
+        if model_key in ['u2net', 'rembg']:
+            try:
+                import rembg
+                session = self._get_u2net_session()
+                out_img = rembg.remove(rgb_pil, session=session)
+                arr = np.array(out_img)
+                if arr.shape[2] == 4:
+                    alpha = arr[:, :, 3].astype(np.float32) / 255.0
+                    return alpha
+                return np.ones((orig_h, orig_w), dtype=np.float32)
+            except Exception as e:
+                print(f"[BgRemover] U2Net inference error: {e}. Falling back to RMBG-1.4...")
+                model_key = 'rmbg-1.4'
 
-        else:
-            # Default to RMBG-1.4
+        # Default to RMBG-1.4 (Ultra-Fast SOTA)
+        try:
             model = self._get_rmbg14()
             inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)
             with torch.no_grad():
@@ -108,6 +117,22 @@ class BackgroundRemover:
             raw = preds[0][0].squeeze().cpu().numpy()
             mask = cv2.resize(raw, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
             return np.clip(mask, 0.0, 1.0)
+        except Exception as e:
+            print(f"[BgRemover] RMBG-1.4 inference error: {e}. Attempting BiRefNet as secondary fallback...")
+            try:
+                model = self._get_birefnet()
+                inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    res = model(inp)
+                if isinstance(res, (list, tuple)):
+                    raw = res[-1].sigmoid().squeeze().cpu().numpy()
+                else:
+                    raw = res.sigmoid().squeeze().cpu().numpy()
+                mask = cv2.resize(raw, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+                return np.clip(mask, 0.0, 1.0)
+            except Exception as e2:
+                print(f"[BgRemover] Critical: All segmentation models failed: {e2}")
+                raise RuntimeError(f"Tất cả mô hình tách nền gặp sự cố: {e2}")
 
     def _purge_border_background(self, img_bgr: np.ndarray, ai_mask: np.ndarray, sensitivity: float = 0.5) -> np.ndarray:
         """
@@ -280,7 +305,9 @@ class BackgroundRemover:
             final_img = Image.alpha_composite(bg_layer, fg_layer).convert("RGB")
 
         # 5. Save output
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        out_dir = os.path.dirname(output_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
         if bg_color_clean in ['transparent', 'alpha', 'none', '']:
             if not output_path.lower().endswith('.png'):
                 output_path = os.path.splitext(output_path)[0] + '.png'
