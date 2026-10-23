@@ -6144,6 +6144,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const emptyPointsRow = document.getElementById('coordEmptyPointsRow');
         const pointCountEl = document.getElementById('coordPointCount');
         const btnClearPoints = document.getElementById('btnClearCoordPoints');
+        const btnUndoPoints = document.getElementById('btnUndoCoordPoint');
+        const btnUndoTop = document.getElementById('btnCoordUndoTop');
         const statsCard = document.getElementById('coordStatsCard');
         const statDistance = document.getElementById('coordStatDistance');
         const statBBox = document.getElementById('coordStatBBox');
@@ -6377,13 +6379,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             imageCanvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
 
-            // Overlay Canvas
-            const sW = surface.clientWidth;
-            const sH = surface.clientHeight;
-            overlayCanvas.width = sW;
-            overlayCanvas.height = sH;
-            overlayCtx.clearRect(0, 0, sW, sH);
-
             drawOverlay();
             drawRulers();
 
@@ -6393,6 +6388,28 @@ document.addEventListener('DOMContentLoaded', () => {
         // Draw overlay elements: Grid, Axes, Crosshair, Pins, Lines
         function drawOverlay() {
             if (!currentImg) return;
+
+            const sW = surface.clientWidth || 800;
+            const sH = surface.clientHeight || 580;
+            const dpr = window.devicePixelRatio || 1;
+
+            const targetW = Math.round(sW * dpr);
+            const targetH = Math.round(sH * dpr);
+            if (overlayCanvas.width !== targetW || overlayCanvas.height !== targetH) {
+                overlayCanvas.width = targetW;
+                overlayCanvas.height = targetH;
+                overlayCanvas.style.width = `${sW}px`;
+                overlayCanvas.style.height = `${sH}px`;
+            }
+
+            // CRITICAL FIX: Reset transform and completely wipe canvas buffer to eliminate ghosting / smearing
+            overlayCtx.save();
+            overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            overlayCtx.restore();
+
+            overlayCtx.save();
+            overlayCtx.scale(dpr, dpr);
 
             const x0 = panX;
             const y0 = panY;
@@ -6404,21 +6421,23 @@ document.addEventListener('DOMContentLoaded', () => {
             // 1. GRID
             if (chkShowGrid && chkShowGrid.checked) {
                 overlayCtx.save();
-                overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+                overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
                 overlayCtx.lineWidth = 1;
                 overlayCtx.setLineDash([4, 4]);
 
                 const stepPx = Math.max(20, Math.round(50 * zoom));
                 for (let x = x0; x <= x1; x += stepPx) {
+                    const rx = Math.round(x) + 0.5;
                     overlayCtx.beginPath();
-                    overlayCtx.moveTo(x, y0);
-                    overlayCtx.lineTo(x, y1);
+                    overlayCtx.moveTo(rx, y0);
+                    overlayCtx.lineTo(rx, y1);
                     overlayCtx.stroke();
                 }
                 for (let y = y0; y <= y1; y += stepPx) {
+                    const ry = Math.round(y) + 0.5;
                     overlayCtx.beginPath();
-                    overlayCtx.moveTo(x0, y);
-                    overlayCtx.lineTo(x1, y);
+                    overlayCtx.moveTo(x0, ry);
+                    overlayCtx.lineTo(x1, ry);
                     overlayCtx.stroke();
                 }
                 overlayCtx.restore();
@@ -6428,8 +6447,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (chkConnectPoints && chkConnectPoints.checked && points.length >= 2) {
                 overlayCtx.save();
                 overlayCtx.strokeStyle = '#06b6d4';
-                overlayCtx.lineWidth = 2;
-                overlayCtx.setLineDash([6, 4]);
+                overlayCtx.lineWidth = 1.5;
+                overlayCtx.setLineDash([6, 3]);
                 overlayCtx.beginPath();
 
                 for (let i = 0; i < points.length; i++) {
@@ -6473,23 +6492,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // 3. PINNED POINTS
-            points.forEach((pt) => {
+            points.forEach((pt, idx) => {
                 const sx = pt.ix * zoom + panX;
                 const sy = pt.iy * zoom + panY;
+                const isLast = (idx === points.length - 1);
 
                 overlayCtx.save();
-                // Outer glow
-                overlayCtx.shadowColor = 'rgba(239, 68, 68, 0.7)';
-                overlayCtx.shadowBlur = 10;
+                // Outer subtle glow
+                overlayCtx.shadowColor = isLast ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.35)';
+                overlayCtx.shadowBlur = isLast ? 6 : 3;
 
                 // Red circle
                 overlayCtx.beginPath();
-                overlayCtx.arc(sx, sy, 12, 0, Math.PI * 2);
+                overlayCtx.arc(sx, sy, 11, 0, Math.PI * 2);
                 overlayCtx.fillStyle = '#ef4444';
                 overlayCtx.fill();
 
                 // White ring
-                overlayCtx.lineWidth = 2.5;
+                overlayCtx.lineWidth = 2;
                 overlayCtx.strokeStyle = '#ffffff';
                 overlayCtx.stroke();
 
@@ -6511,14 +6531,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const label = `(${pt.formattedX}, ${pt.formattedY})`;
                 overlayCtx.font = 'bold 10.5px monospace';
                 const lW = overlayCtx.measureText(label).width;
-                const badgeX = sx + 16;
-                const badgeY = sy - 10;
+                const badgeX = sx + 14;
+                const badgeY = sy - 9;
 
                 overlayCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
                 overlayCtx.beginPath();
-                overlayCtx.roundRect(badgeX, badgeY, lW + 8, 18, 4);
+                if (overlayCtx.roundRect) {
+                    overlayCtx.roundRect(badgeX, badgeY, lW + 8, 18, 4);
+                } else {
+                    overlayCtx.rect(badgeX, badgeY, lW + 8, 18);
+                }
                 overlayCtx.fill();
-                overlayCtx.strokeStyle = '#ef4444';
+                overlayCtx.strokeStyle = isLast ? '#ef4444' : 'rgba(239, 68, 68, 0.6)';
                 overlayCtx.lineWidth = 1;
                 overlayCtx.stroke();
 
@@ -6530,48 +6554,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 overlayCtx.restore();
             });
 
-            // 4. CROSSHAIR (Laser lines)
+            // 4. CROSSHAIR (Laser lines) - Crisp 1px dashed lines without antialiasing blur
             if (chkShowCrosshair && chkShowCrosshair.checked && mouseImagePos && mouseImagePos.inside) {
-                const cx = mouseImagePos.ix * zoom + panX;
-                const cy = mouseImagePos.iy * zoom + panY;
+                const cx = Math.floor(mouseImagePos.ix * zoom + panX) + 0.5;
+                const cy = Math.floor(mouseImagePos.iy * zoom + panY) + 0.5;
 
                 overlayCtx.save();
-                overlayCtx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
-                overlayCtx.lineWidth = 1.5;
-                overlayCtx.setLineDash([4, 4]);
+                overlayCtx.strokeStyle = '#ef4444';
+                overlayCtx.lineWidth = 1;
+                overlayCtx.setLineDash([5, 4]);
 
                 // Horizontal crosshair line
                 overlayCtx.beginPath();
-                overlayCtx.moveTo(x0, cy);
-                overlayCtx.lineTo(x1, cy);
+                overlayCtx.moveTo(Math.floor(x0), cy);
+                overlayCtx.lineTo(Math.floor(x1), cy);
                 overlayCtx.stroke();
 
                 // Vertical crosshair line
                 overlayCtx.beginPath();
-                overlayCtx.moveTo(cx, y0);
-                overlayCtx.lineTo(cx, y1);
+                overlayCtx.moveTo(cx, Math.floor(y0));
+                overlayCtx.lineTo(cx, Math.floor(y1));
                 overlayCtx.stroke();
 
-                // Center target ring
+                // Center target ring (sharp cyan ring)
                 overlayCtx.setLineDash([]);
                 overlayCtx.beginPath();
                 overlayCtx.arc(cx, cy, 6, 0, Math.PI * 2);
                 overlayCtx.strokeStyle = '#38bdf8';
-                overlayCtx.lineWidth = 2;
+                overlayCtx.lineWidth = 1.5;
                 overlayCtx.stroke();
 
                 overlayCtx.restore();
             }
 
-            // 5. COORDINATE AXES (O-x-y) EXACTLY MATCHING USER DRAWING!
+            // 5. COORDINATE AXES (O-x-y) EXACTLY MATCHING USER DRAWING
             if (chkShowAxes && chkShowAxes.checked) {
                 const origin = originSelect ? originSelect.value : 'top-left';
                 overlayCtx.save();
                 overlayCtx.strokeStyle = '#ef4444';
                 overlayCtx.fillStyle = '#ef4444';
-                overlayCtx.lineWidth = 3.5;
-                overlayCtx.shadowColor = 'rgba(239, 68, 68, 0.5)';
-                overlayCtx.shadowBlur = 8;
+                overlayCtx.lineWidth = 2.5;
+                overlayCtx.shadowColor = 'rgba(239, 68, 68, 0.35)';
+                overlayCtx.shadowBlur = 3;
 
                 if (origin === 'top-left') {
                     // Top horizontal X-axis line extending right
@@ -6583,13 +6607,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Arrow on X axis
                     overlayCtx.beginPath();
                     overlayCtx.moveTo(x1 + 30, y0);
-                    overlayCtx.lineTo(x1 + 18, y0 - 7);
-                    overlayCtx.lineTo(x1 + 18, y0 + 7);
+                    overlayCtx.lineTo(x1 + 18, y0 - 6);
+                    overlayCtx.lineTo(x1 + 18, y0 + 6);
                     overlayCtx.closePath();
                     overlayCtx.fill();
 
                     // Label 'x'
-                    overlayCtx.font = 'italic bold 22px Outfit, sans-serif';
+                    overlayCtx.font = 'italic bold 20px Outfit, sans-serif';
                     overlayCtx.textAlign = 'left';
                     overlayCtx.textBaseline = 'middle';
                     overlayCtx.fillText('x', x1 + 36, y0 + 2);
@@ -6603,8 +6627,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Arrow on Y axis
                     overlayCtx.beginPath();
                     overlayCtx.moveTo(x0, y1 + 30);
-                    overlayCtx.lineTo(x0 - 7, y1 + 18);
-                    overlayCtx.lineTo(x0 + 7, y1 + 18);
+                    overlayCtx.lineTo(x0 - 6, y1 + 18);
+                    overlayCtx.lineTo(x0 + 6, y1 + 18);
                     overlayCtx.closePath();
                     overlayCtx.fill();
 
@@ -6613,11 +6637,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Origin 'O' corner badge
                     overlayCtx.beginPath();
-                    overlayCtx.arc(x0, y0, 14, 0, Math.PI * 2);
+                    overlayCtx.arc(x0, y0, 13, 0, Math.PI * 2);
                     overlayCtx.fillStyle = '#ef4444';
                     overlayCtx.fill();
                     overlayCtx.strokeStyle = '#ffffff';
-                    overlayCtx.lineWidth = 2.5;
+                    overlayCtx.lineWidth = 2;
                     overlayCtx.stroke();
 
                     overlayCtx.font = 'bold 12px Outfit, sans-serif';
@@ -6636,11 +6660,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Arrow on X
                     overlayCtx.beginPath();
                     overlayCtx.moveTo(x1 + 30, y1);
-                    overlayCtx.lineTo(x1 + 18, y1 - 7);
-                    overlayCtx.lineTo(x1 + 18, y1 + 7);
+                    overlayCtx.lineTo(x1 + 18, y1 - 6);
+                    overlayCtx.lineTo(x1 + 18, y1 + 6);
                     overlayCtx.closePath();
                     overlayCtx.fill();
-                    overlayCtx.font = 'italic bold 22px Outfit, sans-serif';
+                    overlayCtx.font = 'italic bold 20px Outfit, sans-serif';
                     overlayCtx.fillText('x', x1 + 36, y1);
 
                     // Vertical Y-axis extending up
@@ -6652,19 +6676,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Arrow on Y
                     overlayCtx.beginPath();
                     overlayCtx.moveTo(x0, y0 - 30);
-                    overlayCtx.lineTo(x0 - 7, y0 - 18);
-                    overlayCtx.lineTo(x0 + 7, y0 - 18);
+                    overlayCtx.lineTo(x0 - 6, y0 - 18);
+                    overlayCtx.lineTo(x0 + 6, y0 - 18);
                     overlayCtx.closePath();
                     overlayCtx.fill();
-                    overlayCtx.fillText('y', x0 - 20, y0 - 28);
+                    overlayCtx.fillText('y', x0 - 18, y0 - 28);
 
                     // Origin O at bottom-left
                     overlayCtx.beginPath();
-                    overlayCtx.arc(x0, y1, 14, 0, Math.PI * 2);
+                    overlayCtx.arc(x0, y1, 13, 0, Math.PI * 2);
                     overlayCtx.fillStyle = '#ef4444';
                     overlayCtx.fill();
                     overlayCtx.strokeStyle = '#ffffff';
-                    overlayCtx.lineWidth = 2.5;
+                    overlayCtx.lineWidth = 2;
                     overlayCtx.stroke();
                     overlayCtx.font = 'bold 12px Outfit, sans-serif';
                     overlayCtx.fillStyle = '#ffffff';
@@ -6726,9 +6750,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 overlayCtx.restore();
             }
+
+            overlayCtx.restore(); // Restore dpr scaling
         }
 
-        // Draw rulers
+        // Draw rulers with High-DPI support
         function drawRulers() {
             if (!currentImg || !chkShowRulers || !chkShowRulers.checked) {
                 if (rulerXCanvas) rulerXCanvas.style.display = 'none';
@@ -6743,32 +6769,50 @@ document.addEventListener('DOMContentLoaded', () => {
             rulerYCanvas.style.display = 'block';
             originBox.style.display = 'flex';
 
-            const wX = surface.clientWidth;
-            const hY = surface.clientHeight;
+            const wX = surface.clientWidth || 800;
+            const hY = surface.clientHeight || 580;
+            const dpr = window.devicePixelRatio || 1;
 
-            rulerXCanvas.width = wX;
-            rulerXCanvas.height = 24;
-            rulerYCanvas.width = 24;
-            rulerYCanvas.height = hY;
+            const targetWX = Math.round(wX * dpr);
+            const targetH24 = Math.round(24 * dpr);
+            const targetHY = Math.round(hY * dpr);
+
+            if (rulerXCanvas.width !== targetWX || rulerXCanvas.height !== targetH24) {
+                rulerXCanvas.width = targetWX;
+                rulerXCanvas.height = targetH24;
+                rulerXCanvas.style.width = `${wX}px`;
+                rulerXCanvas.style.height = `24px`;
+            }
+
+            if (rulerYCanvas.width !== targetH24 || rulerYCanvas.height !== targetHY) {
+                rulerYCanvas.width = targetH24;
+                rulerYCanvas.height = targetHY;
+                rulerYCanvas.style.width = `24px`;
+                rulerYCanvas.style.height = `${hY}px`;
+            }
 
             // X Ruler
-            rulerXCtx.clearRect(0, 0, wX, 24);
+            rulerXCtx.save();
+            rulerXCtx.setTransform(1, 0, 0, 1, 0, 0);
+            rulerXCtx.clearRect(0, 0, rulerXCanvas.width, rulerXCanvas.height);
+            rulerXCtx.scale(dpr, dpr);
+
             rulerXCtx.fillStyle = 'rgba(15, 23, 42, 0.95)';
             rulerXCtx.fillRect(0, 0, wX, 24);
 
-            rulerXCtx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+            rulerXCtx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
             rulerXCtx.fillStyle = '#94a3b8';
-            rulerXCtx.font = '9px monospace';
+            rulerXCtx.font = '9.5px monospace';
             rulerXCtx.lineWidth = 1;
 
             const step = zoom >= 2 ? 20 : (zoom >= 0.8 ? 50 : 100);
             for (let ix = 0; ix <= origWidth; ix += step) {
-                const sx = ix * zoom + panX;
+                const sx = Math.floor(ix * zoom + panX) + 0.5;
                 if (sx >= 0 && sx <= wX) {
                     const isMajor = ix % (step * 2) === 0;
                     rulerXCtx.beginPath();
                     rulerXCtx.moveTo(sx, 24);
-                    rulerXCtx.lineTo(sx, isMajor ? 10 : 16);
+                    rulerXCtx.lineTo(sx, isMajor ? 8 : 16);
                     rulerXCtx.stroke();
 
                     if (isMajor) {
@@ -6776,24 +6820,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+            rulerXCtx.restore();
 
             // Y Ruler
-            rulerYCtx.clearRect(0, 0, 24, hY);
+            rulerYCtx.save();
+            rulerYCtx.setTransform(1, 0, 0, 1, 0, 0);
+            rulerYCtx.clearRect(0, 0, rulerYCanvas.width, rulerYCanvas.height);
+            rulerYCtx.scale(dpr, dpr);
+
             rulerYCtx.fillStyle = 'rgba(15, 23, 42, 0.95)';
             rulerYCtx.fillRect(0, 0, 24, hY);
 
-            rulerYCtx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+            rulerYCtx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
             rulerYCtx.fillStyle = '#94a3b8';
-            rulerYCtx.font = '9px monospace';
+            rulerYCtx.font = '9.5px monospace';
             rulerYCtx.lineWidth = 1;
 
             for (let iy = 0; iy <= origHeight; iy += step) {
-                const sy = iy * zoom + panY;
+                const sy = Math.floor(iy * zoom + panY) + 0.5;
                 if (sy >= 0 && sy <= hY) {
                     const isMajor = iy % (step * 2) === 0;
                     rulerYCtx.beginPath();
                     rulerYCtx.moveTo(24, sy);
-                    rulerYCtx.lineTo(isMajor ? 10 : 16, sy);
+                    rulerYCtx.lineTo(isMajor ? 8 : 16, sy);
                     rulerYCtx.stroke();
 
                     if (isMajor) {
@@ -6804,6 +6853,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+            rulerYCtx.restore();
         }
 
         // Loupe update
@@ -6875,9 +6925,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Delete point
         function deletePoint(id) {
+            const pt = points.find(p => p.id === id);
             points = points.filter(p => p.id !== id);
             updatePointsTable();
             redrawAll();
+            if (pt) window.showToast(`🗑️ Đã xóa điểm #${pt.id}`);
+        }
+
+        // Undo / Delete last pinned point
+        function undoLastPoint() {
+            if (points.length === 0) {
+                window.showToast('ℹ️ Chưa có điểm nào để xóa.');
+                return;
+            }
+            const removed = points.pop();
+            updatePointsTable();
+            redrawAll();
+            window.showToast(`↩️ Đã xóa điểm vừa chấm: #${removed.id} (${removed.formattedX}, ${removed.formattedY})`);
         }
 
         // Update Points Table & Measurement Stats
@@ -6971,6 +7035,17 @@ document.addEventListener('DOMContentLoaded', () => {
             mouseImagePos = { ix, iy, screenX: sx, screenY: sy, inside };
 
             if (inside) {
+                // Check if hovering near an existing pinned point (14px radius)
+                const hitRadius = 14 / zoom;
+                const isHoveringPoint = points.some(p => Math.hypot(p.ix - ix, p.iy - iy) <= hitRadius);
+                if (isHoveringPoint) {
+                    surface.style.cursor = 'pointer';
+                } else if (isSpacePressed) {
+                    surface.style.cursor = 'grab';
+                } else {
+                    surface.style.cursor = 'crosshair';
+                }
+
                 const coords = calculateCoordinates(ix, iy);
                 const color = getPixelColor(ix, iy);
 
@@ -6986,12 +7061,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     floatingTooltip.classList.remove('hidden');
                     floatingTooltip.style.left = `${sx}px`;
                     floatingTooltip.style.top = `${sy}px`;
-                    tooltipCoordsText.textContent = `X: ${coords.formattedX}, Y: ${coords.formattedY}`;
+                    if (isHoveringPoint) {
+                        tooltipCoordsText.innerHTML = `<span style="color: #f87171;">Click hoặc Chuột phải để xóa điểm</span>`;
+                    } else {
+                        tooltipCoordsText.textContent = `X: ${coords.formattedX}, Y: ${coords.formattedY}`;
+                    }
                 }
 
                 // Loupe update
                 updateLoupe(ix, iy, color);
             } else {
+                surface.style.cursor = 'default';
                 if (floatingTooltip) floatingTooltip.classList.add('hidden');
                 if (pixelLoupe) pixelLoupe.classList.add('hidden');
             }
@@ -7001,12 +7081,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         surface.addEventListener('mouseleave', () => {
             mouseImagePos = null;
+            surface.style.cursor = 'default';
             if (floatingTooltip) floatingTooltip.classList.add('hidden');
             if (pixelLoupe) pixelLoupe.classList.add('hidden');
             if (currentImg) drawOverlay();
         });
 
-        // Click to pin point
+        // Click to pin point (or click directly on an existing point to delete it!)
         surface.addEventListener('click', (e) => {
             if (!currentImg || isPanning) return;
             const rect = surface.getBoundingClientRect();
@@ -7017,7 +7098,40 @@ document.addEventListener('DOMContentLoaded', () => {
             const iy = (sy - panY) / zoom;
 
             if (ix >= 0 && ix <= origWidth && iy >= 0 && iy <= origHeight) {
+                // If user clicks directly on an existing pin (radius 14px on screen), delete that pin!
+                const hitRadius = 14 / zoom;
+                const hitIndex = points.findIndex(p => Math.hypot(p.ix - ix, p.iy - iy) <= hitRadius);
+                if (hitIndex !== -1) {
+                    const removed = points.splice(hitIndex, 1)[0];
+                    updatePointsTable();
+                    redrawAll();
+                    window.showToast(`🗑️ Đã xóa điểm #${removed.id} (${removed.formattedX}, ${removed.formattedY})`);
+                    return;
+                }
                 addPinnedPoint(ix, iy);
+            }
+        });
+
+        // Right-Click (contextmenu): Delete clicked point or undo last point
+        surface.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (!currentImg) return;
+            const rect = surface.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+
+            const ix = (sx - panX) / zoom;
+            const iy = (sy - panY) / zoom;
+
+            const hitRadius = 16 / zoom;
+            const hitIndex = points.findIndex(p => Math.hypot(p.ix - ix, p.iy - iy) <= hitRadius);
+            if (hitIndex !== -1) {
+                const removed = points.splice(hitIndex, 1)[0];
+                updatePointsTable();
+                redrawAll();
+                window.showToast(`🗑️ Đã xóa điểm #${removed.id} (${removed.formattedX}, ${removed.formattedY})`);
+            } else {
+                undoLastPoint();
             }
         });
 
@@ -7044,6 +7158,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 isSpacePressed = true;
                 surface.classList.add('is-panning');
                 e.preventDefault();
+            }
+
+            // Keyboard shortcut for Undo Point (Ctrl+Z or Delete / Backspace)
+            if (viewCoordinates && !viewCoordinates.classList.contains('hidden') && !e.target.matches('input, textarea, select')) {
+                if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+                    e.preventDefault();
+                    undoLastPoint();
+                } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                    if (points.length > 0) {
+                        e.preventDefault();
+                        undoLastPoint();
+                    }
+                }
             }
         });
 
@@ -7128,9 +7255,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        // Undo last pinned point
+        if (btnUndoPoints) {
+            btnUndoPoints.onclick = undoLastPoint;
+        }
+        if (btnUndoTop) {
+            btnUndoTop.onclick = undoLastPoint;
+        }
+
         // Clear points
         if (btnClearPoints) {
             btnClearPoints.onclick = () => {
+                if (points.length === 0) return;
                 points = [];
                 nextPointId = 1;
                 updatePointsTable();
