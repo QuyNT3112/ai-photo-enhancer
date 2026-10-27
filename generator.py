@@ -12,12 +12,12 @@ from typing import Optional, Dict, Any, List
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try:
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        getattr(sys.stdout, 'reconfigure')(encoding='utf-8', errors='replace')
     except Exception:
         pass
 if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
     try:
-        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+        getattr(sys.stderr, 'reconfigure')(encoding='utf-8', errors='replace')
     except Exception:
         pass
 
@@ -282,17 +282,17 @@ class ImageGenerator:
 
         # Clean old pipeline memory
         if self.t2i_pipe is not None:
-            del self.t2i_pipe
-            del self.i2i_pipe
             self.t2i_pipe = None
             self.i2i_pipe = None
             if self.device == "cuda":
                 torch.cuda.empty_cache()
 
         # Load T2I Pipeline
+        pipe: Any = None
+        t2i_cls: Any = StableDiffusionPipeline
         try:
             # Check local files first
-            self.t2i_pipe = StableDiffusionPipeline.from_pretrained(
+            pipe = t2i_cls.from_pretrained(
                 model_id,
                 torch_dtype=self.torch_dtype,
                 safety_checker=None,
@@ -302,63 +302,68 @@ class ImageGenerator:
         except Exception:
             # Download if not local
             print(f"[ImageGenerator] Model not cached locally, downloading {model_id} from Hugging Face...")
-            self.t2i_pipe = StableDiffusionPipeline.from_pretrained(
+            pipe = t2i_cls.from_pretrained(
                 model_id,
                 torch_dtype=self.torch_dtype,
                 safety_checker=None,
                 requires_safety_checker=False
             )
 
+        if pipe is None:
+            raise RuntimeError(f"Could not load diffusion pipeline for {model_id}")
+
         # Optimize Scheduler (DPM-Solver++ 2M Karras for ultra-fast high quality ~15-20 steps)
         try:
-            sched_config = dict(self.t2i_pipe.scheduler.config)
+            sched_config = dict(pipe.scheduler.config)
             # Fix diffusers DEIS / final_sigmas_type conflict on models like DreamShaper v8
             if sched_config.get("algorithm_type") == "deis" and sched_config.get("final_sigmas_type", "zero") == "zero":
                 sched_config["final_sigmas_type"] = "sigma_min"
             sched_config["algorithm_type"] = "dpmsolver++"
             sched_config["use_karras_sigmas"] = True
-            self.t2i_pipe.scheduler = DPMSolverMultistepScheduler.from_config(sched_config)
+            pipe.scheduler = DPMSolverMultistepScheduler.from_config(sched_config)
             safe_print(f"[ImageGenerator] DPMSolverMultistepScheduler (DPM++ 2M Karras) configured successfully for {model_id}")
         except Exception as e:
             safe_print(f"[ImageGenerator] Warning: Could not initialize DPMSolverMultistepScheduler ({e}), keeping default pipeline scheduler.")
 
         # Move to device & optimize memory
-        self.t2i_pipe.to(self.device)
+        pipe.to(self.device)
         if self.device == "cuda":
-            self.t2i_pipe.enable_attention_slicing()
+            pipe.enable_attention_slicing()
             try:
-                self.t2i_pipe.enable_vae_slicing()
+                pipe.enable_vae_slicing()
             except Exception:
                 pass
 
         # Share components with I2I pipeline (Zero extra VRAM!)
         i2i_cls: Any = StableDiffusionImg2ImgPipeline
-        self.i2i_pipe = i2i_cls(
-            vae=self.t2i_pipe.vae,
-            text_encoder=self.t2i_pipe.text_encoder,
-            tokenizer=self.t2i_pipe.tokenizer,
-            unet=self.t2i_pipe.unet,
-            scheduler=self.t2i_pipe.scheduler,
+        i2i_pipe: Any = i2i_cls(
+            vae=pipe.vae,
+            text_encoder=pipe.text_encoder,
+            tokenizer=pipe.tokenizer,
+            unet=pipe.unet,
+            scheduler=pipe.scheduler,
             safety_checker=None,
             feature_extractor=None,
             requires_safety_checker=False
         )
-        self.i2i_pipe.to(self.device)
+        i2i_pipe.to(self.device)
         if self.device == "cuda":
-            self.i2i_pipe.enable_attention_slicing()
+            i2i_pipe.enable_attention_slicing()
             try:
-                self.i2i_pipe.enable_vae_slicing()
+                i2i_pipe.enable_vae_slicing()
             except Exception:
                 pass
 
+        self.t2i_pipe = pipe
+        self.i2i_pipe = i2i_pipe
         self.current_model_id = model_id
         print(f"[ImageGenerator] Pipeline {model_id} ready in {time.time() - t0:.2f}s!")
 
     def _resolve_base_dimensions(self, ratio_str: str, custom_w: Optional[int] = None, custom_h: Optional[int] = None):
         """Calculates diffusion base dimensions aligned to multiples of 64 optimal for SD1.5 without distortion."""
         if custom_w and custom_h and custom_w > 0 and custom_h > 0:
-            w = (int(custom_w) // 64) * 64
-            h = (int(custom_h) // 64) * 64
+            w = (custom_w // 64) * 64
+            h = (custom_h // 64) * 64
             return max(256, min(1024, w)), max(256, min(1024, h))
 
         base_map = {
@@ -381,7 +386,7 @@ class ImageGenerator:
         - Vuông (Square 1:1): 512 x 512
         """
         if custom_w and custom_h and custom_w > 0 and custom_h > 0:
-            return int(custom_w), int(custom_h)
+            return custom_w, custom_h
 
         target_map = {
             "1:1": (512, 512),
@@ -422,7 +427,7 @@ class ImageGenerator:
         
         # Check if model is openjourney and add trigger token if not present
         extra_model_token = ""
-        if "openjourney" in str(model_id).lower() and "mdjrny-v4 style" not in prompt_en.lower():
+        if "openjourney" in model_id.lower() and "mdjrny-v4 style" not in prompt_en.lower():
             extra_model_token = ", mdjrny-v4 style"
 
         full_positive = f"{prompt_en}{suffix}{extra_model_token}"
@@ -487,6 +492,8 @@ class ImageGenerator:
         """
         t0 = time.time()
         self._ensure_pipeline(model_id)
+        if self.t2i_pipe is None:
+            raise RuntimeError(f"Text-to-Image pipeline failed to initialize for {model_id}")
 
         base_w, base_h = self._resolve_base_dimensions(aspect_ratio, width, height)
         target_w, target_h = self._resolve_target_dimensions(aspect_ratio, width, height)
@@ -499,14 +506,14 @@ class ImageGenerator:
         )
 
         # Seed handling
-        if seed is None or int(seed) < 0:
+        if seed is None or seed < 0:
             actual_seed = random.randint(0, 2147483647)
         else:
-            actual_seed = int(seed)
+            actual_seed = seed
 
         generator = torch.Generator(device=self.device).manual_seed(actual_seed)
 
-        steps = max(10, min(50, int(steps or 25)))
+        steps = max(10, min(50, steps or 25))
         cfg_scale = max(1.0, min(20.0, float(cfg_scale or 7.5)))
 
         safe_print(f"[ImageGenerator] T2I: '{prompt[:35]}...' -> EN: '{prompt_en[:35]}...' (Base: {base_w}x{base_h} -> Target: {target_w}x{target_h}, {steps} steps, style: {effective_style}, seed {actual_seed})")
@@ -569,6 +576,8 @@ class ImageGenerator:
         """
         t0 = time.time()
         self._ensure_pipeline(model_id)
+        if self.i2i_pipe is None:
+            raise RuntimeError(f"Image-to-Image pipeline failed to initialize for {model_id}")
 
         # In I2I, if style is auto/original and prompt doesn't ask for a new style, preserve original artwork style
         if style_preset in ("auto", "original", "", None):
@@ -607,14 +616,14 @@ class ImageGenerator:
         resized_image = input_image.convert("RGB").resize((base_w, base_h), Image.Resampling.LANCZOS)
 
         # Seed handling
-        if seed is None or int(seed) < 0:
+        if seed is None or seed < 0:
             actual_seed = random.randint(0, 2147483647)
         else:
-            actual_seed = int(seed)
+            actual_seed = seed
 
         generator = torch.Generator(device=self.device).manual_seed(actual_seed)
 
-        steps = max(10, min(50, int(steps or 25)))
+        steps = max(10, min(50, steps or 25))
         cfg_scale = max(1.0, min(20.0, float(cfg_scale or 7.5)))
         strength = max(0.1, min(0.95, float(strength or 0.45)))
 

@@ -2223,7 +2223,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateCompressButtonState() {
         const count = selectedCompressFiles.length || (currentCompressSourceFilename || currentCompressSampleId ? 1 : 0);
-        const targetMb = parseFloat(targetMbInput.value) || 1.0;
+        const rawMb = String(targetMbInput.value || '').replace(',', '.').trim();
+        const targetMb = parseFloat(rawMb) || 1.0;
 
         if (count > 1) {
             btnRunCompress.disabled = false;
@@ -2241,7 +2242,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnRunCompress) {
         btnRunCompress.addEventListener('click', async () => {
             if (isCompressProcessing) return;
-            const targetMb = parseFloat(targetMbInput.value);
+            const rawMb = String(targetMbInput.value || '').replace(',', '.').trim();
+            const targetMb = parseFloat(rawMb);
             if (isNaN(targetMb) || targetMb < 0.02 || targetMb > 500) {
                 showToast('Vui lòng nhập mức MB hợp lệ (từ 0.05 đến 100 MB).', 'error');
                 return;
@@ -2331,6 +2333,11 @@ document.addEventListener('DOMContentLoaded', () => {
         data.images.forEach(item => {
             const card = document.createElement('div');
             card.className = 'batch-result-card';
+            const isOrigDims = (item.final_w === item.orig_w && item.final_h === item.orig_h);
+            const dimsText = isOrigDims 
+                ? `${item.orig_w}x${item.orig_h} (100% Nguyên Bản)` 
+                : `${item.final_w}x${item.final_h} (${Math.round((item.final_w / item.orig_w) * 100)}%)`;
+
             card.innerHTML = `
                 <div class="batch-result-img-box">
                     <img src="${item.url}?t=${Date.now()}" alt="${item.filename}" class="batch-result-img" loading="lazy">
@@ -2339,7 +2346,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="batch-result-filename" title="${item.filename}">${item.filename}</div>
                     <div class="batch-result-dims">
                         <i class="fa-solid fa-lock text-cyan"></i>
-                        <span>${item.orig_w}x${item.orig_h} (100% Nguyên Bản)</span>
+                        <span>${dimsText}</span>
                     </div>
                     <div class="batch-result-bottom">
                         <span class="batch-result-filesize">${item.orig_size_mb} MB ➔ <strong>${item.final_size_mb} MB</strong> (-${item.reduction_percent}%)</span>
@@ -2399,7 +2406,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Image URLs
         compressImgResult.src = `${item.url}?t=${Date.now()}`;
-        compressImgOriginal.src = `${item.url}?t=${Date.now()}`; // Preview compressed image in slider
+        compressImgOriginal.src = `${item.orig_url || item.url}?t=${Date.now()}`;
 
         // Tag text
         compressTagBefore.textContent = `GỐC (${item.orig_size_mb} MB)`;
@@ -2409,8 +2416,11 @@ document.addEventListener('DOMContentLoaded', () => {
         compressStatOrigSize.textContent = `${item.orig_size_mb} MB`;
         compressStatNewSize.textContent = `${item.final_size_mb} MB`;
         compressStatReduction.textContent = `Giảm -${item.reduction_percent}%`;
-        compressStatQuality.textContent = `${item.orig_w}x${item.orig_h} (100% Nguyên Bản) · Q=${item.quality_used}`;
-        compressStatDuration.textContent = `⚡ 100% Kích Thước Gốc`;
+        const isOrigDims = (item.final_w === item.orig_w && item.final_h === item.orig_h);
+        compressStatQuality.textContent = isOrigDims
+            ? `${item.orig_w}x${item.orig_h} (100% Nguyên Bản) · Q=${item.quality_used}`
+            : `${item.final_w}x${item.final_h} (${Math.round((item.final_w / item.orig_w) * 100)}%) · Q=${item.quality_used}`;
+        compressStatDuration.textContent = isOrigDims ? `⚡ 100% Kích Thước Gốc` : `⚡ Sắc Nét Tối Ưu`;
 
         setCompressSliderPos(50);
         compressResultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });

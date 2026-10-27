@@ -1218,7 +1218,16 @@ def api_save_compressed_to_downloads():
 @app.route('/api/batch-compress', methods=['POST'])
 def api_batch_compress():
     try:
-        target_mb = float(request.form.get('target_mb', 1.0))
+        import importlib
+        import compressor as comp_mod
+        importlib.reload(comp_mod)
+        compressor_engine = comp_mod.ImageCompressor()
+
+        raw_target = str(request.form.get('target_mb', '1.0')).replace(',', '.').strip()
+        try:
+            target_mb = float(raw_target)
+        except Exception:
+            target_mb = 1.0
         format_choice = request.form.get('format_choice', 'auto')
         
         if target_mb < 0.02 or target_mb > 500.0:
@@ -1245,13 +1254,15 @@ def api_batch_compress():
         if (not uploaded_files or (len(uploaded_files) == 1 and uploaded_files[0].filename == '')) and source_filename:
             safe_src = secure_filename(source_filename)
             src_path = os.path.join(OUTPUT_DIR, safe_src)
+            orig_rel_url = f"/outputs/{safe_src}"
             if not os.path.exists(src_path):
                 src_path = os.path.join(UPLOAD_DIR, safe_src)
+                orig_rel_url = f"/uploads/{safe_src}"
             if os.path.exists(src_path):
                 base_name = os.path.splitext(safe_src)[0]
                 candidate_name = f"{base_name}{chosen_ext}"
                 save_path = os.path.join(batch_folder, candidate_name)
-                stats = compressor.compress(src_path, save_path, target_mb=target_mb, format_choice=format_choice, keep_original_resolution=True)
+                stats = compressor_engine.compress(src_path, save_path, target_mb=target_mb, format_choice=format_choice, keep_original_resolution=True)
                 processed_images.append({
                     'filename': candidate_name,
                     'orig_filename': safe_src,
@@ -1264,6 +1275,7 @@ def api_batch_compress():
                     'reduction_percent': stats['reduction_percent'],
                     'quality_used': stats['quality_used'],
                     'batch_id': batch_id,
+                    'orig_url': orig_rel_url,
                     'url': f"/outputs/compress_batch/batch_{batch_id}/{candidate_name}",
                     'download_url': f"/api/download-compress-item/{batch_id}/{candidate_name}"
                 })
@@ -1278,7 +1290,7 @@ def api_batch_compress():
                     base_name = os.path.splitext(s_name)[0]
                     candidate_name = f"{base_name}{chosen_ext}"
                     save_path = os.path.join(batch_folder, candidate_name)
-                    stats = compressor.compress(src_path, save_path, target_mb=target_mb, format_choice=format_choice, keep_original_resolution=True)
+                    stats = compressor_engine.compress(src_path, save_path, target_mb=target_mb, format_choice=format_choice, keep_original_resolution=True)
                     processed_images.append({
                         'filename': candidate_name,
                         'orig_filename': s_name,
@@ -1291,6 +1303,7 @@ def api_batch_compress():
                         'reduction_percent': stats['reduction_percent'],
                         'quality_used': stats['quality_used'],
                         'batch_id': batch_id,
+                        'orig_url': f"/static/samples/{s_name}",
                         'url': f"/outputs/compress_batch/batch_{batch_id}/{candidate_name}",
                         'download_url': f"/api/download-compress-item/{batch_id}/{candidate_name}"
                     })
@@ -1313,23 +1326,18 @@ def api_batch_compress():
                 counter += 1
             used_filenames.add(candidate_name)
 
-            temp_input_path = os.path.join(batch_folder, f"temp_in_{counter}_{orig_filename}")
-            file.save(temp_input_path)
+            orig_saved_name = f"orig_{counter}_{orig_filename}"
+            orig_input_path = os.path.join(batch_folder, orig_saved_name)
+            file.save(orig_input_path)
 
             save_path = os.path.join(batch_folder, candidate_name)
-            stats = compressor.compress(
-                input_path=temp_input_path,
+            stats = compressor_engine.compress(
+                input_path=orig_input_path,
                 output_path=save_path,
                 target_mb=target_mb,
                 format_choice=format_choice,
                 keep_original_resolution=True
             )
-
-            try:
-                if os.path.exists(temp_input_path):
-                    os.remove(temp_input_path)
-            except Exception:
-                pass
 
             processed_images.append({
                 'filename': candidate_name,
@@ -1343,6 +1351,7 @@ def api_batch_compress():
                 'reduction_percent': stats['reduction_percent'],
                 'quality_used': stats['quality_used'],
                 'batch_id': batch_id,
+                'orig_url': f"/outputs/compress_batch/batch_{batch_id}/{orig_saved_name}",
                 'url': f"/outputs/compress_batch/batch_{batch_id}/{candidate_name}",
                 'download_url': f"/api/download-compress-item/{batch_id}/{candidate_name}"
             })
