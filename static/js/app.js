@@ -3104,6 +3104,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Refresh history drawer
                 fetchHistory();
+                if (typeof loadVaultItems === "function") loadVaultItems(1);
 
                 showToast(`✨ Tạo ảnh thành công trong ${meta.duration_sec}s trên GPU RTX 3060!`);
 
@@ -3249,8 +3250,630 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 
     // ========================================================================
-    // 12. INLINE AI PROMPT OPTIMIZER (GENERATOR STUDIO)
+    // ========================================================================
+    // 11.5. PROMPT VAULT & DATA ENGINEERING STUDIO
+    // ========================================================================
+    const genVaultCard = document.getElementById('genVaultCard');
+    const btnVaultRefresh = document.getElementById('btnVaultRefresh');
+    const vaultSearchInput = document.getElementById('vaultSearchInput');
+    const btnClearVaultSearch = document.getElementById('btnClearVaultSearch');
+    const vaultFilterBtns = document.querySelectorAll('.vault-filter-btn');
+    const vaultLoading = document.getElementById('vaultLoading');
+    const vaultEmptyState = document.getElementById('vaultEmptyState');
+    const vaultItemsGrid = document.getElementById('vaultItemsGrid');
+    const btnVaultPrevPage = document.getElementById('btnVaultPrevPage');
+    const btnVaultNextPage = document.getElementById('btnVaultNextPage');
+    const vaultPageInfo = document.getElementById('vaultPageInfo');
+    const vaultCountAll = document.getElementById('vaultCountAll');
+    const btnSearchModeFts = document.getElementById('btnSearchModeFts');
+    const btnSearchModeSemantic = document.getElementById('btnSearchModeSemantic');
+
+    // Data Studio Modal Elements
+    const btnOpenDataStudio = document.getElementById('btnOpenDataStudio');
+    const dataStudioModal = document.getElementById('dataStudioModal');
+    const btnCloseDataStudio = document.getElementById('btnCloseDataStudio');
+    const studioTabBtns = document.querySelectorAll('.studio-tab-btn');
+    const paneObservability = document.getElementById('paneObservability');
+    const paneStorage = document.getElementById('paneStorage');
+    const paneExport = document.getElementById('paneExport');
+
+    // Maintenance Action Buttons
+    const btnRunCleanTemp = document.getElementById('btnRunCleanTemp');
+    const btnRunOptimizeDb = document.getElementById('btnRunOptimizeDb');
+    const btnRunRebuildThumbs = document.getElementById('btnRunRebuildThumbs');
+
+    let vaultCurrentPage = 1;
+    let vaultPageSize = 12;
+    let vaultSearchQuery = '';
+    let vaultSearchMode = 'fts'; // 'fts' or 'semantic'
+    let vaultFilterMode = 'all';
+    let vaultFilterFav = false;
+    let vaultTotalPages = 1;
+    let vaultIsLoading = false;
+    let vaultSearchDebounce = null;
+
+    async function loadVaultItems(page = 1) {
+        if (vaultIsLoading) return;
+        vaultIsLoading = true;
+        vaultCurrentPage = page;
+
+        if (vaultLoading) vaultLoading.classList.remove('hidden');
+        if (vaultEmptyState) vaultEmptyState.classList.add('hidden');
+        if (vaultItemsGrid) vaultItemsGrid.innerHTML = '';
+
+        try {
+            let data;
+            if (vaultSearchMode === 'semantic' && vaultSearchQuery.trim()) {
+                // Semantic Search with CLIP ViT
+                const params = new URLSearchParams({
+                    query: vaultSearchQuery.trim(),
+                    top_k: '24',
+                    mode: vaultFilterMode,
+                    min_similarity: '0.12'
+                });
+                const res = await fetch(`/api/vault/semantic-search?${params.toString()}`);
+                data = await res.json();
+            } else {
+                // Relational / FTS5 Full-Text Search
+                const params = new URLSearchParams({
+                    page: vaultCurrentPage,
+                    page_size: vaultPageSize,
+                    search: vaultSearchQuery,
+                    mode: vaultFilterMode,
+                    favorites_only: vaultFilterFav ? 'true' : 'false'
+                });
+                const res = await fetch(`/api/vault/images?${params.toString()}`);
+                data = await res.json();
+            }
+
+            if (data.status !== 'success') {
+                throw new Error(data.message || 'Lỗi truy vấn kho dữ liệu');
+            }
+
+            const { items, total, total_pages, is_semantic } = data.data;
+            vaultTotalPages = total_pages || 1;
+
+            if (vaultCountAll && vaultFilterMode === 'all' && !vaultSearchQuery && !vaultFilterFav) {
+                vaultCountAll.textContent = total;
+            }
+
+            if (!items || items.length === 0) {
+                if (vaultEmptyState) {
+                    vaultEmptyState.classList.remove('hidden');
+                    const p = vaultEmptyState.querySelector('p');
+                    if (p) p.textContent = vaultSearchMode === 'semantic'
+                        ? 'Không tìm thấy tác phẩm nào khớp với ngữ nghĩa mô tả AI.'
+                        : 'Chưa có tác phẩm nào phù hợp trong kho lưu trữ.';
+                }
+            } else {
+                renderVaultCards(items, is_semantic);
+            }
+
+            // Pagination update
+            if (vaultPageInfo) {
+                vaultPageInfo.textContent = is_semantic
+                    ? `Kết quả Semantic CLIP: ${items.length} tác phẩm tương đồng cao nhất`
+                    : `Trang ${vaultCurrentPage} / ${vaultTotalPages} (${total} tác phẩm)`;
+            }
+            if (btnVaultPrevPage) btnVaultPrevPage.disabled = is_semantic || vaultCurrentPage <= 1;
+            if (btnVaultNextPage) btnVaultNextPage.disabled = is_semantic || vaultCurrentPage >= vaultTotalPages;
+
+        } catch (err) {
+            console.error('[PromptVault] Error loading items:', err);
+            if (vaultEmptyState) {
+                vaultEmptyState.classList.remove('hidden');
+                const p = vaultEmptyState.querySelector('p');
+                if (p) p.textContent = `Lỗi tải kho lưu trữ: ${err.message}`;
+            }
+        } finally {
+            vaultIsLoading = false;
+            if (vaultLoading) vaultLoading.classList.add('hidden');
+        }
+    }
+
+    function renderVaultCards(items, isSemantic = false) {
+        if (!vaultItemsGrid) return;
+        vaultItemsGrid.innerHTML = '';
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'vault-item-card';
+            card.dataset.id = item.id;
+
+            const modeClass = (item.mode || 't2i').toLowerCase();
+            const isFav = item.is_favorite === 1;
+            const thumbUrl = item.thumbnail_url || item.image_url;
+            const fullUrl = item.image_url;
+            const displayPrompt = item.prompt || item.final_positive || 'Không có mô tả';
+
+            const esc = (str) => {
+                if (!str) return '';
+                return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            };
+
+            const semanticTagHtml = (isSemantic && item.match_percent)
+                ? `<span class="vault-tag" style="background: rgba(236, 72, 153, 0.2); color: #f472b6; border-color: rgba(236, 72, 153, 0.4);"><i class="fa-solid fa-bullseye"></i> ${item.match_percent}% Khớp AI</span>`
+                : '';
+
+            card.innerHTML = `
+                <div class="vault-thumb-wrap">
+                    <img src="${thumbUrl}" alt="${esc(displayPrompt)}" class="vault-thumb-img" loading="lazy" title="Click để xem chi tiết tác phẩm">
+                    <span class="vault-badge-mode ${modeClass}">${modeClass.toUpperCase()}</span>
+                    <button type="button" class="vault-btn-fav ${isFav ? 'active' : ''}" data-id="${item.id}" title="${isFav ? 'Bỏ yêu thích' : 'Đánh dấu yêu thích'}">
+                        <i class="fa-solid fa-star"></i>
+                    </button>
+                    <a href="${item.download_url || fullUrl}" download class="vault-btn-download" title="Tải file PNG gốc">
+                        <i class="fa-solid fa-download"></i>
+                    </a>
+                </div>
+                <div class="vault-item-body">
+                    <div class="vault-prompt-preview" title="${esc(displayPrompt)}">
+                        ${esc(displayPrompt)}
+                    </div>
+                    <div class="vault-meta-tags">
+                        ${semanticTagHtml}
+                        ${item.style_preset && item.style_preset !== 'auto' ? `<span class="vault-tag"><i class="fa-solid fa-palette text-cyan"></i> ${esc(item.style_preset)}</span>` : ''}
+                        <span class="vault-tag"><i class="fa-solid fa-expand"></i> ${esc(item.aspect_ratio || '1:1')}</span>
+                        ${item.seed && item.seed !== -1 ? `<span class="vault-tag seed-tag"><i class="fa-solid fa-fingerprint"></i> ${item.seed}</span>` : ''}
+                    </div>
+                    <div class="vault-footer-info">
+                        <span><i class="fa-regular fa-clock"></i> ${esc(item.created_at ? item.created_at.substring(0, 16) : '')}</span>
+                        <span>${item.file_size_kb || 0} KB</span>
+                    </div>
+                </div>
+                <div class="vault-item-actions">
+                    <button type="button" class="btn-vault-reuse" title="Nạp toàn bộ prompt, phong cách & thông số để tạo lại">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Tái Sử Dụng Prompt
+                    </button>
+                    <button type="button" class="btn-vault-icon-action btn-copy-prompt" title="Sao chép Prompt">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                    <button type="button" class="btn-vault-icon-action btn-vault-delete" title="Xóa tác phẩm">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                </div>
+            `;
+
+            // Click thumbnail -> view preview
+            const thumbImg = card.querySelector('.vault-thumb-img');
+            thumbImg.addEventListener('click', () => {
+                if (genResultImg && genResultContainer) {
+                    genResultImg.src = fullUrl;
+                    if (genStatResolution) genStatResolution.textContent = `${item.width || 512} x ${item.height || 512}`;
+                    if (genStatFilesize) genStatFilesize.textContent = `${item.file_size_kb || 0} KB`;
+                    if (genStatDuration) genStatDuration.textContent = `${item.duration_sec || 0}s`;
+                    if (genStatSeed) genStatSeed.textContent = item.seed || 'Ngẫu nhiên';
+                    if (genAuditPromptEn) genAuditPromptEn.textContent = item.final_positive || item.translated_prompt || item.prompt;
+                    if (btnDownloadGenPng) {
+                        btnDownloadGenPng.href = item.download_url || fullUrl;
+                        btnDownloadGenPng.download = `ClarityAI_${item.filename}`;
+                    }
+                    if (btnDownloadGenJpg) {
+                        btnDownloadGenJpg.href = item.download_jpg_url || fullUrl;
+                    }
+                    if (genEmptyState) genEmptyState.classList.add('hidden');
+                    if (genProcessingState) genProcessingState.classList.add('hidden');
+                    genResultContainer.classList.remove('hidden');
+                    genResultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    showToast(`🔍 Đang hiển thị chi tiết tác phẩm #${item.id}`);
+                }
+            });
+
+            // Toggle favorite
+            const favBtn = card.querySelector('.vault-btn-fav');
+            favBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                try {
+                    const res = await fetch('/api/vault/toggle-favorite', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: item.id })
+                    });
+                    const d = await res.json();
+                    if (d.status === 'success') {
+                        item.is_favorite = d.data.is_favorite;
+                        favBtn.classList.toggle('active', item.is_favorite === 1);
+                        favBtn.title = item.is_favorite === 1 ? 'Bỏ yêu thích' : 'Đánh dấu yêu thích';
+                        showToast(item.is_favorite === 1 ? '⭐ Đã thêm vào mục Yêu thích!' : 'Đã bỏ yêu thích.');
+                    }
+                } catch (err) {
+                    showToast('Lỗi cập nhật yêu thích', 'error');
+                }
+            });
+
+            // Reuse prompt button
+            const reuseBtn = card.querySelector('.btn-vault-reuse');
+            reuseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                applyPromptReuse(item);
+            });
+
+            // Copy prompt button
+            const copyBtn = card.querySelector('.btn-copy-prompt');
+            copyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (navigator.clipboard && item.prompt) {
+                    navigator.clipboard.writeText(item.prompt).then(() => {
+                        showToast('📋 Đã sao chép Prompt vào clipboard!');
+                    });
+                }
+            });
+
+            // Delete button
+            const delBtn = card.querySelector('.btn-vault-delete');
+            delBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (!confirm(`Bạn có chắc chắn muốn xóa tác phẩm này khỏi kho lưu trữ?`)) return;
+                try {
+                    const res = await fetch(`/api/vault/images/${item.id}`, { method: 'DELETE' });
+                    const d = await res.json();
+                    if (d.status === 'success') {
+                        showToast('🗑️ Đã xóa tác phẩm khỏi kho lưu trữ.');
+                        card.remove();
+                        if (vaultItemsGrid.children.length === 0) {
+                            loadVaultItems(vaultCurrentPage);
+                        }
+                    } else {
+                        throw new Error(d.message);
+                    }
+                } catch (err) {
+                    showToast(`Lỗi xóa: ${err.message}`, 'error');
+                }
+            });
+
+            vaultItemsGrid.appendChild(card);
+        });
+    }
+
+    function applyPromptReuse(item) {
+        if (typeof switchAppTab === 'function') {
+            switchAppTab('generator');
+        } else if (tabBtnGenerator) {
+            tabBtnGenerator.click();
+        }
+
+        const mode = (item.mode || 't2i').toLowerCase();
+        if (typeof setGenMode === 'function') {
+            setGenMode(mode);
+        }
+
+        if (genPrompt) {
+            genPrompt.value = item.prompt || '';
+        }
+
+        if (genStylePreset && item.style_preset) {
+            genStylePreset.value = item.style_preset;
+        }
+
+        if (item.aspect_ratio) {
+            const radio = document.querySelector(`input[name="genAspectRatio"][value="${item.aspect_ratio}"]`);
+            if (radio) {
+                radio.checked = true;
+                radio.dispatchEvent(new Event('change'));
+            }
+            if (genRatioPills) {
+                genRatioPills.forEach(pill => {
+                    const r = pill.querySelector('input[type="radio"]');
+                    if (r) pill.classList.toggle('active', r.value === item.aspect_ratio);
+                });
+            }
+        }
+
+        if (genSeed) {
+            genSeed.value = (item.seed !== undefined && item.seed !== -1 && item.seed !== null) ? item.seed : '';
+        }
+        if (genSteps && item.steps) {
+            genSteps.value = item.steps;
+            if (genStepsVal) genStepsVal.textContent = item.steps;
+        }
+        if (genCfg && item.cfg_scale) {
+            genCfg.value = item.cfg_scale;
+            if (genCfgVal) genCfgVal.textContent = item.cfg_scale;
+        }
+        if (genStrength && item.strength) {
+            genStrength.value = item.strength;
+            if (genStrengthVal) genStrengthVal.textContent = item.strength;
+        }
+
+        if (genNegativePrompt && item.negative_prompt) {
+            genNegativePrompt.value = item.negative_prompt;
+        }
+
+        if (mode === 'i2i' && item.image_url) {
+            currentGenSourceFilename = item.filename;
+            currentGenFile = null;
+            currentGenSampleId = null;
+            if (genThumb) genThumb.src = item.thumbnail_url || item.image_url;
+            if (genFileName) genFileName.textContent = item.filename;
+            if (genFileDims) genFileDims.textContent = `${item.width || 512} x ${item.height || 512}`;
+            if (genDropPrompt) genDropPrompt.classList.add('hidden');
+            if (genUploadPreviewWrapper) genUploadPreviewWrapper.classList.remove('hidden');
+        }
+
+        if (genPrompt) {
+            genPrompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            genPrompt.classList.remove('flash-highlight');
+            void genPrompt.offsetWidth;
+            genPrompt.classList.add('flash-highlight');
+            setTimeout(() => genPrompt.focus(), 350);
+        }
+
+        showToast(`✨ Đã nạp lại Prompt & Cài đặt từ tác phẩm #${item.id}! Sẵn sàng tạo tác phẩm mới.`);
+    }
+
+    // Search Mode Toggle (FTS5 Keyword vs CLIP Semantic)
+    if (btnSearchModeFts && btnSearchModeSemantic) {
+        btnSearchModeFts.addEventListener('click', () => {
+            vaultSearchMode = 'fts';
+            btnSearchModeFts.classList.add('active');
+            btnSearchModeSemantic.classList.remove('active');
+            if (vaultSearchInput) vaultSearchInput.placeholder = 'Tìm từ khóa Prompt tiếng Việt/Anh, Model, Seed...';
+            loadVaultItems(1);
+        });
+
+        btnSearchModeSemantic.addEventListener('click', () => {
+            vaultSearchMode = 'semantic';
+            btnSearchModeSemantic.classList.add('active');
+            btnSearchModeFts.classList.remove('active');
+            if (vaultSearchInput) vaultSearchInput.placeholder = '🧠 Nhập mô tả ngữ nghĩa (Ví dụ: hoàng hôn tím, phong cảnh viễn tưởng, mèo dễ thương)...';
+            showToast('🧠 Đã bật chế độ Tìm Kiếm Ngữ Nghĩa CLIP ViT!');
+            if (vaultSearchQuery) loadVaultItems(1);
+        });
+    }
+
+    // Vault Event Listeners
+    if (btnVaultRefresh) {
+        btnVaultRefresh.addEventListener('click', () => {
+            showToast('🔄 Đang đồng bộ kho dữ liệu...');
+            loadVaultItems(vaultCurrentPage);
+        });
+    }
+
+    if (vaultSearchInput) {
+        vaultSearchInput.addEventListener('input', (e) => {
+            vaultSearchQuery = e.target.value.trim();
+            if (btnClearVaultSearch) {
+                btnClearVaultSearch.classList.toggle('hidden', !vaultSearchQuery);
+            }
+            if (vaultSearchDebounce) clearTimeout(vaultSearchDebounce);
+            vaultSearchDebounce = setTimeout(() => {
+                loadVaultItems(1);
+            }, 350);
+        });
+    }
+
+    if (btnClearVaultSearch) {
+        btnClearVaultSearch.addEventListener('click', () => {
+            if (vaultSearchInput) vaultSearchInput.value = '';
+            vaultSearchQuery = '';
+            btnClearVaultSearch.classList.add('hidden');
+            loadVaultItems(1);
+        });
+    }
+
+    vaultFilterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            vaultFilterBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            if (btn.dataset.filterFav === 'true') {
+                vaultFilterFav = true;
+                vaultFilterMode = 'all';
+            } else {
+                vaultFilterFav = false;
+                vaultFilterMode = btn.dataset.filterMode || 'all';
+            }
+            loadVaultItems(1);
+        });
+    });
+
+    if (btnVaultPrevPage) {
+        btnVaultPrevPage.addEventListener('click', () => {
+            if (vaultCurrentPage > 1) loadVaultItems(vaultCurrentPage - 1);
+        });
+    }
+
+    if (btnVaultNextPage) {
+        btnVaultNextPage.addEventListener('click', () => {
+            if (vaultCurrentPage < vaultTotalPages) loadVaultItems(vaultCurrentPage + 1);
+        });
+    }
+
+    // ========================================================================
+    // DATA STUDIO MODAL LOGIC & MAINTENANCE ACTIONS
+    // ========================================================================
+    async function loadStudioAnalytics() {
+        try {
+            const res = await fetch('/api/vault/analytics');
+            const d = await res.json();
+            if (d.status === 'success') {
+                const s = d.data;
+                const mTotal = document.getElementById('metricTotalImages');
+                const mStorage = document.getElementById('metricTotalStorage');
+                const mLatency = document.getElementById('metricLatency');
+                const mFav = document.getElementById('metricFavorites');
+                const mRatio = document.getElementById('metricModeRatio');
+                const mFavRatio = document.getElementById('metricFavRatio');
+
+                if (mTotal) mTotal.textContent = s.total_generated;
+                if (mStorage) mStorage.textContent = `${s.total_storage_mb} MB`;
+                if (mLatency) mLatency.textContent = `${s.latency.p50_sec}s / ${s.latency.p95_sec}s`;
+                if (mFav) mFav.textContent = s.total_favorites;
+                if (mRatio) mRatio.textContent = `T2I: ${s.total_t2i} · I2I: ${s.total_i2i}`;
+                if (mFavRatio) {
+                    const pct = s.total_generated > 0 ? Math.round((s.total_favorites / s.total_generated) * 100) : 0;
+                    mFavRatio.textContent = `Tỷ lệ yêu thích: ${pct}%`;
+                }
+
+                // Render Top Styles
+                const stylesList = document.getElementById('distStylesList');
+                if (stylesList && s.top_styles) {
+                    stylesList.innerHTML = '<span class="studio-section-title" style="margin-bottom: 6px; font-size: 0.82rem;">Phong cách hàng đầu:</span>';
+                    s.top_styles.forEach(st => {
+                        const pill = document.createElement('div');
+                        pill.className = 'dist-item-pill';
+                        pill.innerHTML = `<span><i class="fa-solid fa-paintbrush text-cyan"></i> ${st.style || 'Tự do'}</span><span class="count-badge">${st.count} ảnh</span>`;
+                        stylesList.appendChild(pill);
+                    });
+                }
+
+                // Render Aspect Ratios
+                const aspectList = document.getElementById('distAspectList');
+                if (aspectList && s.aspect_ratios) {
+                    aspectList.innerHTML = '<span class="studio-section-title" style="margin-bottom: 6px; font-size: 0.82rem;">Tỷ lệ khung hình:</span>';
+                    s.aspect_ratios.forEach(ar => {
+                        const pill = document.createElement('div');
+                        pill.className = 'dist-item-pill';
+                        pill.innerHTML = `<span><i class="fa-solid fa-expand text-purple"></i> ${ar.ratio || '1:1'}</span><span class="count-badge">${ar.count} ảnh</span>`;
+                        aspectList.appendChild(pill);
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('[DataStudio] Analytics load failed:', e);
+        }
+    }
+
+    async function loadStudioStorage() {
+        try {
+            const res = await fetch('/api/vault/storage');
+            const d = await res.json();
+            if (d.status === 'success') {
+                const s = d.data;
+                const oVal = document.getElementById('storageOutputsVal');
+                const tVal = document.getElementById('storageThumbnailsVal');
+                const uVal = document.getElementById('storageUploadsVal');
+                const dbVal = document.getElementById('storageDbVal');
+
+                if (oVal) oVal.textContent = `${s.outputs.size_mb} MB (${s.outputs.file_count} tệp)`;
+                if (tVal) tVal.textContent = `${s.thumbnails.size_mb} MB (${s.thumbnails.file_count} thumbnails)`;
+                if (uVal) uVal.textContent = `${s.uploads.size_mb} MB (${s.uploads.file_count} tệp tạm)`;
+                if (dbVal) dbVal.textContent = `${s.database.size_kb} KB (${s.database.wal_active ? 'WAL Active' : 'Standard'})`;
+            }
+        } catch (e) {
+            console.warn('[DataStudio] Storage load failed:', e);
+        }
+    }
+
+    if (btnOpenDataStudio && dataStudioModal) {
+        btnOpenDataStudio.addEventListener('click', () => {
+            dataStudioModal.classList.remove('hidden');
+            loadStudioAnalytics();
+            loadStudioStorage();
+        });
+    }
+
+    if (btnCloseDataStudio && dataStudioModal) {
+        btnCloseDataStudio.addEventListener('click', () => {
+            dataStudioModal.classList.add('hidden');
+        });
+    }
+
+    if (dataStudioModal) {
+        dataStudioModal.addEventListener('click', (e) => {
+            if (e.target === dataStudioModal) {
+                dataStudioModal.classList.add('hidden');
+            }
+        });
+    }
+
+    studioTabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            studioTabBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const target = btn.dataset.studioTab;
+
+            if (paneObservability) paneObservability.classList.toggle('hidden', target !== 'observability');
+            if (paneStorage) paneStorage.classList.toggle('hidden', target !== 'storage');
+            if (paneExport) paneExport.classList.toggle('hidden', target !== 'export');
+
+            if (target === 'observability') loadStudioAnalytics();
+            if (target === 'storage') loadStudioStorage();
+        });
+    });
+
+    // Maintenance Handlers
+    if (btnRunCleanTemp) {
+        btnRunCleanTemp.addEventListener('click', async () => {
+            btnRunCleanTemp.disabled = true;
+            btnRunCleanTemp.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang dọn dẹp...';
+            try {
+                const res = await fetch('/api/vault/clean-temp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ max_age_hours: 24 })
+                });
+                const d = await res.json();
+                if (d.status === 'success') {
+                    showToast(`🧹 Đã dọn dẹp ${d.data.cleaned_count} tệp tạm, giải phóng ${d.data.freed_mb} MB đĩa!`);
+                    loadStudioStorage();
+                }
+            } catch (e) {
+                showToast(`Lỗi dọn dẹp: ${e.message}`, 'error');
+            } finally {
+                btnRunCleanTemp.disabled = false;
+                btnRunCleanTemp.innerHTML = '<i class="fa-solid fa-trash-can"></i> Dọn Dẹp File Tạm';
+            }
+        });
+    }
+
+    if (btnRunOptimizeDb) {
+        btnRunOptimizeDb.addEventListener('click', async () => {
+            btnRunOptimizeDb.disabled = true;
+            btnRunOptimizeDb.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang nén DB...';
+            try {
+                const res = await fetch('/api/vault/optimize-db', { method: 'POST' });
+                const d = await res.json();
+                if (d.status === 'success') {
+                    showToast(`🚀 Đã tối ưu hóa và nén SQLite DB (${d.data.db_size_kb} KB) trong ${d.data.duration_sec}s!`);
+                    loadStudioStorage();
+                }
+            } catch (e) {
+                showToast(`Lỗi nén DB: ${e.message}`, 'error');
+            } finally {
+                btnRunOptimizeDb.disabled = false;
+                btnRunOptimizeDb.innerHTML = '<i class="fa-solid fa-compact-disc"></i> Nén & Tối Ưu DB';
+            }
+        });
+    }
+
+    if (btnRunRebuildThumbs) {
+        btnRunRebuildThumbs.addEventListener('click', async () => {
+            btnRunRebuildThumbs.disabled = true;
+            btnRunRebuildThumbs.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
+            try {
+                const res = await fetch('/api/vault/rebuild-thumbnails', { method: 'POST' });
+                const d = await res.json();
+                if (d.status === 'success') {
+                    showToast(`🖼️ Đã kiểm tra và đồng bộ ${d.rebuilt_count} ảnh thumbnail WebP!`);
+                    loadStudioStorage();
+                }
+            } catch (e) {
+                showToast(`Lỗi đồng bộ: ${e.message}`, 'error');
+            } finally {
+                btnRunRebuildThumbs.disabled = false;
+                btnRunRebuildThumbs.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Đồng Bộ Thumbnails';
+            }
+        });
+    }
+
+    // Auto load vault when switching to generator tab
+    if (tabBtnGenerator) {
+        tabBtnGenerator.addEventListener('click', () => {
+            if (vaultItemsGrid && vaultItemsGrid.children.length === 0) {
+                loadVaultItems(1);
+            }
+        });
+    }
+
+    // Initial load of Vault
+    setTimeout(() => {
+        loadVaultItems(1);
+    }, 800);
+
+    // // 12. INLINE AI PROMPT OPTIMIZER (GENERATOR STUDIO)
     // ========================================================================
     const optNaturalInput = document.getElementById('optNaturalInput');
     const btnRunPromptOpt = document.getElementById('btnRunPromptOpt');

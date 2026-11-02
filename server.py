@@ -21,12 +21,14 @@ import uuid
 import time
 import json
 import zipfile
+import shutil
+import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 import cv2  # type: ignore
 import numpy as np  # type: ignore
 from PIL import Image as PILImage  # type: ignore
-from flask import Flask, request, jsonify, render_template, send_from_directory, url_for  # type: ignore
+from flask import Flask, request, jsonify, render_template, send_from_directory, url_for, Response  # type: ignore
 from werkzeug.utils import secure_filename  # type: ignore
 from enhancer import ImageEnhancer
 from aspect_converter import AspectConverter
@@ -36,6 +38,7 @@ from llm_engine import LLMEngine
 from bg_remover import BackgroundRemover
 from format_converter import FormatConverter
 from visual_search import visual_search_engine
+import prompt_vault
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
@@ -253,9 +256,30 @@ def api_download_jpg(filename):
     jpg_name = os.path.splitext(safe_name)[0] + '.jpg'
     jpg_path = os.path.join(OUTPUT_DIR, jpg_name)
     if not os.path.exists(jpg_path):
-        img = cv2.imread(png_path)
-        if img is not None:
-            cv2.imwrite(jpg_path, img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+        converted = False
+        try:
+            with PILImage.open(png_path) as im:
+                if im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info):
+                    alpha_im = im.convert('RGBA')
+                    bg = PILImage.new('RGB', alpha_im.size, (255, 255, 255))
+                    bg.paste(alpha_im, mask=alpha_im.split()[3])
+                    bg.save(jpg_path, 'JPEG', quality=95)
+                else:
+                    im.convert('RGB').save(jpg_path, 'JPEG', quality=95)
+                converted = True
+        except Exception:
+            pass
+
+        if not converted:
+            try:
+                img = cv2.imread(png_path)
+                if img is not None:
+                    cv2.imwrite(jpg_path, img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            except Exception:
+                pass
+
+    if not os.path.exists(jpg_path):
+        return jsonify({'status': 'error', 'message': 'Không thể chuyển đổi sang định dạng JPG'}), 500
 
     return send_from_directory(
         OUTPUT_DIR,
@@ -372,6 +396,8 @@ def api_convert_aspect():
 
         # Add to history
         session_history.insert(0, result_data)
+        if len(session_history) > 20:
+            session_history.pop()
 
         return jsonify({'status': 'success', 'data': result_data})
 
@@ -1148,7 +1174,8 @@ def api_compress():
             'original_filename': orig_filename,
             'original_url': f"/uploads/{os.path.basename(input_path)}" if os.path.dirname(input_path) == UPLOAD_DIR else f"/outputs/{os.path.basename(input_path)}",
             'compressed_url': f"/outputs/{output_filename}",
-            'download_url': f"/outputs/{output_filename}",
+            'download_url': f"/api/download/{output_filename}",
+            'download_jpg_url': f"/api/download-jpg/{output_filename}",
             'filename': output_filename,
             'stats': stats
         }
@@ -1160,8 +1187,8 @@ def api_compress():
             'original_filename': f"[Nén {target_mb}MB] {orig_filename}",
             'original_url': result_data['original_url'],
             'enhanced_url': result_data['compressed_url'],
-            'download_url': result_data['download_url'],
-            'download_jpg_url': result_data['download_url'],
+            'download_url': f"/api/download/{output_filename}",
+            'download_jpg_url': f"/api/download-jpg/{output_filename}",
             'filename': output_filename,
             'stats': {
                 'orig_width': stats['orig_width'],
@@ -1176,11 +1203,12 @@ def api_compress():
                 'enhanced_mb': stats['final_size_mb']
             }
         })
+        if len(session_history) > 20:
+            session_history.pop()
 
         return jsonify({'status': 'success', 'data': result_data})
 
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
@@ -1188,7 +1216,6 @@ def api_compress():
 @app.route('/api/save-compressed-to-downloads', methods=['POST'])
 def api_save_compressed_to_downloads():
     try:
-        import shutil
         filename = request.form.get('filename')
         save_as_name = request.form.get('save_as_name')
         if not filename:
@@ -1201,7 +1228,14 @@ def api_save_compressed_to_downloads():
         downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
         os.makedirs(downloads_dir, exist_ok=True)
 
-        target_name = secure_filename(save_as_name) if save_as_name else f"ClarityAI_{safe_name}"
+        src_ext = os.path.splitext(safe_name)[1]
+        if save_as_name:
+            target_name = secure_filename(save_as_name)
+            if not os.path.splitext(target_name)[1]:
+                target_name = f"{target_name}{src_ext}"
+        else:
+            target_name = f"ClarityAI_{safe_name}"
+
         dst_path = os.path.join(downloads_dir, target_name)
         shutil.copy2(src_path, dst_path)
 
@@ -1769,6 +1803,9 @@ def api_generate_image():
         output_filename = f"gen_{mode}_{output_uuid}.png"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
 
+        orig_filename = ""
+        strength = 0.45
+
         if mode == 'i2i':
             try:
                 strength = float(request.form.get('strength', 0.45))
@@ -1833,22 +1870,36 @@ def api_generate_image():
                 model_id=model_id
             )
 
-        # Save output image
-        result_img.save(output_path, format="PNG")
-        file_size_bytes = os.path.getsize(output_path)
+        # Save output image with embedded PNG metadata & record to SQLite Data Catalog
+        vault_record = prompt_vault.save_record(
+            record_id=output_uuid,
+            filename=output_filename,
+            image=result_img,
+            output_path=output_path,
+            mode=mode,
+            prompt=prompt,
+            meta=meta,
+            negative_prompt=negative_prompt,
+            style_preset=style_preset,
+            aspect_ratio=aspect_ratio,
+            strength=strength if mode == 'i2i' else 0.45,
+            source_image=orig_filename if mode == 'i2i' else ""
+        )
 
         result_data = {
             'id': output_uuid,
-            'timestamp': datetime.now().strftime('%H:%M:%S - %d/%m/%Y'),
+            'timestamp': vault_record.get('display_time', datetime.now().strftime('%H:%M:%S - %d/%m/%Y')),
             'mode': mode,
-            'result_url': f"/outputs/{output_filename}",
-            'download_url': f"/api/download/{output_filename}",
-            'download_jpg_url': f"/api/download-jpg/{output_filename}",
+            'result_url': vault_record['image_url'],
+            'thumbnail_url': vault_record['thumbnail_url'],
+            'download_url': vault_record['download_url'],
+            'download_jpg_url': vault_record['download_jpg_url'],
             'filename': output_filename,
             'meta': meta,
+            'vault_record': vault_record,
             'file_sizes': {
-                'result_kb': round(file_size_bytes / 1024, 1),
-                'result_mb': round(file_size_bytes / (1024 * 1024), 2)
+                'result_kb': vault_record['file_size_kb'],
+                'result_mb': round(vault_record['file_size_kb'] / 1024, 2)
             }
         }
 
@@ -1868,14 +1919,183 @@ def api_generate_image():
                 'final_height': meta['height'],
                 'duration_sec': meta['duration_sec']
             },
-            'file_sizes': result_data['file_sizes']
+            'file_sizes': result_data['file_sizes'],
+            'prompt': prompt,
+            'mode': mode
         })
+        if len(session_history) > 20:
+            session_history.pop()
 
         return jsonify({'status': 'success', 'data': result_data})
 
     except Exception as e:
-        import traceback
         traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ============================================================================
+# PROMPT VAULT & ARTIFACT CATALOG API ROUTES (DATA ENGINEERING LAYER)
+# ============================================================================
+
+@app.route('/api/vault/images', methods=['GET'])
+def api_vault_images():
+    """Returns paginated, searchable, filtered list of generated images and prompts."""
+    try:
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 24))
+        search = request.args.get('search', '').strip()
+        mode = request.args.get('mode', 'all').strip().lower()
+        favorites_only = request.args.get('favorites_only', 'false').lower() in ('true', '1')
+
+        catalog_data = prompt_vault.query_records(
+            page=page,
+            page_size=page_size,
+            search=search,
+            mode=mode,
+            favorites_only=favorites_only
+        )
+        return jsonify({'status': 'success', 'data': catalog_data})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/images/<record_id>', methods=['GET'])
+def api_vault_image_detail(record_id):
+    """Returns complete generation metadata for a specific image for prompt reuse."""
+    try:
+        record = prompt_vault.get_record(record_id)
+        if not record:
+            return jsonify({'status': 'error', 'message': 'Không tìm thấy tác phẩm trong kho lưu trữ'}), 404
+        return jsonify({'status': 'success', 'data': record})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/toggle-favorite', methods=['POST'])
+def api_vault_toggle_favorite():
+    """Toggles favorite bookmark for a prompt/image."""
+    try:
+        data = request.get_json(silent=True, force=True) or {}
+        record_id = None
+        if isinstance(data, dict):
+            record_id = data.get('id')
+        if not record_id:
+            record_id = request.form.get('id') or request.args.get('id')
+        if not record_id:
+            return jsonify({'status': 'error', 'message': 'Thiếu ID tác phẩm'}), 400
+        result = prompt_vault.toggle_favorite(record_id)
+        return jsonify({'status': 'success', 'data': result})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/images/<record_id>', methods=['DELETE'])
+def api_vault_delete_image(record_id):
+    """Deletes an image and its metadata from the catalog."""
+    try:
+        delete_files = request.args.get('delete_files', 'true').lower() in ('true', '1')
+        deleted = prompt_vault.delete_record(record_id, delete_files=delete_files)
+        if not deleted:
+            return jsonify({'status': 'error', 'message': 'Không tìm thấy tác phẩm để xóa'}), 404
+        return jsonify({'status': 'success', 'message': 'Đã xóa tác phẩm khỏi kho lưu trữ'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/export', methods=['GET'])
+def api_vault_export():
+    """Exports catalog records as JSON, JSONL, or CSV for data curation, fine-tuning or backup."""
+    try:
+        export_format = request.args.get('format', 'json').strip().lower()
+        content, filename, mime_type = prompt_vault.export_vault_data(export_format=export_format)
+        return Response(
+            content,
+            mimetype=mime_type,
+            headers={"Content-Disposition": f"attachment;filename={filename}"}
+        )
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/analytics', methods=['GET'])
+def api_vault_analytics():
+    """Returns observability metrics: latency percentiles, top styles, model usage, storage."""
+    try:
+        summary = prompt_vault.get_analytics_summary()
+        return jsonify({'status': 'success', 'data': summary})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/storage', methods=['GET'])
+def api_vault_storage():
+    """Returns storage tiering metrics: outputs, uploads, thumbnails, DB."""
+    try:
+        breakdown = prompt_vault.get_storage_breakdown()
+        return jsonify({'status': 'success', 'data': breakdown})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/clean-temp', methods=['POST'])
+def api_vault_clean_temp():
+    """Cleans temporary uploads older than specified hours (Data Retention Policy)."""
+    try:
+        data = request.get_json(silent=True) or request.form
+        hours = int(data.get('max_age_hours', 24)) if isinstance(data, dict) else 24
+        result = prompt_vault.clean_temporary_uploads(max_age_hours=hours)
+        return jsonify({'status': 'success', 'data': result})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/optimize-db', methods=['POST'])
+def api_vault_optimize_db():
+    """Runs SQLite WAL checkpoint and VACUUM to compact DB."""
+    try:
+        result = prompt_vault.optimize_database()
+        return jsonify({'status': 'success', 'data': result})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/rebuild-thumbnails', methods=['POST'])
+def api_vault_rebuild_thumbnails():
+    """Rebuilds missing WebP thumbnails across all stored artifacts."""
+    try:
+        count = prompt_vault.rebuild_missing_thumbnails()
+        return jsonify({'status': 'success', 'rebuilt_count': count})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/semantic-search', methods=['GET'])
+def api_vault_semantic_search():
+    """Semantic image and prompt search using CLIP ViT embeddings."""
+    try:
+        query = request.args.get('query', '').strip()
+        top_k = int(request.args.get('top_k', 24))
+        mode = request.args.get('mode', 'all').strip().lower()
+        min_sim = float(request.args.get('min_similarity', 0.15))
+
+        res = prompt_vault.semantic_search_vault(
+            query=query,
+            top_k=top_k,
+            min_similarity=min_sim,
+            mode=mode
+        )
+        return jsonify({'status': 'success', 'data': res})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/vault/scan-legacy', methods=['POST'])
+def api_vault_scan_legacy():
+    """Scans and indices legacy generated images in outputs directory."""
+    try:
+        count = prompt_vault.scan_and_index_legacy_outputs()
+        return jsonify({'status': 'success', 'indexed_count': count})
+    except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 

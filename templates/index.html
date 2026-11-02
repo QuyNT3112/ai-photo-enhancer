@@ -2390,6 +2390,78 @@
                     </div>
                 </div>
 
+            
+                <!-- 4. Prompt Vault & History (Data Engineering Relational Catalog) -->
+                <div class="glass-card workspace-card vault-card" id="genVaultCard" style="margin-top: 24px;">
+                    <div class="vault-header">
+                        <div class="vault-title-group">
+                            <div class="vault-icon-badge"><i class="fa-solid fa-box-archive"></i></div>
+                            <div>
+                                <h3 class="vault-title">Kho Lưu Trữ & Tái Sử Dụng Prompt (Prompt Vault)</h3>
+                                <p class="vault-subtitle">Lưu trữ vĩnh viễn SQLite · Nhúng thông số vào PNG · Tái sử dụng Prompt 1-click</p>
+                            </div>
+                        </div>
+                        <div class="vault-actions-group">
+                            <button type="button" class="btn-vault-action btn-studio-open" id="btnOpenDataStudio" title="Mở Data Engineering Studio: Giám sát hiệu năng AI, Dọn dẹp & Quản lý lưu trữ">
+                                <i class="fa-solid fa-chart-line text-cyan"></i> Data Studio & Lưu Trữ
+                            </button>
+                            <button type="button" class="btn-vault-action" id="btnVaultRefresh" title="Tải lại kho ảnh">
+                                <i class="fa-solid fa-arrows-rotate"></i>
+                            </button>
+                            <a href="/api/vault/export?format=jsonl" class="btn-vault-action" id="btnVaultExportJsonl" title="Xuất Dataset chuẩn JSONL cho Fine-tuning LoRA/LLM">
+                                <i class="fa-solid fa-file-code text-purple"></i> Xuất JSONL
+                            </a>
+                            <a href="/api/vault/export?format=json" class="btn-vault-action btn-vault-export" id="btnVaultExport" title="Xuất toàn bộ Dataset JSON cho Data Engineering / Fine-tuning">
+                                <i class="fa-solid fa-file-export text-cyan"></i> Xuất JSON
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Search & Filter Bar with Dual Search Mode (FTS5 Keyword vs CLIP Semantic) -->
+                    <div class="vault-toolbar">
+                        <div class="vault-search-box">
+                            <i class="fa-solid fa-magnifying-glass vault-search-icon"></i>
+                            <input type="text" id="vaultSearchInput" class="custom-input vault-search-input" placeholder="Tìm theo từ khóa Prompt tiếng Việt/Anh, Model, Seed...">
+                            <button type="button" class="vault-search-clear hidden" id="btnClearVaultSearch"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="vault-search-modes">
+                            <button type="button" class="vault-search-mode-pill active" id="btnSearchModeFts" data-mode="fts" title="Tìm từ khóa FTS5 chính xác">
+                                <i class="fa-solid fa-font"></i> Từ khóa FTS5
+                            </button>
+                            <button type="button" class="vault-search-mode-pill" id="btnSearchModeSemantic" data-mode="semantic" title="Tìm kiếm ngữ nghĩa thông minh với mô hình CLIP AI trên GPU RTX 3060">
+                                <i class="fa-solid fa-brain text-purple"></i> Semantic CLIP AI
+                            </button>
+                        </div>
+                        <div class="vault-filters">
+                            <button type="button" class="vault-filter-btn active" data-filter-mode="all">Tất cả (<span id="vaultCountAll">0</span>)</button>
+                            <button type="button" class="vault-filter-btn" data-filter-mode="t2i"><i class="fa-solid fa-wand-magic-sparkles"></i> Text-to-Image</button>
+                            <button type="button" class="vault-filter-btn" data-filter-mode="i2i"><i class="fa-solid fa-image"></i> Image-to-Image</button>
+                            <button type="button" class="vault-filter-btn" data-filter-fav="true"><i class="fa-solid fa-star text-yellow"></i> Yêu thích</button>
+                        </div>
+                    </div>
+
+                    <!-- Vault Gallery Grid -->
+                    <div class="vault-grid-container" id="vaultGridContainer">
+                        <div class="vault-loading-spinner hidden" id="vaultLoading">
+                            <i class="fa-solid fa-circle-notch fa-spin text-purple"></i> Đang tải kho dữ liệu...
+                        </div>
+                        <div class="vault-empty-state hidden" id="vaultEmptyState">
+                            <i class="fa-regular fa-images"></i>
+                            <p>Chưa có tác phẩm nào phù hợp trong kho lưu trữ.</p>
+                        </div>
+                        <div class="vault-items-grid" id="vaultItemsGrid">
+                            <!-- Items injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Vault Pagination -->
+                    <div class="vault-pagination" id="vaultPagination">
+                        <button type="button" class="btn-page-ctrl" id="btnVaultPrevPage" disabled><i class="fa-solid fa-chevron-left"></i> Trang trước</button>
+                        <span class="vault-page-info" id="vaultPageInfo">Trang 1 / 1</span>
+                        <button type="button" class="btn-page-ctrl" id="btnVaultNextPage" disabled>Trang sau <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
             </section>
         </main>
     </div>
@@ -3196,5 +3268,181 @@
 
     <!-- Scripts -->
     <script src="/static/js/app.js?v={{ v }}"></script>
+
+    <!-- DATA ENGINEERING & STORAGE STUDIO MODAL -->
+    <div class="modal-overlay hidden" id="dataStudioModal">
+        <div class="modal-card data-studio-card">
+            <div class="modal-header">
+                <div class="studio-header-title">
+                    <div class="studio-header-icon"><i class="fa-solid fa-database text-cyan"></i></div>
+                    <div>
+                        <h3>Data Engineering & Storage Studio</h3>
+                        <p class="modal-sub">Giám sát hiệu năng AI · Quản lý vòng đời dữ liệu & Lưu trữ · Xuất Dataset</p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close-modal" id="btnCloseDataStudio"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Studio Navigation Tabs -->
+            <div class="studio-tabs">
+                <button type="button" class="studio-tab-btn active" data-studio-tab="observability">
+                    <i class="fa-solid fa-chart-pie text-cyan"></i> 1. Giám Sát & Hiệu Năng
+                </button>
+                <button type="button" class="studio-tab-btn" data-studio-tab="storage">
+                    <i class="fa-solid fa-hard-drive text-purple"></i> 2. Quản Lý Vòng Đời & Dọn Dẹp
+                </button>
+                <button type="button" class="studio-tab-btn" data-studio-tab="export">
+                    <i class="fa-solid fa-file-export text-emerald"></i> 3. Xuất Dataset Huấn Luyện AI
+                </button>
+            </div>
+
+            <div class="studio-body">
+                <!-- TAB 1: OBSERVABILITY -->
+                <div class="studio-tab-pane" id="paneObservability">
+                    <div class="studio-metrics-grid">
+                        <div class="metric-box">
+                            <span class="metric-label"><i class="fa-solid fa-images text-cyan"></i> Tổng tác phẩm</span>
+                            <span class="metric-val" id="metricTotalImages">--</span>
+                            <span class="metric-hint" id="metricModeRatio">T2I: -- · I2I: --</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label"><i class="fa-solid fa-hard-drive text-purple"></i> Dung lượng quản lý</span>
+                            <span class="metric-val" id="metricTotalStorage">-- MB</span>
+                            <span class="metric-hint">Ảnh gốc + Thumbnail + SQLite DB</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label"><i class="fa-solid fa-stopwatch text-yellow"></i> Độ trễ P50 / P95</span>
+                            <span class="metric-val" id="metricLatency">--s / --s</span>
+                            <span class="metric-hint">RTX 3060 12GB CUDA</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label"><i class="fa-solid fa-star text-pink"></i> Tác phẩm yêu thích</span>
+                            <span class="metric-val" id="metricFavorites">--</span>
+                            <span class="metric-hint" id="metricFavRatio">Tỷ lệ: --%</span>
+                        </div>
+                    </div>
+
+                    <!-- Distributions Section -->
+                    <div class="studio-section-title"><i class="fa-solid fa-palette text-cyan"></i> Phân Bố Phong Cách Thịnh Hành & Tỷ Lệ Khung Hình</div>
+                    <div class="studio-distribution-row">
+                        <div class="dist-column" id="distStylesList">
+                            <!-- Dynamic style pills -->
+                        </div>
+                        <div class="dist-column" id="distAspectList">
+                            <!-- Dynamic aspect ratio pills -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: STORAGE LIFECYCLE & RETENTION -->
+                <div class="studio-tab-pane hidden" id="paneStorage">
+                    <div class="storage-breakdown-card">
+                        <h4 class="breakdown-title"><i class="fa-solid fa-chart-simple text-purple"></i> Phân Bổ Dung Lượng Bộ Nhớ Hệ Thống</h4>
+                        <div class="storage-table">
+                            <div class="storage-row">
+                                <span class="row-label"><i class="fa-solid fa-folder text-cyan"></i> Thư mục Ảnh Kết Quả (outputs/):</span>
+                                <span class="row-val" id="storageOutputsVal">-- MB (-- files)</span>
+                            </div>
+                            <div class="storage-row">
+                                <span class="row-label"><i class="fa-regular fa-image text-emerald"></i> Bộ nhớ đệm Thumbnail WebP (thumbnails/):</span>
+                                <span class="row-val" id="storageThumbnailsVal">-- MB (-- thumbnails)</span>
+                            </div>
+                            <div class="storage-row">
+                                <span class="row-label"><i class="fa-solid fa-upload text-yellow"></i> Thư mục Tải Lên Tạm Thời (uploads/):</span>
+                                <span class="row-val" id="storageUploadsVal">-- MB (-- files)</span>
+                            </div>
+                            <div class="storage-row">
+                                <span class="row-label"><i class="fa-solid fa-database text-purple"></i> Cơ sở dữ liệu SQLite (prompt_vault.db):</span>
+                                <span class="row-val" id="storageDbVal">-- KB (WAL Active)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="studio-section-title" style="margin-top: 18px;"><i class="fa-solid fa-screwdriver-wrench text-yellow"></i> Công Cụ Bảo Trì Vòng Đời Dữ Liệu (Retention & Maintenance)</div>
+                    <div class="maintenance-actions-grid">
+                        <div class="maintenance-card">
+                            <div class="m-card-header">
+                                <i class="fa-solid fa-broom text-yellow"></i>
+                                <div>
+                                    <h5>Dọn Dẹp File Tải Lên Tạm</h5>
+                                    <p>Xóa các file tạm trong uploads/ cũ hơn 24 giờ để tránh phình ổ đĩa.</p>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-m-action" id="btnRunCleanTemp">
+                                <i class="fa-solid fa-trash-can"></i> Dọn Dẹp File Tạm
+                            </button>
+                        </div>
+
+                        <div class="maintenance-card">
+                            <div class="m-card-header">
+                                <i class="fa-solid fa-bolt text-purple"></i>
+                                <div>
+                                    <h5>Tối Ưu & Nén Database</h5>
+                                    <p>Chạy SQLite WAL Checkpoint và VACUUM để giải phóng phân mảnh.</p>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-m-action" id="btnRunOptimizeDb">
+                                <i class="fa-solid fa-compact-disc"></i> Nén & Tối Ưu DB
+                            </button>
+                        </div>
+
+                        <div class="maintenance-card">
+                            <div class="m-card-header">
+                                <i class="fa-solid fa-images text-emerald"></i>
+                                <div>
+                                    <h5>Đồng Bộ Thumbnails WebP</h5>
+                                    <p>Quét và tạo lại ảnh WebP thumbnail siêu nhẹ cho các ảnh còn thiếu.</p>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-m-action" id="btnRunRebuildThumbs">
+                                <i class="fa-solid fa-arrows-rotate"></i> Đồng Bộ Thumbnails
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: DATASET EXPORT -->
+                <div class="studio-tab-pane hidden" id="paneExport">
+                    <div class="export-banner">
+                        <i class="fa-solid fa-brain text-purple"></i>
+                        <div>
+                            <h4>Xuất Dữ Liệu Phục Vụ Huấn Luyện AI & Phân Tích</h4>
+                            <p>Toàn bộ lịch sử Prompt, tham số và đường dẫn ảnh có thể xuất ra các định dạng chuẩn để phục vụ Fine-tuning LoRA, Dreambooth, RLHF hoặc phân tích DataFrame.</p>
+                        </div>
+                    </div>
+
+                    <div class="export-options-grid">
+                        <div class="export-option-card">
+                            <div class="export-icon jsonl"><i class="fa-solid fa-file-code"></i></div>
+                            <h5>JSON Lines (JSONL)</h5>
+                            <p>Định dạng tiêu chuẩn ngành để huấn luyện LoRA / Dreambooth / LLM. Mỗi dòng là 1 JSON kèm prompt, prompt dịch & metadata.</p>
+                            <a href="/api/vault/export?format=jsonl" class="btn-export-download" download>
+                                <i class="fa-solid fa-download"></i> Tải File .JSONL
+                            </a>
+                        </div>
+
+                        <div class="export-option-card">
+                            <div class="export-icon csv"><i class="fa-solid fa-file-csv"></i></div>
+                            <h5>Bảng Tính CSV</h5>
+                            <p>Tương thích hoàn hảo với Microsoft Excel, Google Sheets, Pandas DataFrame phục vụ phân tích tần suất, độ trễ và phong cách.</p>
+                            <a href="/api/vault/export?format=csv" class="btn-export-download" download>
+                                <i class="fa-solid fa-download"></i> Tải File .CSV
+                            </a>
+                        </div>
+
+                        <div class="export-option-card">
+                            <div class="export-icon json"><i class="fa-solid fa-file-lines"></i></div>
+                            <h5>Full Schema (JSON)</h5>
+                            <p>Trọn bộ cấu trúc quan hệ Catalog, thích hợp để sao lưu (backup), khôi phục (restore) hoặc tích hợp vào hệ thống cơ sở dữ liệu khác.</p>
+                            <a href="/api/vault/export?format=json" class="btn-export-download" download>
+                                <i class="fa-solid fa-download"></i> Tải File .JSON
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
