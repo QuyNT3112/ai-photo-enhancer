@@ -81,7 +81,7 @@ class BackgroundRemover:
         if model_key in ['birefnet', 'biref']:
             try:
                 model = self._get_birefnet()
-                inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)
+                inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)  # type: ignore  # type: ignore
                 with torch.no_grad():
                     res = model(inp)
                 if isinstance(res, (list, tuple)):
@@ -111,7 +111,7 @@ class BackgroundRemover:
         # Default to RMBG-1.4 (Ultra-Fast SOTA)
         try:
             model = self._get_rmbg14()
-            inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)
+            inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)  # type: ignore
             with torch.no_grad():
                 preds = model(inp)
             raw = preds[0][0].squeeze().cpu().numpy()
@@ -121,7 +121,7 @@ class BackgroundRemover:
             print(f"[BgRemover] RMBG-1.4 inference error: {e}. Attempting BiRefNet as secondary fallback...")
             try:
                 model = self._get_birefnet()
-                inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)
+                inp = self.rmbg_transform(rgb_pil).unsqueeze(0).to(self.device)  # type: ignore  # type: ignore
                 with torch.no_grad():
                     res = model(inp)
                 if isinstance(res, (list, tuple)):

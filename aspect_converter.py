@@ -97,7 +97,14 @@ class AspectConverter:
                 tw = max_dim
                 th = int(tw * (9 / 16))
         else:  # 'standard'
-            tw, th = ratio_info['default_res']
+            res = ratio_info.get('default_res', (1080, 1080))
+            if isinstance(res, (tuple, list)) and len(res) >= 2:
+                tw, th = res[0], res[1]
+            else:
+                tw, th = 1080, 1080
+
+        tw = int(tw)
+        th = int(th)
 
         result = None
 

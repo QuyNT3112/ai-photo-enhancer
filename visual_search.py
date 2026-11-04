@@ -28,7 +28,7 @@ from bs4 import BeautifulSoup
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try:
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        getattr(sys.stdout, 'reconfigure')(encoding='utf-8', errors='replace')
     except Exception:
         pass
 
@@ -113,7 +113,7 @@ class VisualSearchEngine:
             print(f"[VisualSearch] Loading CLIP model ({self.model_id}) on {self.device}...")
             start_t = time.time()
             self.processor = CLIPProcessor.from_pretrained(self.model_id, use_fast=False)
-            self.model = CLIPModel.from_pretrained(self.model_id, use_safetensors=True).to(self.device)
+            self.model = CLIPModel.from_pretrained(self.model_id, use_safetensors=True).to(self.device)  # type: ignore
             self.model.eval()
             elapsed = round(time.time() - start_t, 2)
             print(f"[VisualSearch] CLIP model successfully loaded in {elapsed}s on {self.device}!")
@@ -171,7 +171,7 @@ class VisualSearchEngine:
         if self.model is None or self.processor is None:
             raise RuntimeError("CLIP Model not loaded")
 
-        inputs = self.processor(images=pil_images, return_tensors="pt")
+        inputs = self.processor(images=pil_images, return_tensors="pt")  # type: ignore
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         with torch.no_grad():
@@ -186,7 +186,7 @@ class VisualSearchEngine:
         if self.model is None or self.processor is None:
             raise RuntimeError("CLIP Model not loaded")
 
-        inputs = self.processor(text=texts, return_tensors="pt", padding=True, truncation=True)
+        inputs = self.processor(text=texts, return_tensors="pt", padding=True, truncation=True)  # type: ignore
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         with torch.no_grad():
@@ -346,7 +346,7 @@ class VisualSearchEngine:
                 if not m_str:
                     continue
                 try:
-                    data = json.loads(m_str)
+                    data = json.loads(str(m_str))
                     murl = data.get("murl")
                     turl = data.get("turl") or murl
                     purl = data.get("purl") or ""

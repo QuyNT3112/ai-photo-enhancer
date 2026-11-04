@@ -11,7 +11,7 @@ Guarantees:
 
 import os
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 from PIL import Image, ImageOps  # type: ignore
 
 
@@ -90,6 +90,13 @@ class FormatConverter:
             'mime': 'image/gif',
             'supports_alpha': True,
             'name': 'GIF (Ảnh Đồ Họa Bảng Màu)'
+        },
+        'svg': {
+            'ext': '.svg',
+            'pillow_fmt': 'SVG',
+            'mime': 'image/svg+xml',
+            'supports_alpha': True,
+            'name': 'SVG (Đồ Họa Vector AI - Vô Cực Nét)'
         }
     }
 
@@ -103,7 +110,7 @@ class FormatConverter:
         target_format: str = 'png',
         quality_mode: str = 'lossless',
         bg_color: str = 'white',
-        ico_sizes: Optional[list] = None
+        ico_sizes: Optional[List[Tuple[int, int]]] = None
     ) -> Dict[str, Any]:
         """
         Convert image to the target format preserving maximum fidelity.
@@ -129,10 +136,46 @@ class FormatConverter:
             fmt_key = 'png'
 
         fmt_info = self.SUPPORTED_TARGET_FORMATS[fmt_key]
-        pillow_fmt = fmt_info['pillow_fmt']
-        supports_alpha = fmt_info['supports_alpha']
+        pillow_fmt: str = str(fmt_info['pillow_fmt'])
+        supports_alpha = bool(fmt_info['supports_alpha'])
 
         orig_size_bytes = os.path.getsize(input_path)
+
+        # Special Case: Vectorization to SVG
+        if fmt_key == 'svg':
+            from svg_processor import svg_processor
+            vec_preset = 'fidelity'
+            if quality_mode == 'high':
+                vec_preset = 'clean_logo'
+            elif quality_mode == 'balanced':
+                vec_preset = 'clean_logo'
+
+            vec_stats = svg_processor.vectorize_image(
+                input_path=input_path,
+                output_svg_path=output_path,
+                preset=vec_preset
+            )
+            return {
+                'target_format': 'SVG',
+                'pillow_format': 'SVG',
+                'extension': '.svg',
+                'orig_width': vec_stats['orig_width'],
+                'orig_height': vec_stats['orig_height'],
+                'new_width': vec_stats['vector_width'],
+                'new_height': vec_stats['vector_height'],
+                'orig_size_bytes': vec_stats['orig_size_bytes'],
+                'new_size_bytes': vec_stats['svg_size_bytes'],
+                'orig_size_kb': vec_stats['orig_size_kb'],
+                'new_size_kb': vec_stats['svg_size_kb'],
+                'orig_size_mb': round(vec_stats['orig_size_bytes'] / (1024 * 1024), 2),
+                'new_size_mb': round(vec_stats['svg_size_bytes'] / (1024 * 1024), 2),
+                'percent_diff': vec_stats['percent_diff'],
+                'duration_sec': vec_stats['duration_sec'],
+                'has_alpha': vec_stats['has_alpha'],
+                'preserved_alpha': True,
+                'quality_mode': quality_mode,
+                'path_count': vec_stats.get('path_count', 0)
+            }
 
         # Open source image
         img = Image.open(input_path)
@@ -149,9 +192,14 @@ class FormatConverter:
         # Check for genuine transparency
         has_alpha = False
         if img.mode in ('RGBA', 'LA'):
-            alpha_extrema = img.split()[-1].getextrema()
-            if alpha_extrema[0] < 255:
-                has_alpha = True
+            try:
+                extrema: Any = img.split()[-1].getextrema()
+                if isinstance(extrema, tuple) and len(extrema) > 0:
+                    has_alpha = extrema[0] < 255
+                elif isinstance(extrema, (int, float)):
+                    has_alpha = extrema < 255
+            except Exception:
+                has_alpha = False
         elif img.mode == 'P' and 'transparency' in img.info:
             has_alpha = True
 
@@ -269,7 +317,7 @@ class FormatConverter:
 
         elif pillow_fmt == 'GIF':
             if processed_img.mode != 'P':
-                processed_img = processed_img.convert('P', palette=Image.ADAPTIVE, colors=256)
+                processed_img = processed_img.convert('P', palette=getattr(Image, 'ADAPTIVE', 0), colors=256)  # type: ignore
 
         # Ensure destination directory exists
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)

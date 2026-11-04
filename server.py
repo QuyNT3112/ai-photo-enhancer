@@ -8,12 +8,12 @@ import sys
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try:
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        getattr(sys.stdout, 'reconfigure')(encoding='utf-8', errors='replace')
     except Exception:
         pass
 if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
     try:
-        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+        getattr(sys.stderr, 'reconfigure')(encoding='utf-8', errors='replace')
     except Exception:
         pass
 
@@ -37,6 +37,7 @@ from generator import ImageGenerator
 from llm_engine import LLMEngine
 from bg_remover import BackgroundRemover
 from format_converter import FormatConverter
+from svg_processor import svg_processor
 from visual_search import visual_search_engine
 import prompt_vault
 
@@ -71,7 +72,7 @@ except Exception as _e:
     print(f"[Server] Visual search indexing deferred: {_e}")
 print("[Server] AI & Media Engines ready!")
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp', 'jfif', 'tiff', 'tif', 'ico', 'pdf', 'avif', 'gif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp', 'jfif', 'tiff', 'tif', 'ico', 'pdf', 'avif', 'gif', 'svg'}
 
 # In-memory history for current session
 session_history = []
@@ -274,7 +275,7 @@ def api_download_jpg(filename):
             try:
                 img = cv2.imread(png_path)
                 if img is not None:
-                    cv2.imwrite(jpg_path, img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+                    cv2.imwrite(jpg_path, img, [cv2.IMWRITE_JPEG_QUALITY, 95])
             except Exception:
                 pass
 
@@ -949,7 +950,7 @@ def api_batch_resize():
 
             # Lưu ảnh định dạng chuẩn PNG
             save_path = os.path.join(batch_folder, candidate_name)
-            cv2.imwrite(save_path, result_img, [int(cv2.IMWRITE_PNG_COMPRESSION), 4])
+            cv2.imwrite(save_path, result_img, [cv2.IMWRITE_PNG_COMPRESSION, 4])
 
             file_size_bytes = os.path.getsize(save_path)
             rel_web_path = f"batch/batch_{batch_id}/{candidate_name}"
@@ -1257,7 +1258,8 @@ def api_batch_compress():
         importlib.reload(comp_mod)
         compressor_engine = comp_mod.ImageCompressor()
 
-        raw_target = str(request.form.get('target_mb', '1.0')).replace(',', '.').strip()
+        raw_val = request.form.get('target_mb', '1.0') or '1.0'
+        raw_target = raw_val.replace(',', '.').strip()
         try:
             target_mb = float(raw_target)
         except Exception:
@@ -2423,6 +2425,393 @@ def api_search_reindex():
         return jsonify({
             'status': 'success',
             'info': res
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ==========================================
+# SVG & AI Vector Studio Endpoints
+# ==========================================
+
+@app.route('/api/svg/meta', methods=['GET'])
+def api_svg_meta():
+    """Returns SVG Studio configuration presets and palettes."""
+    try:
+        return jsonify({
+            'status': 'success',
+            'presets': svg_processor.PRESETS,
+            'palettes': svg_processor.PALETTES
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/svg/vectorize', methods=['POST'])
+def api_svg_vectorize():
+    """
+    Converts raster images (PNG, JPG, WEBP, etc.) to high-fidelity SVG vector paths
+    using local AI vector engine, preserving curves, lines, and colors.
+    """
+    try:
+        files = request.files.getlist('images')
+        if not files or files[0].filename == '':
+            files = request.files.getlist('image')
+        if not files or files[0].filename == '':
+            return jsonify({'status': 'error', 'message': 'Chưa chọn tệp ảnh nào để dịch sang SVG!'}), 400
+
+        preset = request.form.get('preset', 'fidelity').strip().lower()
+        enable_ai_line_boost = request.form.get('ai_line_boost', 'true').strip().lower() in ('true', '1', 'yes')
+        
+        try:
+            max_dimension = int(request.form.get('max_dimension', 1920))
+        except Exception:
+            max_dimension = 1920
+
+        # Custom tuning overrides if preset is custom
+        custom_params = {}
+        for param in ['colormode', 'hierarchical', 'mode', 'filter_speckle', 'color_precision', 
+                      'layer_difference', 'corner_threshold', 'length_threshold', 'path_precision']:
+            val = request.form.get(param)
+            if val is not None and val.strip() != '':
+                if param in ('filter_speckle', 'color_precision', 'layer_difference', 'corner_threshold', 'path_precision'):
+                    try:
+                        custom_params[param] = int(val)
+                    except ValueError:
+                        pass
+                elif param == 'length_threshold':
+                    try:
+                        custom_params[param] = float(val)
+                    except ValueError:
+                        pass
+                else:
+                    custom_params[param] = val.strip()
+
+        if len(files) == 1:
+            file = files[0]
+            if not file.filename or not allowed_file(file.filename):
+                return jsonify({'status': 'error', 'message': 'Định dạng tệp ảnh không được hỗ trợ'}), 400
+
+            file_uuid = uuid.uuid4().hex[:10]
+            orig_filename = secure_filename(file.filename)
+            orig_stem, _ = os.path.splitext(orig_filename)
+            if not orig_stem:
+                orig_stem = "image"
+
+            clean_filename = f"{orig_stem}.svg"
+            in_ext = os.path.splitext(orig_filename)[1].lower() or '.png'
+            input_name = f"input_svg_{file_uuid}{in_ext}"
+            input_path = os.path.join(UPLOAD_DIR, input_name)
+            file.save(input_path)
+
+            output_name = f"vector_{file_uuid}.svg"
+            output_path = os.path.join(OUTPUT_DIR, output_name)
+
+            stats = svg_processor.vectorize_image(
+                input_path=input_path,
+                output_svg_path=output_path,
+                preset=preset,
+                custom_params=custom_params if custom_params else None,
+                max_dimension=max_dimension,
+                enable_ai_line_boost=enable_ai_line_boost
+            )
+
+            with open(output_path, 'r', encoding='utf-8', errors='replace') as sf:
+                svg_content = sf.read()
+
+            result_data = {
+                'id': file_uuid,
+                'timestamp': datetime.now().strftime('%H:%M:%S - %d/%m/%Y'),
+                'original_filename': orig_filename,
+                'clean_filename': clean_filename,
+                'original_url': f"/uploads/{input_name}",
+                'result_url': f"/outputs/{output_name}",
+                'download_url': f"/api/download/{output_name}?name={clean_filename}",
+                'filename': output_name,
+                'stats': stats,
+                'svg_content': svg_content
+            }
+            return jsonify({'status': 'success', 'batch': False, 'data': result_data})
+
+        else:
+            # Batch Vectorization of Multiple Images
+            batch_uuid = uuid.uuid4().hex[:10]
+            zip_filename = f"Batch_SVG_Vector_{batch_uuid}.zip"
+            zip_path = os.path.join(OUTPUT_DIR, zip_filename)
+
+            results = []
+            files_to_zip = []
+            used_names = {}
+
+            for i, file in enumerate(files):
+                if not file.filename or not allowed_file(file.filename):
+                    continue
+
+                f_uuid = uuid.uuid4().hex[:10]
+                orig_filename = secure_filename(file.filename)
+                orig_stem, _ = os.path.splitext(orig_filename)
+                if not orig_stem:
+                    orig_stem = f"vector_image_{i+1}"
+
+                count = used_names.get(orig_stem, 0)
+                used_names[orig_stem] = count + 1
+                clean_filename = f"{orig_stem}_{count}.svg" if count > 0 else f"{orig_stem}.svg"
+
+                in_ext = os.path.splitext(orig_filename)[1].lower() or '.png'
+                input_name = f"input_batch_svg_{f_uuid}{in_ext}"
+                input_path = os.path.join(UPLOAD_DIR, input_name)
+                file.save(input_path)
+
+                output_name = f"vector_batch_{f_uuid}.svg"
+                output_path = os.path.join(OUTPUT_DIR, output_name)
+
+                try:
+                    stats = svg_processor.vectorize_image(
+                        input_path=input_path,
+                        output_svg_path=output_path,
+                        preset=preset,
+                        custom_params=custom_params if custom_params else None,
+                        max_dimension=max_dimension,
+                        enable_ai_line_boost=enable_ai_line_boost
+                    )
+
+                    with open(output_path, 'r', encoding='utf-8', errors='replace') as sf:
+                        svg_content = sf.read()
+
+                    item_data = {
+                        'id': f_uuid,
+                        'original_filename': orig_filename,
+                        'clean_filename': clean_filename,
+                        'original_url': f"/uploads/{input_name}",
+                        'result_url': f"/outputs/{output_name}",
+                        'download_url': f"/api/download/{output_name}?name={clean_filename}",
+                        'filename': output_name,
+                        'stats': stats,
+                        'svg_content': svg_content
+                    }
+                    results.append(item_data)
+                    files_to_zip.append((output_path, clean_filename))
+                except Exception as ex:
+                    print(f"[SvgProcessor] Error vectorizing {orig_filename}: {ex}")
+
+            if not results:
+                return jsonify({'status': 'error', 'message': 'Không có ảnh nào được vector hóa thành công!'}), 500
+
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for fpath, arcname in files_to_zip:
+                    zf.write(fpath, arcname)
+
+            return jsonify({
+                'status': 'success',
+                'batch': True,
+                'count': len(results),
+                'results': results,
+                'zip_url': f"/outputs/{zip_filename}",
+                'zip_filename': zip_filename,
+                'download_url': f"/api/download/{zip_filename}"
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/svg/svg-to-xml', methods=['POST'])
+def api_svg_to_xml():
+    """
+    Parses SVG file and returns XML source code with detailed inspection & palette.
+    """
+    try:
+        file = request.files.get('svg_file')
+        filename = request.form.get('filename')
+        
+        svg_content = ""
+        orig_filename = "vector.svg"
+
+        if file and file.filename:
+            orig_filename = secure_filename(file.filename)
+            file_uuid = uuid.uuid4().hex[:10]
+            save_name = f"upload_svg_{file_uuid}.svg"
+            save_path = os.path.join(UPLOAD_DIR, save_name)
+            file.save(save_path)
+            with open(save_path, 'r', encoding='utf-8', errors='replace') as f:
+                svg_content = f.read()
+            svg_url = f"/uploads/{save_name}"
+        elif filename:
+            safe_name = secure_filename(filename)
+            target_path = os.path.join(OUTPUT_DIR, safe_name)
+            if not os.path.exists(target_path):
+                target_path = os.path.join(UPLOAD_DIR, safe_name)
+            if not os.path.exists(target_path):
+                return jsonify({'status': 'error', 'message': f'Không tìm thấy file: {filename}'}), 404
+            with open(target_path, 'r', encoding='utf-8', errors='replace') as f:
+                svg_content = f.read()
+            svg_url = f"/outputs/{safe_name}"
+        else:
+            raw_xml = request.form.get('xml_text')
+            if raw_xml:
+                svg_content = raw_xml.strip()
+                svg_url = None
+            else:
+                return jsonify({'status': 'error', 'message': 'Vui lòng tải lên file SVG hoặc nhập mã XML!'}), 400
+
+        stats = svg_processor.inspect_svg_content(svg_content)
+        formatted_xml = svg_processor.format_svg_xml(svg_content, minify=False)
+
+        return jsonify({
+            'status': 'success',
+            'filename': orig_filename,
+            'svg_url': svg_url,
+            'xml_content': formatted_xml,
+            'raw_xml': svg_content,
+            'stats': stats
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/svg/xml-to-svg', methods=['POST'])
+def api_svg_xml_to_svg():
+    """
+    Validates SVG XML code and converts it to a downloadable, renderable .svg file.
+    """
+    try:
+        xml_text = request.form.get('xml_text', '').strip()
+        custom_name = request.form.get('custom_name', '').strip()
+        if not xml_text:
+            return jsonify({'status': 'error', 'message': 'Mã SVG XML không được để trống!'}), 400
+
+        file_uuid = uuid.uuid4().hex[:10]
+        output_name = f"render_{file_uuid}.svg"
+        output_path = os.path.join(OUTPUT_DIR, output_name)
+
+        stats = svg_processor.xml_to_svg_file(xml_text, output_path)
+
+        if custom_name:
+            stem = os.path.splitext(secure_filename(custom_name))[0]
+            clean_filename = f"{stem}.svg" if stem else "vector.svg"
+        else:
+            clean_filename = "vector_design.svg"
+
+        return jsonify({
+            'status': 'success',
+            'filename': output_name,
+            'clean_filename': clean_filename,
+            'svg_url': f"/outputs/{output_name}",
+            'download_url': f"/api/download/{output_name}?name={clean_filename}",
+            'stats': stats
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/svg/ai-assist', methods=['POST'])
+def api_svg_ai_assist():
+    """
+    AI-powered SVG Assistant (Explain, Optimize, Recolor, Generate from Prompt, Fix).
+    """
+    try:
+        action = request.form.get('action', '').strip().lower()
+        svg_xml = request.form.get('svg_xml', '').strip()
+        prompt = request.form.get('prompt', '').strip()
+        palette_key = request.form.get('palette_key', 'cyberpunk').strip().lower()
+
+        if action in ('explain', 'optimize', 'recolor', 'fix') and not svg_xml:
+            return jsonify({'status': 'error', 'message': f'Hành động {action} yêu cầu mã SVG XML!'}), 400
+
+        result = svg_processor.ai_assist(
+            action=action,
+            svg_xml=svg_xml,
+            prompt=prompt,
+            palette_key=palette_key,
+            llm_engine=llm_engine
+        )
+        return jsonify({'status': 'success', 'data': result})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/svg/save-to-downloads', methods=['POST'])
+def api_svg_save_to_downloads():
+    """Saves SVG vector file to the user's Downloads folder."""
+    try:
+        filename = request.form.get('filename')
+        custom_name = request.form.get('custom_name')
+        if not filename:
+            return jsonify({'status': 'error', 'message': 'Tên tệp không hợp lệ'}), 400
+
+        safe_name = secure_filename(filename)
+        src_path = os.path.join(OUTPUT_DIR, safe_name)
+        if not os.path.exists(src_path):
+            return jsonify({'status': 'error', 'message': 'Không tìm thấy tệp vector trên máy chủ'}), 404
+
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        os.makedirs(downloads_dir, exist_ok=True)
+
+        if custom_name:
+            stem = os.path.splitext(secure_filename(custom_name))[0]
+            target_name = f"{stem}.svg" if stem else safe_name
+        else:
+            target_name = safe_name
+
+        dst_path = os.path.join(downloads_dir, target_name)
+        shutil.copy2(src_path, dst_path)
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Đã lưu thành công tệp vector "{target_name}" vào thư mục Downloads của bạn!',
+            'path': dst_path
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+
+@app.route('/api/svg/save-batch-to-downloads', methods=['POST'])
+def api_svg_save_batch_to_downloads():
+    """Saves multiple vectorized SVG files to user's Downloads folder."""
+    try:
+        data = request.get_json(silent=True) or {}
+        items = data.get('items', [])
+        if not items:
+            return jsonify({'status': 'error', 'message': 'Không có tệp vector nào để lưu'}), 400
+
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        os.makedirs(downloads_dir, exist_ok=True)
+
+        saved_files = []
+        for it in items:
+            filename = secure_filename(it.get('filename') or '')
+            custom_name = it.get('clean_filename') or it.get('original_filename') or ''
+            if not filename:
+                continue
+            src_path = os.path.join(OUTPUT_DIR, filename)
+            if not os.path.exists(src_path):
+                continue
+
+            target_name = secure_filename(custom_name) if custom_name else filename
+            if not target_name.endswith('.svg'):
+                target_name += '.svg'
+
+            dst_path = os.path.join(downloads_dir, target_name)
+            shutil.copy2(src_path, dst_path)
+            saved_files.append(target_name)
+
+        return jsonify({
+            'status': 'success',
+            'count': len(saved_files),
+            'saved_files': saved_files,
+            'message': f'Đã lưu thành công {len(saved_files)} tệp vector .SVG vào thư mục Downloads của bạn!'
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500

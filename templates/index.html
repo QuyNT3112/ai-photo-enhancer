@@ -69,6 +69,10 @@
                     <i class="fa-solid fa-crosshairs"></i> Tọa Độ Điểm (X, Y)
                     <span class="badge-tab-new">MỚI</span>
                 </button>
+                <button type="button" class="nav-main-tab" id="tabBtnSvgStudio">
+                    <i class="fa-solid fa-bezier-curve"></i> AI Dịch SVG & Vector
+                    <span class="badge-tab-new">MỚI</span>
+                </button>
             </nav>
 
             <div class="nav-status">
@@ -3266,7 +3270,615 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    
+    <!-- ========================================== -->
+    <!-- VIEW: AI SVG & VECTOR STUDIO               -->
+    <!-- ========================================== -->
+    <div id="viewSvgStudio" class="app-view hidden">
+        <!-- Sub-Navigation Header inside SVG Studio -->
+        <div class="svg-subnav-bar">
+            <div class="svg-subnav-tabs">
+                <button type="button" class="svg-sub-tab active" id="btnSvgSubModeXml">
+                    <i class="fa-solid fa-code"></i> Dịch SVG ⇋ Mã XML & Trợ Lý AI
+                </button>
+                <button type="button" class="svg-sub-tab" id="btnSvgSubModeVector">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI Dịch PNG/JPG ➔ .SVG Vector
+                </button>
+            </div>
+            <div class="svg-subnav-badge">
+                <span class="badge-local-ai"><i class="fa-solid fa-bolt"></i> Local AI Vectorizer · 100% Offline · Đường Nét Siêu Chuẩn</span>
+            </div>
+        </div>
+
+        <!-- SUB-PANEL 1: SVG <-> XML & AI ASSISTANT -->
+        <div id="svgSubPanelXml" class="svg-sub-panel active">
+            <main class="main-container">
+                <!-- Left Panel: Upload / Input & AI Tools & Code Editor -->
+                <aside class="sidebar-panel">
+                    
+                    <!-- 1. Tải Lên hoặc Tạo Mã SVG -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <div class="step-badge">1</div>
+                            <h2 class="card-title">Tải Ảnh SVG Hoặc Tạo Bằng AI</h2>
+                        </div>
+
+                        <!-- Drop Zone for SVG files -->
+                        <div class="drop-zone drop-zone-compact" id="svgDropZone">
+                            <input type="file" id="svgFileInput" accept=".svg, image/svg+xml" class="file-input-hidden" multiple>
+                            <div class="drop-content" id="svgDropPrompt">
+                                <div class="upload-icon-circle-sm">
+                                    <i class="fa-solid fa-file-code"></i>
+                                </div>
+                                <p class="drop-title-sm">Kéo & thả file <strong>.svg</strong> vào đây</p>
+                                <p class="drop-sub">hoặc <span class="highlight-link">chọn từ máy</span> / Dán mã XML vào ô bên dưới</p>
+                            </div>
+                        </div>
+
+                        <!-- Sample SVG Templates -->
+                        <div class="sample-btn-group" style="margin-top: 10px;">
+                            <span class="sample-label"><i class="fa-regular fa-lightbulb"></i> Mẫu thử nhanh:</span>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                <button type="button" class="btn-sample" id="btnSampleSvgShield">
+                                    <i class="fa-solid fa-shield-halved text-cyan"></i> Khiên AI
+                                </button>
+                                <button type="button" class="btn-sample" id="btnSampleSvgLogo">
+                                    <i class="fa-solid fa-shapes text-violet"></i> Logo Cyber
+                                </button>
+                                <button type="button" class="btn-sample" id="btnSampleSvgSparkle">
+                                    <i class="fa-solid fa-star text-amber"></i> Sao AI
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- AI Text-to-SVG Prompt Box -->
+                        <div class="form-group" style="margin-top: 14px;">
+                            <label class="form-label" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
+                                <span><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> AI Tạo Mã SVG Từ Mô Tả Text</span>
+                                <span class="badge-mini">AI Generator</span>
+                            </label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="svgAiPromptInput" class="form-input" placeholder="Ví dụ: Khiên bảo mật công nghệ, biểu tượng tên lửa vũ trụ..." style="flex: 1; font-size: 13px;">
+                                <button type="button" class="btn-action-sm btn-cyan" id="btnSvgAiGenerate" title="Tạo mã SVG bằng AI">
+                                    <i class="fa-solid fa-sparkles"></i> Tạo SVG
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- AI Assistant Action Buttons -->
+                        <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+                            <button type="button" class="btn-tool-outline" id="btnSvgAiExplain" title="Phân tích cấu trúc và ý nghĩa hình học">
+                                <i class="fa-solid fa-brain text-violet"></i> AI Phân Tích
+                            </button>
+                            <button type="button" class="btn-tool-outline" id="btnSvgAiOptimize" title="Làm sạch, định dạng và nén mã SVG">
+                                <i class="fa-solid fa-gauge-high text-cyan"></i> AI Tối Ưu
+                            </button>
+                            <button type="button" class="btn-tool-outline" id="btnSvgAiFix" title="Tự động sửa lỗi thẻ chưa đóng hoặc thiếu xmlns">
+                                <i class="fa-solid fa-wrench text-amber"></i> AI Sửa Lỗi
+                            </button>
+                        </div>
+
+                        <!-- AI Palette Recolor -->
+                        <div class="form-group" style="margin-top: 12px;">
+                            <label class="form-label" style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">
+                                <i class="fa-solid fa-palette text-emerald"></i> AI Đổi Tông Màu (Palette Recolor):
+                            </label>
+                            <div style="display: flex; gap: 6px;">
+                                <select id="selSvgPalette" class="form-select" style="flex: 1; font-size: 12px;">
+                                    <option value="cyberpunk">Cyberpunk Neon (Cyan / Hồng / Tím)</option>
+                                    <option value="sunset">Hoàng Hôn (Warm Sunset / Cam / Đỏ)</option>
+                                    <option value="pastel">Pastel Nhẹ Nhàng (Soft Pastel)</option>
+                                    <option value="emerald">Lục Bảo Thiên Nhiên (Emerald Nature)</option>
+                                    <option value="monochrome">Đơn Sắc Hiện Đại (Monochrome Dark)</option>
+                                    <option value="luxury_gold">Hoàng Kim Sang Trọng (Luxury Gold)</option>
+                                </select>
+                                <button type="button" class="btn-action-sm btn-emerald" id="btnSvgAiRecolor">
+                                    <i class="fa-solid fa-brush"></i> Đổi Màu
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Mã Nguồn XML (Code Editor) -->
+                    <div class="glass-card" style="margin-top: 16px;">
+                        <div class="card-header" style="justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div class="step-badge">2</div>
+                                <h2 class="card-title">Mã Nguồn XML Của File SVG</h2>
+                            </div>
+                            <span class="preview-badge badge-success" id="svgXmlStatusBadge">Sẵn sàng</span>
+                        </div>
+
+                        <!-- Editor Toolbar -->
+                        <div class="code-editor-toolbar">
+                            <div class="editor-stats-mini">
+                                <span id="svgCharCount">0 ký tự</span> · <span id="svgLineCount">0 dòng</span>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button type="button" class="btn-editor-tool" id="btnBeautifySvgXml" title="Làm đẹp & thụt lề chuẩn">
+                                    <i class="fa-solid fa-align-left"></i> Format
+                                </button>
+                                <button type="button" class="btn-editor-tool" id="btnMinifySvgXml" title="Nén mã siêu gọn">
+                                    <i class="fa-solid fa-compress"></i> Minify
+                                </button>
+                                <button type="button" class="btn-editor-tool" id="btnCopySvgXml" title="Sao chép toàn bộ XML">
+                                    <i class="fa-regular fa-copy"></i> Copy
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Editor Textarea -->
+                        <div class="code-editor-wrapper">
+                            <textarea id="svgXmlEditor" class="code-editor-textarea" spellcheck="false" placeholder="<!-- Nhập hoặc dán mã SVG XML tại đây. Hệ thống sẽ tự động hiển thị ảnh SVG trực tiếp bên phải -->"></textarea>
+                        </div>
+
+                        <!-- Validation Alert message if XML is broken -->
+                        <div class="xml-error-alert hidden" id="svgXmlErrorAlert">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span id="svgXmlErrorMsg">Lỗi cú pháp XML</span>
+                        </div>
+
+                        <!-- Render XML to SVG File Action -->
+                        <button type="button" class="btn-run-enhancement" id="btnRenderXmlToSvg" style="margin-top: 14px; width: 100%; background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%);">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> Dịch Mã XML Sang File .SVG & Tải Về
+                        </button>
+                    </div>
+
+                </aside>
+
+                <!-- Right Panel: Live SVG Preview Canvas & Inspector -->
+                <section class="preview-panel">
+                    <div class="glass-card preview-card">
+                        <div class="preview-header">
+                            <div class="preview-title-group">
+                                <h2 class="card-title">Hiển Thị Ảnh SVG Trực Quan & Kiểm Tra Cấu Trúc</h2>
+                                <span class="preview-badge badge-idle" id="svgRenderBadge">Live Vector</span>
+                            </div>
+
+                            <!-- Canvas Controls -->
+                            <div class="svg-canvas-controls">
+                                <button type="button" class="btn-canvas-ctrl active" data-bg="checker" id="btnSvgBgChecker" title="Nền trong suốt (Checkerboard)">
+                                    <i class="fa-solid fa-border-all"></i>
+                                </button>
+                                <button type="button" class="btn-canvas-ctrl" data-bg="dark" id="btnSvgBgDark" title="Nền tối">
+                                    <i class="fa-solid fa-moon"></i>
+                                </button>
+                                <button type="button" class="btn-canvas-ctrl" data-bg="light" id="btnSvgBgLight" title="Nền sáng">
+                                    <i class="fa-solid fa-sun"></i>
+                                </button>
+                                <span class="ctrl-divider"></span>
+                                <button type="button" class="btn-canvas-ctrl" id="btnSvgZoomOut" title="Thu nhỏ">
+                                    <i class="fa-solid fa-magnifying-glass-minus"></i>
+                                </button>
+                                <span class="zoom-level-text" id="svgZoomLevelText">100%</span>
+                                <button type="button" class="btn-canvas-ctrl" id="btnSvgZoomIn" title="Phóng to">
+                                    <i class="fa-solid fa-magnifying-glass-plus"></i>
+                                </button>
+                                <button type="button" class="btn-canvas-ctrl" id="btnSvgZoomReset" title="Đặt lại kích thước">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Live Render Area -->
+                        <div class="svg-stage-viewport bg-checkerboard" id="svgStageViewport">
+                            <div class="svg-stage-container" id="svgStageContainer">
+                                <div id="svgStageEmptyPrompt" class="svg-stage-empty">
+                                    <div class="empty-icon-circle">
+                                        <i class="fa-solid fa-bezier-curve"></i>
+                                    </div>
+                                    <p class="empty-title">Chưa có mã SVG nào để hiển thị</p>
+                                    <p class="empty-sub">Hãy tải lên file .svg, dán mã XML hoặc bấm "Tạo SVG Bằng AI" bên trái để trải nghiệm</p>
+                                </div>
+                                <div id="svgStageContent" class="svg-stage-content hidden"></div>
+                            </div>
+                        </div>
+
+                        <!-- AI Explanation Banner (hidden by default) -->
+                        <div class="ai-explanation-box hidden" id="svgAiExplainContainer">
+                            <div class="ai-box-header">
+                                <span><i class="fa-solid fa-robot text-violet"></i> Kết Quả AI Phân Tích Cấu Trúc SVG</span>
+                                <button type="button" class="btn-close-box" id="btnCloseSvgAiExplain"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="ai-box-content" id="svgAiExplainText"></div>
+                        </div>
+
+                        <!-- Vector Inspection & Metrics -->
+                        <div class="svg-inspection-panel" id="svgInspectionPanel">
+                            <div class="svg-metrics-grid">
+                                <div class="metric-cell">
+                                    <div class="metric-label">Độ Phức Tạp</div>
+                                    <div class="metric-value text-cyan" id="svgInspectComplexity">--</div>
+                                </div>
+                                <div class="metric-cell">
+                                    <div class="metric-label">Kích Thước</div>
+                                    <div class="metric-value" id="svgInspectDims">--</div>
+                                </div>
+                                <div class="metric-cell">
+                                    <div class="metric-label">Tọa Độ (viewBox)</div>
+                                    <div class="metric-value text-muted" id="svgInspectViewBox">--</div>
+                                </div>
+                                <div class="metric-cell">
+                                    <div class="metric-label">Đường Bézier (Paths)</div>
+                                    <div class="metric-value text-emerald" id="svgInspectPaths">--</div>
+                                </div>
+                                <div class="metric-cell">
+                                    <div class="metric-label">Tổng Thẻ Vector</div>
+                                    <div class="metric-value" id="svgInspectElements">--</div>
+                                </div>
+                            </div>
+
+                            <!-- Extracted Palette Row -->
+                            <div class="palette-extract-row" style="margin-top: 14px;">
+                                <div class="palette-extract-label">
+                                    <i class="fa-solid fa-swatchbook text-cyan"></i> Bảng Màu Trích Xuất (Bấm màu để sao chép mã Hex):
+                                </div>
+                                <div class="palette-swatches-grid" id="svgInspectPalette">
+                                    <span class="text-muted" style="font-size: 12px;">Chưa có dữ liệu màu</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Export & Download Actions -->
+                        <div class="svg-actions-toolbar" style="margin-top: 16px;">
+                            <button type="button" class="btn-action-primary" id="btnDownloadSvgCurrent">
+                                <i class="fa-solid fa-download"></i> Tải Tệp .SVG
+                            </button>
+                            <button type="button" class="btn-action-secondary" id="btnSaveSvgXmlDownloads">
+                                <i class="fa-solid fa-folder-arrow-down text-cyan"></i> Lưu Vào Downloads
+                            </button>
+                            <button type="button" class="btn-action-secondary" id="btnExportSvgPng" title="Xuất ảnh PNG trong suốt độ phân giải cao">
+                                <i class="fa-solid fa-image text-emerald"></i> Xuất PNG Sắc Nét (2x)
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- SUB-PANEL 2: AI VECTORIZE (PNG/JPG -> .SVG VECTOR) -->
+        <div id="svgSubPanelVector" class="svg-sub-panel hidden">
+            <main class="main-container">
+                <!-- Left Panel: Upload Raster & Vector Tuning -->
+                <aside class="sidebar-panel">
+                    
+                    <!-- 1. Tải Ảnh Raster -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <div class="step-badge">1</div>
+                            <h2 class="card-title">Tải Ảnh Cần Dịch Sang SVG</h2>
+                            <span class="file-counter-badge hidden" id="vectorFileBadge">1 ảnh</span>
+                        </div>
+
+                        <div class="drop-zone" id="vectorDropZone">
+                            <input type="file" id="vectorFileInput" accept="image/*, .png, .jpg, .jpeg, .webp, .bmp, .tiff, .tif, .gif" class="file-input-hidden" multiple>
+                            <div class="drop-content" id="vectorDropPrompt">
+                                <div class="upload-icon-circle">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                </div>
+                                <p class="drop-title">Kéo & thả ảnh <strong>PNG, JPG, WEBP</strong> vào đây</p>
+                                <p class="drop-sub">hoặc <span class="highlight-link">chọn ảnh từ máy</span></p>
+                                <div class="paste-hint">
+                                    <i class="fa-regular fa-clipboard"></i> Nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> để dán ảnh trực tiếp
+                                </div>
+                            </div>
+
+                            <!-- Upload Preview -->
+                            <div class="upload-preview-wrapper hidden" id="vectorPreviewWrapper">
+                                <img src="" alt="Thumbnail" id="vectorThumb" class="upload-thumb">
+                                <div class="upload-file-meta">
+                                    <div class="file-name" id="vectorFileName">image.png</div>
+                                    <div class="file-dims" id="vectorFileMeta">1920 x 1080 · 2.4 MB</div>
+                                </div>
+                                <button type="button" class="btn-remove-file" id="btnRemoveVectorFile" title="Xóa ảnh">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                                                <!-- Multi-Image Batch List -->
+                        <div class="batch-files-list-wrapper hidden" id="vectorBatchListWrapper">
+                            <div class="batch-list-header">
+                                <span class="batch-list-title">
+                                    <i class="fa-solid fa-list-check text-cyan"></i> Đã chọn: <strong id="vectorBatchSelectedCount">0</strong> ảnh
+                                </span>
+                                <button type="button" class="btn-clear-batch" id="btnClearVectorBatch" title="Xóa tất cả">
+                                    <i class="fa-solid fa-trash-can"></i> Xóa tất cả
+                                </button>
+                            </div>
+                            <div class="batch-files-grid" id="vectorBatchFilesGrid"></div>
+                            <div class="batch-add-more">
+                                <button type="button" class="btn-add-more-files" id="btnAddMoreVectorFiles">
+                                    <i class="fa-solid fa-plus"></i> Chọn thêm ảnh khác...
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Sample Buttons -->
+                        <div class="sample-btn-group" style="margin-top: 10px;">
+                            <span class="sample-label"><i class="fa-regular fa-lightbulb"></i> Thử nhanh ảnh mẫu:</span>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                <button type="button" class="btn-sample" id="btnSampleVectorAnime">
+                                    <i class="fa-solid fa-paint-brush text-cyan"></i> Tranh Anime Màu
+                                </button>
+                                <button type="button" class="btn-sample" id="btnSampleVectorPortrait">
+                                    <i class="fa-solid fa-user text-violet"></i> Chân Dung Chi Tiết
+                                </button>
+                                <button type="button" class="btn-sample" id="btnSampleVectorFrame">
+                                    <i class="fa-solid fa-vector-square text-amber"></i> Logo & Khung Nét
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Cấu Hình AI Vector Hóa Local -->
+                    <div class="glass-card" style="margin-top: 16px;">
+                        <div class="card-header">
+                            <div class="step-badge">2</div>
+                            <h2 class="card-title">Chế Độ AI Vector Hóa Local</h2>
+                        </div>
+
+                        <!-- Mode Presets -->
+                        <div class="vector-presets-grid" id="vectorPresetsGrid">
+                            <!-- Fidelity (Default) -->
+                            <label class="vector-preset-card active" data-preset="fidelity">
+                                <input type="radio" name="vectorPreset" value="fidelity" checked>
+                                <div class="preset-icon"><i class="fa-solid fa-gem text-cyan"></i></div>
+                                <div class="preset-info">
+                                    <div class="preset-name">Chân Thực Đa Sắc (Khuyên Dùng)</div>
+                                    <div class="preset-desc">Bảo toàn chuẩn xác 100% đường cong Bézier & màu sắc ảnh gốc.</div>
+                                </div>
+                            </label>
+
+                            <!-- Clean Logo -->
+                            <label class="vector-preset-card" data-preset="clean_logo">
+                                <input type="radio" name="vectorPreset" value="clean_logo">
+                                <div class="preset-icon"><i class="fa-solid fa-shapes text-violet"></i></div>
+                                <div class="preset-info">
+                                    <div class="preset-name">Đồ Họa & Logo (Cutout)</div>
+                                    <div class="preset-desc">Sắc sảo từng góc cạnh, phân lớp phẳng, loại bỏ nhiễu hạt.</div>
+                                </div>
+                            </label>
+
+                            <!-- Line Art -->
+                            <label class="vector-preset-card" data-preset="lineart">
+                                <input type="radio" name="vectorPreset" value="lineart">
+                                <div class="preset-icon"><i class="fa-solid fa-pen-nib text-amber"></i></div>
+                                <div class="preset-info">
+                                    <div class="preset-name">Line Art & Tranh Nét (CAD/Sketch)</div>
+                                    <div class="preset-desc">Trích xuất nét vẽ đơn sắc siêu nét, không bị răng cưa hay nhòe viền.</div>
+                                </div>
+                            </label>
+
+                            <!-- Photo -->
+                            <label class="vector-preset-card" data-preset="photo">
+                                <input type="radio" name="vectorPreset" value="photo">
+                                <div class="preset-icon"><i class="fa-solid fa-camera text-emerald"></i></div>
+                                <div class="preset-info">
+                                    <div class="preset-name">Chân Dung & Ảnh Thật</div>
+                                    <div class="preset-desc">Vector nhiều lớp mật độ cao, chuyển màu êm dịu theo phong cách vector art.</div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- AI Preprocessing Options -->
+                        <div class="vector-options-box" style="margin-top: 14px;">
+                            <label class="custom-checkbox-row">
+                                <input type="checkbox" id="chkVectorAiBoost" checked>
+                                <span class="checkbox-label">
+                                    <strong><i class="fa-solid fa-wand-magic text-cyan"></i> Tăng cường nét & Khử nhiễu AI (Bilateral Line Sharpening)</strong>
+                                    <small style="display: block; color: var(--text-muted); font-size: 11px;">Loại bỏ nhiễu JPEG quanh đường biên và làm sắc viền trước khi vẽ đường cong.</small>
+                                </span>
+                            </label>
+
+                            <label class="custom-checkbox-row" style="margin-top: 8px;">
+                                <input type="checkbox" id="chkVectorMaxRes" checked>
+                                <span class="checkbox-label">
+                                    <strong><i class="fa-solid fa-up-right-and-down-left-from-center text-violet"></i> Giữ nguyên 100% kích thước gốc</strong>
+                                    <small style="display: block; color: var(--text-muted); font-size: 11px;">Vector hóa ở độ phân giải gốc để tái tạo chính xác từng chi tiết nhỏ.</small>
+                                </span>
+                            </label>
+                        </div>
+
+                        <!-- Pro Tuning Toggle Button -->
+                        <button type="button" class="btn-toggle-pro" id="btnToggleVectorPro" style="margin-top: 12px;">
+                            <span><i class="fa-solid fa-sliders"></i> Tùy Chỉnh Thông Số Nâng Cao (Pro Mode)</span>
+                            <i class="fa-solid fa-chevron-down" id="iconVectorProChevron"></i>
+                        </button>
+
+                        <!-- Pro Tuning Panel (Collapsible) -->
+                        <div class="vector-pro-panel hidden" id="vectorProPanel" style="margin-top: 10px;">
+                            <div class="pro-field">
+                                <label>Kiểu khớp đường cong (Curve Mode):</label>
+                                <select id="selVectorMode" class="form-select-sm">
+                                    <option value="spline" selected>Bézier Splines (Đường cong mượt mà - Tốt nhất)</option>
+                                    <option value="polygon">Polygon (Đa giác hình học sắc cạnh)</option>
+                                    <option value="none">Pixel-Exact (Bám sát pixel từng nấc)</option>
+                                </select>
+                            </div>
+
+                            <div class="pro-field">
+                                <label>Độ chính xác màu sắc (Color Precision: <strong id="lblColorPrecision">8</strong>):</label>
+                                <input type="range" id="rngColorPrecision" min="3" max="8" value="8" step="1" class="slider-sm">
+                            </div>
+
+                            <div class="pro-field">
+                                <label>Lọc đốm nhiễu li ti (Filter Speckle: <strong id="lblFilterSpeckle">2</strong>px):</label>
+                                <input type="range" id="rngFilterSpeckle" min="1" max="16" value="2" step="1" class="slider-sm">
+                            </div>
+
+                            <div class="pro-field">
+                                <label>Độ nhạy góc nhọn (Corner Threshold: <strong id="lblCornerThreshold">60</strong>°):</label>
+                                <input type="range" id="rngCornerThreshold" min="20" max="90" value="60" step="5" class="slider-sm">
+                            </div>
+
+                            <div class="pro-field">
+                                <label>Độ dài đoạn cong tối thiểu (Length Threshold: <strong id="lblLengthThreshold">3.5</strong>):</label>
+                                <input type="range" id="rngLengthThreshold" min="1.0" max="10.0" value="3.5" step="0.5" class="slider-sm">
+                            </div>
+                        </div>
+
+                        <!-- Action Button -->
+                        <button type="button" class="btn-run-enhancement" id="btnRunVectorize" disabled style="margin-top: 18px; width: 100%; background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%);">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Dịch Sang .SVG Bằng AI Local Ngay
+                        </button>
+                    </div>
+
+                </aside>
+
+                <!-- Right Panel: Comparison Slider & Vector Quality Inspection -->
+                <section class="preview-panel">
+                    <div class="glass-card preview-card">
+                        <div class="preview-header">
+                            <div class="preview-title-group">
+                                <h2 class="card-title">Kết Quả AI Vector Hóa (So Sánh Trực Quan)</h2>
+                                <span class="preview-badge badge-idle" id="vectorStatusBadge">Chờ ảnh</span>
+                            </div>
+
+                            <!-- View Mode Toggle -->
+                            <div class="vector-view-toggles">
+                                <button type="button" class="btn-view-toggle active" id="btnToggleCompareSlider" title="So sánh trước / sau">
+                                    <i class="fa-solid fa-arrows-split-up-and-left"></i> Kéo Trượt So Sánh
+                                </button>
+                                <button type="button" class="btn-view-toggle" id="btnToggleVectorOnly" title="Chỉ xem vector SVG">
+                                    <i class="fa-solid fa-vector-square"></i> Chỉ Xem SVG
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Empty state -->
+                        <div class="preview-empty-state" id="vectorEmptyState">
+                            <div class="empty-icon-circle">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </div>
+                            <p class="empty-title">Chưa có ảnh nào được vector hóa</p>
+                            <p class="empty-sub">Hãy tải lên một ảnh PNG / JPG bên trái và bấm <strong>"Dịch Sang .SVG Bằng AI Local"</strong> để kiểm chứng đường nét và màu sắc!</p>
+                        </div>
+
+                        <!-- Processing State -->
+                        <div class="preview-empty-state hidden" id="vectorProcessingState">
+                            <div class="ai-processing-ring">
+                                <div class="ring-spinner"></div>
+                                <div class="ring-core"><i class="fa-solid fa-bezier-curve"></i></div>
+                            </div>
+                            <p class="processing-title">AI Đang Vector Hóa Từng Đường Cong & Màu Sắc...</p>
+                            <p class="processing-sub" id="vectorProcessingStatus">Đang lọc nhiễu đường biên & khớp đường cong Bézier spline...</p>
+                        </div>
+
+                        <!-- Result Area with Interactive Slider -->
+                        <div class="vector-result-wrapper hidden" id="vectorResultWrapper">
+                            
+                            <!-- Before/After Comparison Container -->
+                            <div class="comparison-slider-stage" id="vectorComparisonStage">
+                                <!-- Raster Original (Left/Bottom) -->
+                                <img src="" alt="Original Raster" id="vectorImgOriginal" class="slider-img-orig">
+                                
+                                <!-- SVG Vector (Right/Top Overlay) -->
+                                <div class="slider-svg-overlay" id="vectorSvgOverlay">
+                                    <div id="vectorSvgContainer" class="vector-rendered-container"></div>
+                                </div>
+
+                                <!-- Draggable Divider Handle -->
+                                <div class="slider-divider" id="vectorSliderDivider">
+                                    <div class="divider-line"></div>
+                                    <div class="divider-handle">
+                                        <i class="fa-solid fa-arrows-left-right"></i>
+                                    </div>
+                                </div>
+
+                                <!-- Labels -->
+                                <span class="slider-tag tag-left">Ảnh Gốc (PNG/JPG)</span>
+                                <span class="slider-tag tag-right">Vector AI (.SVG Vô Cực Nét)</span>
+                            </div>
+
+                            <!-- Single SVG Viewer (Alternative Mode) -->
+                            <div class="single-svg-stage hidden bg-checkerboard" id="vectorSingleStage">
+                                <div id="vectorSingleSvgContainer"></div>
+                            </div>
+
+                            <!-- Vector Quality Metrics Bar -->
+                            <div class="vector-quality-banner" style="margin-top: 16px;">
+                                <div class="quality-metric">
+                                    <div class="q-val text-cyan" id="resPathCount">0</div>
+                                    <div class="q-lbl">Đường Bézier</div>
+                                </div>
+                                <div class="quality-metric">
+                                    <div class="q-val text-emerald" id="resColorCount">0</div>
+                                    <div class="q-lbl">Màu Sắc Chuẩn</div>
+                                </div>
+                                <div class="quality-metric">
+                                    <div class="q-val text-violet" id="resSvgSize">0 KB</div>
+                                    <div class="q-lbl">Dung Lượng SVG</div>
+                                </div>
+                                <div class="quality-metric">
+                                    <div class="q-val text-amber" id="resDuration">0s</div>
+                                    <div class="q-lbl">Thời Gian AI</div>
+                                </div>
+                                <div class="quality-metric">
+                                    <div class="q-val text-cyan" id="resScaleStatus">100% Vector</div>
+                                    <div class="q-lbl">Phóng To Vô Hạn</div>
+                                </div>
+                            </div>
+
+                            <!-- Extracted Palette Swatches -->
+                            <div class="palette-extract-row" style="margin-top: 12px;">
+                                <div class="palette-extract-label">
+                                    <i class="fa-solid fa-palette text-cyan"></i> Bảng Màu Đã Được AI Dịch Chuẩn Xác Sang SVG:
+                                </div>
+                                <div class="palette-swatches-grid" id="vectorResultPalette"></div>
+                            </div>
+
+                            <!-- Action Buttons Bar -->
+                            <div class="svg-actions-toolbar" style="margin-top: 16px;">
+                                <a href="#" download="" id="btnDownloadVectorSvg" class="btn-action-primary">
+                                    <i class="fa-solid fa-download"></i> Tải Tệp .SVG Về Máy
+                                </a>
+                                <button type="button" class="btn-action-secondary" id="btnSaveVectorDownloads">
+                                    <i class="fa-solid fa-folder-arrow-down text-cyan"></i> Lưu Vào Downloads
+                                </button>
+                                <button type="button" class="btn-action-secondary" id="btnSendToXmlEditor">
+                                    <i class="fa-solid fa-code text-violet"></i> Chuyển Sang Bộ Soạn Thảo XML
+                                </button>
+                                <button type="button" class="btn-action-secondary" id="btnCopyVectorXml">
+                                    <i class="fa-regular fa-copy text-amber"></i> Sao Chép Mã XML
+                                </button>
+                                <button type="button" class="btn-action-secondary hidden" id="btnBackToBatchResults" title="Quay lại danh sách kết quả hàng loạt">
+                                    <i class="fa-solid fa-table-cells text-cyan"></i> Danh Sách Hàng Loạt
+                                </button>
+                            </div>
+
+                        </div>
+                        <!-- Batch Results Container -->
+                        <div class="batch-results-container hidden" id="vectorBatchResultsContainer" style="margin-top: 10px;">
+                            <div class="batch-success-banner" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 8px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3);">
+                                <div class="banner-icon-circle" style="font-size: 1.8rem; color: #34d399;"><i class="fa-solid fa-circle-check"></i></div>
+                                <div class="banner-text">
+                                    <h3 style="font-size: 1.05rem; font-weight: 700; color: #f1f5f9; margin-bottom: 3px;">Vector Hóa Hàng Loạt Hoàn Tất!</h3>
+                                    <p style="font-size: 0.82rem; color: #cbd5e1; margin: 0;">Đã dịch thành công <strong id="vectorBatchSuccessCount" class="text-cyan">0</strong> ảnh sang chuẩn SVG Bézier siêu nét.</p>
+                                </div>
+                            </div>
+
+                            <!-- Batch Actions Toolbar -->
+                            <div class="svg-actions-toolbar" style="margin-top: 14px; margin-bottom: 16px;">
+                                <a href="#" download="" id="btnDownloadVectorBatchZip" class="btn-action-primary">
+                                    <i class="fa-solid fa-file-zipper"></i> Tải Trọn Bộ File ZIP (.svg)
+                                </a>
+                                <button type="button" class="btn-action-secondary" id="btnSaveVectorBatchDownloads">
+                                    <i class="fa-solid fa-folder-arrow-down text-cyan"></i> Lưu Tất Cả Vào Downloads
+                                </button>
+                            </div>
+
+                            <!-- Grid of Batch Result Cards -->
+                            <div class="batch-results-grid" id="vectorBatchResultsGrid"></div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+    </div>
+
+<!-- Scripts -->
     <script src="/static/js/app.js?v={{ v }}"></script>
 
     <!-- DATA ENGINEERING & STORAGE STUDIO MODAL -->

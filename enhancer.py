@@ -169,9 +169,9 @@ class ImageEnhancer:
         # Step 0: Reconstruct and heal broken/aliased contour lines along tangent flow
         img_bgr = self._reconstruct_tangent_flow(img_bgr, scale_ref=scale_ref)
 
-        k_micro_sz = max(3, int(round(3 * scale_ref))) | 1
-        k_mid_sz = max(5, int(round(5 * scale_ref))) | 1
-        k_out_sz = max(7, int(round(7 * scale_ref))) | 1
+        k_micro_sz = max(3, round(3 * scale_ref)) | 1
+        k_mid_sz = max(5, round(5 * scale_ref)) | 1
+        k_out_sz = max(7, round(7 * scale_ref)) | 1
 
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
@@ -265,7 +265,7 @@ class ImageEnhancer:
 
         if h <= tile_size and w <= tile_size:
             with torch.no_grad():
-                out_tensor = model(tensor)
+                out_tensor = model(tensor)  # type: ignore
         else:
             out_tensor = torch.zeros_like(tensor)
             weights = torch.zeros((1, 1, h, w), device=self.device)
@@ -283,7 +283,7 @@ class ImageEnhancer:
                 for x in x_starts:
                     tile = tensor[:, :, y:y+tile_size, x:x+tile_size]
                     with torch.no_grad():
-                        out_tile = model(tile)
+                        out_tile = model(tile)  # type: ignore
                     out_tensor[:, :, y:y+tile_size, x:x+tile_size] += out_tile
                     weights[:, :, y:y+tile_size, x:x+tile_size] += mask
             out_tensor = out_tensor / weights

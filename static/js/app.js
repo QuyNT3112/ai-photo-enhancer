@@ -988,6 +988,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabBtnBgRemover = document.getElementById('tabBtnBgRemover');
     const tabBtnConverter = document.getElementById('tabBtnConverter');
     const tabBtnCoordinates = document.getElementById('tabBtnCoordinates');
+    const tabBtnSvgStudio = document.getElementById('tabBtnSvgStudio');
 
     const viewEnhancer = document.getElementById('viewEnhancer');
     const viewAspect = document.getElementById('viewAspect');
@@ -998,6 +999,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewBgRemover = document.getElementById('viewBgRemover');
     const viewConverter = document.getElementById('viewConverter');
     const viewCoordinates = document.getElementById('viewCoordinates');
+    const viewSvgStudio = document.getElementById('viewSvgStudio');
 
     function switchAppTab(activeTab) {
         // Tab buttons
@@ -1010,6 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabBtnBgRemover) tabBtnBgRemover.classList.toggle('active', activeTab === 'bgremover');
         if (tabBtnConverter) tabBtnConverter.classList.toggle('active', activeTab === 'converter');
         if (tabBtnCoordinates) tabBtnCoordinates.classList.toggle('active', activeTab === 'coordinates');
+        if (tabBtnSvgStudio) tabBtnSvgStudio.classList.toggle('active', activeTab === 'svg');
 
         // Views
         viewEnhancer.classList.toggle('hidden', activeTab !== 'enhancer');
@@ -1025,7 +1028,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeTab === 'coordinates' && window.coordInspectorRefit) {
                 setTimeout(window.coordInspectorRefit, 60);
             }
+                if (viewSvgStudio) {
+            viewSvgStudio.classList.toggle('hidden', activeTab !== 'svg');
         }
+}
 
         // Auto scroll to chat bottom if opening chatbot
         if (activeTab === 'chatbot') {
@@ -1060,6 +1066,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (tabBtnCoordinates) {
         tabBtnCoordinates.addEventListener('click', () => switchAppTab('coordinates'));
+    }
+    if (tabBtnSvgStudio) {
+        tabBtnSvgStudio.addEventListener('click', () => switchAppTab('svg'));
     }
 
     // ==========================================
@@ -8221,6 +8230,1419 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initialize Coordinate Inspector
+    
+    // ==========================================================================
+    // 14. AI SVG & VECTOR STUDIO (BIDIRECTIONAL XML <-> SVG & LOCAL AI VECTOR)
+    // ==========================================================================
+    function initSvgStudio() {
+        // Mode Sub-Navigation
+        const btnSvgSubModeXml = document.getElementById('btnSvgSubModeXml');
+        const btnSvgSubModeVector = document.getElementById('btnSvgSubModeVector');
+        const svgSubPanelXml = document.getElementById('svgSubPanelXml');
+        const svgSubPanelVector = document.getElementById('svgSubPanelVector');
+
+        function switchSvgSubMode(mode) {
+            if (btnSvgSubModeXml) btnSvgSubModeXml.classList.toggle('active', mode === 'xml');
+            if (btnSvgSubModeVector) btnSvgSubModeVector.classList.toggle('active', mode === 'vector');
+            if (svgSubPanelXml) svgSubPanelXml.classList.toggle('hidden', mode !== 'xml');
+            if (svgSubPanelVector) svgSubPanelVector.classList.toggle('hidden', mode !== 'vector');
+        }
+
+        if (btnSvgSubModeXml) btnSvgSubModeXml.addEventListener('click', () => switchSvgSubMode('xml'));
+        if (btnSvgSubModeVector) btnSvgSubModeVector.addEventListener('click', () => switchSvgSubMode('vector'));
+
+        // ----------------------------------------------------------------------
+        // SUB-MODE 1: SVG ⇋ XML & AI ASSISTANT
+        // ----------------------------------------------------------------------
+        const svgDropZone = document.getElementById('svgDropZone');
+        const svgFileInput = document.getElementById('svgFileInput');
+        const svgXmlEditor = document.getElementById('svgXmlEditor');
+        const svgXmlStatusBadge = document.getElementById('svgXmlStatusBadge');
+        const svgXmlErrorAlert = document.getElementById('svgXmlErrorAlert');
+        const svgXmlErrorMsg = document.getElementById('svgXmlErrorMsg');
+        const svgCharCount = document.getElementById('svgCharCount');
+        const svgLineCount = document.getElementById('svgLineCount');
+
+        const svgStageViewport = document.getElementById('svgStageViewport');
+        const svgStageEmptyPrompt = document.getElementById('svgStageEmptyPrompt');
+        const svgStageContent = document.getElementById('svgStageContent');
+        const svgZoomLevelText = document.getElementById('svgZoomLevelText');
+
+        const btnSvgZoomIn = document.getElementById('btnSvgZoomIn');
+        const btnSvgZoomOut = document.getElementById('btnSvgZoomOut');
+        const btnSvgZoomReset = document.getElementById('btnSvgZoomReset');
+        const btnSvgBgChecker = document.getElementById('btnSvgBgChecker');
+        const btnSvgBgDark = document.getElementById('btnSvgBgDark');
+        const btnSvgBgLight = document.getElementById('btnSvgBgLight');
+
+        const svgInspectComplexity = document.getElementById('svgInspectComplexity');
+        const svgInspectDims = document.getElementById('svgInspectDims');
+        const svgInspectViewBox = document.getElementById('svgInspectViewBox');
+        const svgInspectPaths = document.getElementById('svgInspectPaths');
+        const svgInspectElements = document.getElementById('svgInspectElements');
+        const svgInspectPalette = document.getElementById('svgInspectPalette');
+
+        const btnBeautifySvgXml = document.getElementById('btnBeautifySvgXml');
+        const btnMinifySvgXml = document.getElementById('btnMinifySvgXml');
+        const btnCopySvgXml = document.getElementById('btnCopySvgXml');
+        const btnRenderXmlToSvg = document.getElementById('btnRenderXmlToSvg');
+        const btnDownloadSvgCurrent = document.getElementById('btnDownloadSvgCurrent');
+        const btnSaveSvgXmlDownloads = document.getElementById('btnSaveSvgXmlDownloads');
+        const btnExportSvgPng = document.getElementById('btnExportSvgPng');
+
+        const svgAiPromptInput = document.getElementById('svgAiPromptInput');
+        const btnSvgAiGenerate = document.getElementById('btnSvgAiGenerate');
+        const btnSvgAiExplain = document.getElementById('btnSvgAiExplain');
+        const btnSvgAiOptimize = document.getElementById('btnSvgAiOptimize');
+        const btnSvgAiFix = document.getElementById('btnSvgAiFix');
+        const selSvgPalette = document.getElementById('selSvgPalette');
+        const btnSvgAiRecolor = document.getElementById('btnSvgAiRecolor');
+
+        const svgAiExplainContainer = document.getElementById('svgAiExplainContainer');
+        const svgAiExplainText = document.getElementById('svgAiExplainText');
+        const btnCloseSvgAiExplain = document.getElementById('btnCloseSvgAiExplain');
+
+        const btnSampleSvgShield = document.getElementById('btnSampleSvgShield');
+        const btnSampleSvgLogo = document.getElementById('btnSampleSvgLogo');
+        const btnSampleSvgSparkle = document.getElementById('btnSampleSvgSparkle');
+
+        let currentSvgZoom = 1.0;
+        let lastRenderedXml = '';
+
+        function applySvgZoom() {
+            if (svgStageContent) {
+                svgStageContent.style.transform = `scale(${currentSvgZoom})`;
+            }
+            if (svgZoomLevelText) {
+                svgZoomLevelText.textContent = `${Math.round(currentSvgZoom * 100)}%`;
+            }
+        }
+
+        if (btnSvgZoomIn) {
+            btnSvgZoomIn.addEventListener('click', () => {
+                currentSvgZoom = Math.min(4.0, currentSvgZoom + 0.25);
+                applySvgZoom();
+            });
+        }
+        if (btnSvgZoomOut) {
+            btnSvgZoomOut.addEventListener('click', () => {
+                currentSvgZoom = Math.max(0.25, currentSvgZoom - 0.25);
+                applySvgZoom();
+            });
+        }
+        if (btnSvgZoomReset) {
+            btnSvgZoomReset.addEventListener('click', () => {
+                currentSvgZoom = 1.0;
+                applySvgZoom();
+            });
+        }
+
+        // Background Controls
+        const bgButtons = [
+            { btn: btnSvgBgChecker, cls: 'bg-checkerboard' },
+            { btn: btnSvgBgDark, cls: 'bg-dark' },
+            { btn: btnSvgBgLight, cls: 'bg-light' }
+        ];
+
+        bgButtons.forEach(item => {
+            if (!item.btn) return;
+            item.btn.addEventListener('click', () => {
+                bgButtons.forEach(b => b.btn && b.btn.classList.remove('active'));
+                item.btn.classList.add('active');
+                if (svgStageViewport) {
+                    svgStageViewport.classList.remove('bg-checkerboard', 'bg-dark', 'bg-light');
+                    svgStageViewport.classList.add(item.cls);
+                }
+            });
+        });
+
+        // Parse and Render SVG Live
+        function renderLiveSvg(xmlText, shouldUpdateEditor = false) {
+            const clean = (xmlText || '').trim();
+            if (!clean) {
+                if (svgStageEmptyPrompt) svgStageEmptyPrompt.classList.remove('hidden');
+                if (svgStageContent) svgStageContent.classList.add('hidden');
+                if (svgXmlStatusBadge) {
+                    svgXmlStatusBadge.className = 'preview-badge badge-idle';
+                    svgXmlStatusBadge.textContent = 'Chờ mã XML';
+                }
+                if (svgXmlErrorAlert) svgXmlErrorAlert.classList.add('hidden');
+                return;
+            }
+
+            if (shouldUpdateEditor && svgXmlEditor) {
+                svgXmlEditor.value = clean;
+            }
+
+            // Update stats
+            if (svgCharCount) svgCharCount.textContent = `${clean.length.toLocaleString()} ký tự`;
+            if (svgLineCount) svgLineCount.textContent = `${clean.split('\n').length} dòng`;
+
+            // Validate with DOMParser
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(clean, 'image/svg+xml');
+                const parserError = doc.querySelector('parsererror');
+
+                if (parserError) {
+                    if (svgXmlStatusBadge) {
+                        svgXmlStatusBadge.className = 'preview-badge badge-error';
+                        svgXmlStatusBadge.textContent = 'Lỗi cú pháp XML';
+                    }
+                    if (svgXmlErrorAlert) {
+                        svgXmlErrorAlert.classList.remove('hidden');
+                        const errTxt = parserError.textContent.replace(/Below is a rendering of the page up to the first error\./gi, '');
+                        if (svgXmlErrorMsg) svgXmlErrorMsg.textContent = errTxt.slice(0, 150);
+                    }
+                    return false;
+                }
+
+                // XML is valid
+                if (svgXmlStatusBadge) {
+                    svgXmlStatusBadge.className = 'preview-badge badge-success';
+                    svgXmlStatusBadge.textContent = 'Mã XML hợp lệ 100%';
+                }
+                if (svgXmlErrorAlert) svgXmlErrorAlert.classList.add('hidden');
+
+                if (svgStageEmptyPrompt) svgStageEmptyPrompt.classList.add('hidden');
+                if (svgStageContent) {
+                    svgStageContent.classList.remove('hidden');
+                    svgStageContent.innerHTML = clean;
+                }
+
+                lastRenderedXml = clean;
+                inspectSvgDom(doc);
+                return true;
+            } catch (ex) {
+                if (svgXmlStatusBadge) {
+                    svgXmlStatusBadge.className = 'preview-badge badge-error';
+                    svgXmlStatusBadge.textContent = 'Lỗi cú pháp';
+                }
+                return false;
+            }
+        }
+
+        function inspectSvgDom(doc) {
+            const svgEl = doc.querySelector('svg');
+            if (!svgEl) return;
+
+            const w = svgEl.getAttribute('width') || 'Tự do';
+            const h = svgEl.getAttribute('height') || 'Tự do';
+            const vb = svgEl.getAttribute('viewBox') || 'Không có';
+
+            const paths = doc.querySelectorAll('path').length;
+            const allElements = doc.querySelectorAll('*').length - 1; // subtract svg tag
+
+            if (svgInspectDims) svgInspectDims.textContent = `${w} × ${h}`;
+            if (svgInspectViewBox) svgInspectViewBox.textContent = vb;
+            if (svgInspectPaths) svgInspectPaths.textContent = `${paths.toLocaleString()} paths`;
+            if (svgInspectElements) svgInspectElements.textContent = `${allElements.toLocaleString()} thẻ`;
+
+            if (svgInspectComplexity) {
+                if (paths > 1500) {
+                    svgInspectComplexity.textContent = 'Chi tiết Rất Cao';
+                } else if (paths > 200) {
+                    svgInspectComplexity.textContent = 'Đồ Họa Minh Họa';
+                } else if (paths > 20) {
+                    svgInspectComplexity.textContent = 'Logo / Flat Art';
+                } else {
+                    svgInspectComplexity.textContent = 'Icon Tối Giản';
+                }
+            }
+
+            // Color palette extraction
+            const colorMap = {};
+            const elements = doc.querySelectorAll('*');
+            elements.forEach(el => {
+                const fill = el.getAttribute('fill');
+                const stroke = el.getAttribute('stroke');
+                [fill, stroke].forEach(c => {
+                    if (c && !['none', 'transparent', 'inherit', 'currentcolor'].includes(c.toLowerCase())) {
+                        const cleanC = c.trim().toUpperCase();
+                        colorMap[cleanC] = (colorMap[cleanC] || 0) + 1;
+                    }
+                });
+            });
+
+            if (svgInspectPalette) {
+                svgInspectPalette.innerHTML = '';
+                const sortedColors = Object.entries(colorMap).sort((a, b) => b[1] - a[1]);
+                if (sortedColors.length === 0) {
+                    svgInspectPalette.innerHTML = '<span class="text-muted" style="font-size: 12px;">Đồ họa không sử dụng màu cố định</span>';
+                } else {
+                    sortedColors.slice(0, 16).forEach(([hex, count]) => {
+                        const pill = document.createElement('button');
+                        pill.type = 'button';
+                        pill.className = 'swatch-pill';
+                        pill.title = `Bấm để sao chép mã màu ${hex} (${count} lần dùng)`;
+                        pill.innerHTML = `<span class="swatch-color-dot" style="background-color: ${hex}"></span><span>${hex}</span>`;
+                        pill.onclick = () => {
+                            navigator.clipboard.writeText(hex);
+                            showToast(`Đã sao chép mã màu ${hex} vào clipboard!`, 'success');
+                        };
+                        svgInspectPalette.appendChild(pill);
+                    });
+                }
+            }
+        }
+
+        // Editor Input with Debounce
+        let editorTimer;
+        if (svgXmlEditor) {
+            svgXmlEditor.addEventListener('input', () => {
+                clearTimeout(editorTimer);
+                editorTimer = setTimeout(() => {
+                    renderLiveSvg(svgXmlEditor.value);
+                }, 200);
+            });
+        }
+
+        // Format / Minify / Copy Buttons
+        if (btnCopySvgXml) {
+            btnCopySvgXml.addEventListener('click', () => {
+                const code = svgXmlEditor ? svgXmlEditor.value : '';
+                if (!code) {
+                    showToast('Chưa có mã SVG để sao chép', 'warning');
+                    return;
+                }
+                navigator.clipboard.writeText(code);
+                showToast('Đã sao chép toàn bộ mã SVG XML!', 'success');
+            });
+        }
+
+        if (btnBeautifySvgXml) {
+            btnBeautifySvgXml.addEventListener('click', async () => {
+                const code = svgXmlEditor ? svgXmlEditor.value : '';
+                if (!code) return;
+                try {
+                    const fd = new FormData();
+                    fd.append('action', 'optimize');
+                    fd.append('svg_xml', code);
+                    const resp = await fetch('/api/svg/ai-assist', { method: 'POST', body: fd });
+                    const res = await resp.json();
+                    if (res.status === 'success' && res.data.formatted_xml) {
+                        renderLiveSvg(res.data.formatted_xml, true);
+                        showToast('Đã định dạng mã XML đẹp mắt!', 'success');
+                    }
+                } catch (e) {
+                    showToast('Lỗi format: ' + e.message, 'error');
+                }
+            });
+        }
+
+        if (btnMinifySvgXml) {
+            btnMinifySvgXml.addEventListener('click', async () => {
+                const code = svgXmlEditor ? svgXmlEditor.value : '';
+                if (!code) return;
+                try {
+                    const fd = new FormData();
+                    fd.append('action', 'optimize');
+                    fd.append('svg_xml', code);
+                    const resp = await fetch('/api/svg/ai-assist', { method: 'POST', body: fd });
+                    const res = await resp.json();
+                    if (res.status === 'success' && res.data.minified_xml) {
+                        renderLiveSvg(res.data.minified_xml, true);
+                        showToast(`Đã nén mã XML! Tiết kiệm ${res.data.saved_bytes} bytes (${res.data.saved_pct}%).`, 'success');
+                    }
+                } catch (e) {
+                    showToast('Lỗi nén mã: ' + e.message, 'error');
+                }
+            });
+        }
+
+        // Upload SVG file
+        if (svgFileInput) {
+            svgFileInput.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                const fd = new FormData();
+                fd.append('svg_file', file);
+                try {
+                    showToast('Đang đọc cấu trúc SVG...', 'info');
+                    const resp = await fetch('/api/svg/svg-to-xml', { method: 'POST', body: fd });
+                    const res = await resp.json();
+                    if (res.status === 'success') {
+                        renderLiveSvg(res.xml_content || res.raw_xml, true);
+                        showToast(`Đã nạp file SVG: ${file.name} thành công!`, 'success');
+                    } else {
+                        showToast(res.message || 'Lỗi đọc SVG', 'error');
+                    }
+                } catch (err) {
+                    showToast('Lỗi tải SVG: ' + err.message, 'error');
+                }
+                svgFileInput.value = '';
+            });
+        }
+
+        if (svgDropZone) {
+            svgDropZone.addEventListener('click', () => svgFileInput && svgFileInput.click());
+            svgDropZone.addEventListener('dragover', (e) => { e.preventDefault(); svgDropZone.classList.add('drag-over'); });
+            svgDropZone.addEventListener('dragleave', () => svgDropZone.classList.remove('drag-over'));
+            svgDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                svgDropZone.classList.remove('drag-over');
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    if (svgFileInput) {
+                        svgFileInput.files = e.dataTransfer.files;
+                        svgFileInput.dispatchEvent(new Event('change'));
+                    }
+                }
+            });
+        }
+
+        // Render XML to SVG File and Download
+        if (btnRenderXmlToSvg || btnDownloadSvgCurrent) {
+            const handleDownload = () => {
+                const code = svgXmlEditor ? svgXmlEditor.value.trim() : '';
+                if (!code) {
+                    showToast('Chưa có mã SVG để tải xuống!', 'warning');
+                    return;
+                }
+                const blob = new Blob([code], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `vector_${Date.now()}.svg`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Đã tải xuống tệp .SVG thành công!', 'success');
+            };
+
+            if (btnRenderXmlToSvg) btnRenderXmlToSvg.addEventListener('click', handleDownload);
+            if (btnDownloadSvgCurrent) btnDownloadSvgCurrent.addEventListener('click', handleDownload);
+        }
+
+        // Save SVG to Downloads via Backend
+        if (btnSaveSvgXmlDownloads) {
+            btnSaveSvgXmlDownloads.addEventListener('click', async () => {
+                const code = svgXmlEditor ? svgXmlEditor.value.trim() : '';
+                if (!code) {
+                    showToast('Chưa có mã SVG để lưu!', 'warning');
+                    return;
+                }
+                try {
+                    showToast('Đang lưu vào thư mục Downloads...', 'info');
+                    const fd = new FormData();
+                    fd.append('xml_text', code);
+                    fd.append('custom_name', 'vector_design.svg');
+                    const resp = await fetch('/api/svg/xml-to-svg', { method: 'POST', body: fd });
+                    const res = await resp.json();
+                    if (res.status === 'success') {
+                        const fdSave = new FormData();
+                        fdSave.append('filename', res.filename);
+                        fdSave.append('custom_name', res.clean_filename);
+                        const respSave = await fetch('/api/svg/save-to-downloads', { method: 'POST', body: fdSave });
+                        const resSave = await respSave.json();
+                        if (resSave.status === 'success') {
+                            showToast(resSave.message || 'Đã lưu tệp .SVG vào Downloads!', 'success');
+                        } else {
+                            showToast(resSave.message || 'Lỗi lưu Downloads', 'error');
+                        }
+                    } else {
+                        showToast(res.message || 'Lỗi tạo SVG', 'error');
+                    }
+                } catch (ex) {
+                    showToast('Lỗi lưu: ' + ex.message, 'error');
+                }
+            });
+        }
+
+        // Export SVG to high-res PNG (2x)
+        if (btnExportSvgPng) {
+            btnExportSvgPng.addEventListener('click', () => {
+                const code = svgXmlEditor ? svgXmlEditor.value.trim() : '';
+                if (!code) {
+                    showToast('Chưa có mã SVG để xuất PNG!', 'warning');
+                    return;
+                }
+                try {
+                    const img = new Image();
+                    const svgBlob = new Blob([code], { type: 'image/svg+xml;charset=utf-8' });
+                    const url = URL.createObjectURL(svgBlob);
+                    img.onload = () => {
+                        const scale = 2.0;
+                        const canvas = document.createElement('canvas');
+                        const w = (img.naturalWidth || 800) * scale;
+                        const h = (img.naturalHeight || 800) * scale;
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        canvas.toBlob((blob) => {
+                            if (!blob) return;
+                            const pngUrl = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = pngUrl;
+                            a.download = `vector_export_${Date.now()}.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(pngUrl);
+                            URL.revokeObjectURL(url);
+                            showToast('Đã xuất ảnh PNG siêu nét thành công!', 'success');
+                        }, 'image/png');
+                    };
+                    img.src = url;
+                } catch (e) {
+                    showToast('Lỗi xuất PNG: ' + e.message, 'error');
+                }
+            });
+        }
+
+        // AI Tools: Explain, Optimize, Fix, Recolor, Generate
+        if (btnSvgAiExplain) {
+            btnSvgAiExplain.addEventListener('click', async () => {
+                const code = svgXmlEditor ? svgXmlEditor.value.trim() : '';
+                if (!code) {
+                    showToast('Vui lòng nhập mã SVG trước khi phân tích', 'warning');
+                    return;
+                }
+                try {
+                    showToast('AI đang phân tích cấu trúc vector...', 'info');
+                    const fd = new FormData();
+                    fd.append('action', 'explain');
+                    fd.append('svg_xml', code);
+                    const resp = await fetch('/api/svg/ai-assist', { method: 'POST', body: fd });
+                    const res = await resp.json();
+                    if (res.status === 'success' && res.data.explanation) {
+                        if (svgAiExplainContainer) svgAiExplainContainer.classList.remove('hidden');
+                        if (svgAiExplainText) {
+                            // Simple markdown formatting
+                            let exp = res.data.explanation
+                                .replace(/### (.*)/g, '<h3>$1</h3>')
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/- (.*)/g, '<li>$1</li>');
+                            svgAiExplainText.innerHTML = exp;
+                        }
+                        showToast('Đã phân tích xong!', 'success');
+                    }
+                } catch (e) {
+                    showToast('Lỗi AI: ' + e.message, 'error');
+                }
+            });
+        }
+
+        if (btnCloseSvgAiExplain) {
+            btnCloseSvgAiExplain.addEventListener('click', () => {
+                if (svgAiExplainContainer) svgAiExplainContainer.classList.add('hidden');
+            });
+        }
+
+        if (btnSvgAiFix) {
+            btnSvgAiFix.addEventListener('click', async () => {
+                const code = svgXmlEditor ? svgXmlEditor.value.trim() : '';
+                if (!code) return;
+                try {
+                    showToast('AI đang sửa lỗi cú pháp XML...', 'info');
+                    const fd = new FormData();
+                    fd.append('action', 'fix');
+                    fd.append('svg_xml', code);
+                    const resp = await fetch('/api/svg/ai-assist', { method: 'POST', body: fd });
+                    const res = await resp.json();
+                    if (res.status === 'success' && res.data.fixed_xml) {
+                        renderLiveSvg(res.data.fixed_xml, true);
+                        showToast(res.data.message || 'Đã sửa lỗi XML thành công!', 'success');
+                    }
+                } catch (e) {
+                    showToast('Lỗi AI: ' + e.message, 'error');
+                }
+            });
+        }
+
+        if (btnSvgAiRecolor) {
+            btnSvgAiRecolor.addEventListener('click', async () => {
+                const code = svgXmlEditor ? svgXmlEditor.value.trim() : '';
+                if (!code) {
+                    showToast('Chưa có mã SVG để đổi tông màu!', 'warning');
+                    return;
+                }
+                const pal = selSvgPalette ? selSvgPalette.value : 'cyberpunk';
+                try {
+                    showToast('AI đang chuyển đổi bảng màu...', 'info');
+                    const fd = new FormData();
+                    fd.append('action', 'recolor');
+                    fd.append('svg_xml', code);
+                    fd.append('palette_key', pal);
+                    const resp = await fetch('/api/svg/ai-assist', { method: 'POST', body: fd });
+                    const res = await resp.json();
+                    if (res.status === 'success' && res.data.recolored_xml) {
+                        renderLiveSvg(res.data.recolored_xml, true);
+                        showToast(`Đã đổi sang tông màu: ${res.data.palette_name}!`, 'success');
+                    }
+                } catch (e) {
+                    showToast('Lỗi đổi màu: ' + e.message, 'error');
+                }
+            });
+        }
+
+        // Enter key to generate SVG from prompt
+        if (svgAiPromptInput) {
+            svgAiPromptInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (btnSvgAiGenerate && !btnSvgAiGenerate.disabled) {
+                        btnSvgAiGenerate.click();
+                    }
+                }
+            });
+        }
+
+        if (btnSvgAiGenerate) {
+            btnSvgAiGenerate.addEventListener('click', async () => {
+                const prompt = svgAiPromptInput ? svgAiPromptInput.value.trim() : '';
+                if (!prompt) {
+                    showToast('Vui lòng nhập mô tả vector cần tạo!', 'warning');
+                    if (svgAiPromptInput) svgAiPromptInput.focus();
+                    return;
+                }
+                try {
+                    btnSvgAiGenerate.disabled = true;
+                    btnSvgAiGenerate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tạo...';
+                    showToast(`AI đang thiết kế đồ họa vector "${prompt}"...`, 'info');
+
+                    // Show active loading in stage viewport
+                    if (svgStageContent) svgStageContent.classList.add('hidden');
+                    if (svgStageEmptyPrompt) {
+                        svgStageEmptyPrompt.classList.remove('hidden');
+                        svgStageEmptyPrompt.innerHTML = `
+                            <div class="ai-processing-ring" style="width: 70px; height: 70px; margin: 0 auto 14px;">
+                                <div class="ring-spinner"></div>
+                                <div class="ring-core"><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i></div>
+                            </div>
+                            <p class="processing-title" style="font-size: 1.05rem;">AI Đang Thiết Kế Vector: "${prompt}"...</p>
+                            <p class="processing-sub">Đang tính toán tọa độ Bézier, dải màu gradient và cấu trúc XML...</p>
+                        `;
+                    }
+
+                    const fd = new FormData();
+                    fd.append('action', 'generate');
+                    fd.append('prompt', prompt);
+                    const resp = await fetch('/api/svg/ai-assist', { method: 'POST', body: fd });
+                    const res = await resp.json();
+
+                    if (res.status === 'success' && res.data && res.data.svg_xml) {
+                        renderLiveSvg(res.data.svg_xml, true);
+                        const srcBadge = res.data.source === 'local_llm' ? 'Mô hình Local LLM' : 'Bộ Thiết Kế Vector AI';
+                        showToast(`Đã tạo thành công đồ họa SVG từ "${prompt}" (${srcBadge})!`, 'success');
+                    } else {
+                        showToast(res.message || 'Lỗi tạo SVG', 'error');
+                        if (svgStageEmptyPrompt) {
+                            svgStageEmptyPrompt.innerHTML = `
+                                <div class="empty-icon-circle"><i class="fa-solid fa-bezier-curve"></i></div>
+                                <p class="empty-title">Chưa có mã SVG nào để hiển thị</p>
+                                <p class="empty-sub">Hãy tải lên file .svg, dán mã XML hoặc bấm "Tạo SVG Bằng AI" bên trái để trải nghiệm</p>
+                            `;
+                        }
+                    }
+                } catch (e) {
+                    showToast('Lỗi AI tạo SVG: ' + e.message, 'error');
+                    if (svgStageEmptyPrompt) {
+                        svgStageEmptyPrompt.innerHTML = `
+                            <div class="empty-icon-circle"><i class="fa-solid fa-bezier-curve"></i></div>
+                            <p class="empty-title">Chưa có mã SVG nào để hiển thị</p>
+                            <p class="empty-sub">Hãy tải lên file .svg, dán mã XML hoặc bấm "Tạo SVG Bằng AI" bên trái để trải nghiệm</p>
+                        `;
+                    }
+                } finally {
+                    btnSvgAiGenerate.disabled = false;
+                    btnSvgAiGenerate.innerHTML = '<i class="fa-solid fa-sparkles"></i> Tạo SVG';
+                }
+            });
+        }
+
+        // Sample SVGs
+        const sampleShieldSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F2FE" />
+      <stop offset="100%" stop-color="#4FACFE" />
+    </linearGradient>
+    <linearGradient id="innerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E3C72" />
+      <stop offset="100%" stop-color="#2A5298" />
+    </linearGradient>
+  </defs>
+  <circle cx="250" cy="250" r="180" fill="url(#shieldGrad)" opacity="0.15"/>
+  <path d="M250 50 L390 100 C390 260 250 420 250 440 C250 420 110 260 110 100 Z" fill="url(#shieldGrad)" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M250 85 L360 125 C360 250 250 380 250 395 C250 380 140 250 140 125 Z" fill="url(#innerGrad)" stroke="rgba(255,255,255,0.4)" stroke-width="3"/>
+  <circle cx="250" cy="240" r="45" fill="none" stroke="#00F2FE" stroke-width="5" stroke-dasharray="10 5"/>
+  <circle cx="250" cy="240" r="25" fill="#00F2FE"/>
+  <path d="M230 240 L245 255 L275 225" fill="none" stroke="#0B132B" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M250 140 L250 180 M250 300 L250 340 M170 240 L200 240 M300 240 L330 240" stroke="#00F2FE" stroke-width="4" stroke-linecap="round"/>
+</svg>`;
+
+        const sampleLogoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="gradBrand" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="50%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+  </defs>
+  <polygon points="250,50 420,150 420,350 250,450 80,350 80,150" fill="none" stroke="url(#gradBrand)" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M250 110 L370 180 L370 320 L250 390 L130 320 L130 180 Z" fill="rgba(59, 130, 246, 0.08)" stroke="url(#gradBrand)" stroke-width="4"/>
+  <circle cx="250" cy="250" r="50" fill="url(#gradBrand)" />
+  <circle cx="250" cy="250" r="25" fill="#FFFFFF" opacity="0.9" />
+  <circle cx="250" cy="50" r="14" fill="#06B6D4"/>
+  <circle cx="420" cy="150" r="14" fill="#3B82F6"/>
+  <circle cx="420" cy="350" r="14" fill="#8B5CF6"/>
+  <circle cx="250" cy="450" r="14" fill="#06B6D4"/>
+  <circle cx="80" cy="350" r="14" fill="#3B82F6"/>
+  <circle cx="80" cy="150" r="14" fill="#8B5CF6"/>
+</svg>`;
+
+        const sampleSparkleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="aiSparkle" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F2FE" />
+      <stop offset="50%" stop-color="#9B51E0" />
+      <stop offset="100%" stop-color="#FF007F" />
+    </linearGradient>
+  </defs>
+  <path d="M250 50 C250 160 260 230 370 250 C260 270 250 340 250 450 C250 340 240 270 130 250 C240 230 250 160 250 50 Z" fill="url(#aiSparkle)" />
+  <path d="M380 90 C380 125 385 145 420 150 C385 155 380 175 380 210 C380 175 375 155 340 150 C375 145 380 125 380 90 Z" fill="#00F2FE" opacity="0.9"/>
+  <path d="M120 330 C120 355 125 370 150 375 C125 380 120 395 120 420 C120 395 115 380 90 375 C115 370 120 355 120 330 Z" fill="#FF007F" opacity="0.85"/>
+  <circle cx="250" cy="250" r="24" fill="#FFFFFF"/>
+</svg>`;
+
+        if (btnSampleSvgShield) btnSampleSvgShield.addEventListener('click', () => renderLiveSvg(sampleShieldSvg, true));
+        if (btnSampleSvgLogo) btnSampleSvgLogo.addEventListener('click', () => renderLiveSvg(sampleLogoSvg, true));
+        if (btnSampleSvgSparkle) btnSampleSvgSparkle.addEventListener('click', () => renderLiveSvg(sampleSparkleSvg, true));
+
+        // Default initial load sample if empty
+        if (!svgXmlEditor.value.trim()) {
+            renderLiveSvg(sampleShieldSvg, true);
+        }
+
+        // ----------------------------------------------------------------------
+        // SUB-MODE 2: AI VECTORIZE (PNG/JPG -> .SVG VECTOR)
+        // ----------------------------------------------------------------------
+        const vectorDropZone = document.getElementById('vectorDropZone');
+        const vectorFileInput = document.getElementById('vectorFileInput');
+        const vectorDropPrompt = document.getElementById('vectorDropPrompt');
+        const vectorPreviewWrapper = document.getElementById('vectorPreviewWrapper');
+        const vectorThumb = document.getElementById('vectorThumb');
+        const vectorFileName = document.getElementById('vectorFileName');
+        const vectorFileMeta = document.getElementById('vectorFileMeta');
+        const btnRemoveVectorFile = document.getElementById('btnRemoveVectorFile');
+        const btnRunVectorize = document.getElementById('btnRunVectorize');
+
+        const vectorEmptyState = document.getElementById('vectorEmptyState');
+        const vectorProcessingState = document.getElementById('vectorProcessingState');
+        const vectorResultWrapper = document.getElementById('vectorResultWrapper');
+        const vectorStatusBadge = document.getElementById('vectorStatusBadge');
+
+        const vectorComparisonStage = document.getElementById('vectorComparisonStage');
+        const vectorImgOriginal = document.getElementById('vectorImgOriginal');
+        const vectorSvgOverlay = document.getElementById('vectorSvgOverlay');
+        const vectorSvgContainer = document.getElementById('vectorSvgContainer');
+        const vectorSliderDivider = document.getElementById('vectorSliderDivider');
+        const vectorSingleStage = document.getElementById('vectorSingleStage');
+        const vectorSingleSvgContainer = document.getElementById('vectorSingleSvgContainer');
+
+        const btnToggleCompareSlider = document.getElementById('btnToggleCompareSlider');
+        const btnToggleVectorOnly = document.getElementById('btnToggleVectorOnly');
+
+        const resPathCount = document.getElementById('resPathCount');
+        const resColorCount = document.getElementById('resColorCount');
+        const resSvgSize = document.getElementById('resSvgSize');
+        const resDuration = document.getElementById('resDuration');
+        const vectorResultPalette = document.getElementById('vectorResultPalette');
+
+        const btnDownloadVectorSvg = document.getElementById('btnDownloadVectorSvg');
+        const btnSaveVectorDownloads = document.getElementById('btnSaveVectorDownloads');
+        const btnSendToXmlEditor = document.getElementById('btnSendToXmlEditor');
+        const btnCopyVectorXml = document.getElementById('btnCopyVectorXml');
+
+        const btnSampleVectorAnime = document.getElementById('btnSampleVectorAnime');
+        const btnSampleVectorPortrait = document.getElementById('btnSampleVectorPortrait');
+        const btnSampleVectorFrame = document.getElementById('btnSampleVectorFrame');
+
+        const btnToggleVectorPro = document.getElementById('btnToggleVectorPro');
+        const vectorProPanel = document.getElementById('vectorProPanel');
+        const iconVectorProChevron = document.getElementById('iconVectorProChevron');
+
+        const rngColorPrecision = document.getElementById('rngColorPrecision');
+        const lblColorPrecision = document.getElementById('lblColorPrecision');
+        const rngFilterSpeckle = document.getElementById('rngFilterSpeckle');
+        const lblFilterSpeckle = document.getElementById('lblFilterSpeckle');
+        const rngCornerThreshold = document.getElementById('rngCornerThreshold');
+        const lblCornerThreshold = document.getElementById('lblCornerThreshold');
+        const rngLengthThreshold = document.getElementById('rngLengthThreshold');
+        const lblLengthThreshold = document.getElementById('lblLengthThreshold');
+
+        // State variables for Single and Batch Vectorization
+        let selectedVectorFiles = [];
+        let vectorPreviewBlobUrls = [];
+        let lastVectorResult = null;
+        let lastVectorBatchResults = null;
+
+        // Elements
+        const vectorBatchListWrapper = document.getElementById('vectorBatchListWrapper');
+        const vectorBatchSelectedCount = document.getElementById('vectorBatchSelectedCount');
+        const btnClearVectorBatch = document.getElementById('btnClearVectorBatch');
+        const vectorBatchFilesGrid = document.getElementById('vectorBatchFilesGrid');
+        const btnAddMoreVectorFiles = document.getElementById('btnAddMoreVectorFiles');
+
+        const vectorBatchResultsContainer = document.getElementById('vectorBatchResultsContainer');
+        const vectorBatchSuccessCount = document.getElementById('vectorBatchSuccessCount');
+        const btnDownloadVectorBatchZip = document.getElementById('btnDownloadVectorBatchZip');
+        const btnSaveVectorBatchDownloads = document.getElementById('btnSaveVectorBatchDownloads');
+        const vectorBatchResultsGrid = document.getElementById('vectorBatchResultsGrid');
+        const btnBackToBatchResults = document.getElementById('btnBackToBatchResults');
+
+        // Pro Sliders Sync
+        if (rngColorPrecision && lblColorPrecision) {
+            rngColorPrecision.addEventListener('input', () => lblColorPrecision.textContent = rngColorPrecision.value);
+        }
+        if (rngFilterSpeckle && lblFilterSpeckle) {
+            rngFilterSpeckle.addEventListener('input', () => lblFilterSpeckle.textContent = rngFilterSpeckle.value);
+        }
+        if (rngCornerThreshold && lblCornerThreshold) {
+            rngCornerThreshold.addEventListener('input', () => lblCornerThreshold.textContent = rngCornerThreshold.value);
+        }
+        if (rngLengthThreshold && lblLengthThreshold) {
+            rngLengthThreshold.addEventListener('input', () => lblLengthThreshold.textContent = rngLengthThreshold.value);
+        }
+
+        // Toggle Pro Accordion
+        if (btnToggleVectorPro && vectorProPanel) {
+            btnToggleVectorPro.addEventListener('click', () => {
+                const isHidden = vectorProPanel.classList.toggle('hidden');
+                if (iconVectorProChevron) {
+                    iconVectorProChevron.className = isHidden ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
+                }
+            });
+        }
+
+        // Preset Cards Selection
+        const presetCards = document.querySelectorAll('.vector-preset-card');
+        presetCards.forEach(card => {
+            card.addEventListener('click', () => {
+                presetCards.forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                const radio = card.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+            });
+        });
+
+        // Append Vector Files (Single or Multi-select)
+        function appendVectorFiles(newFiles) {
+            if (!newFiles || newFiles.length === 0) return;
+            const validPattern = /\.(png|jpe?g|webp|bmp|tiff?|gif)$/i;
+            let addedCount = 0;
+            Array.from(newFiles).forEach(file => {
+                if (!file) return;
+                const isImg = (file.type && file.type.startsWith('image/')) || validPattern.test(file.name);
+                if (!isImg) return;
+                const isDup = selectedVectorFiles.some(f => f.name === file.name && f.size === file.size);
+                if (!isDup) {
+                    selectedVectorFiles.push(file);
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                renderVectorFilesList();
+                showToast(`Đã thêm ${addedCount} ảnh vào danh sách vector hóa.`, 'info');
+            }
+        }
+
+        // Render File Preview Cards in Step 1
+        function renderVectorFilesList() {
+            // Revoke previous blob URLs
+            vectorPreviewBlobUrls.forEach(url => URL.revokeObjectURL(url));
+            vectorPreviewBlobUrls = [];
+
+            const count = selectedVectorFiles.length;
+
+            if (count === 0) {
+                if (vectorDropPrompt) vectorDropPrompt.classList.remove('hidden');
+                if (vectorPreviewWrapper) vectorPreviewWrapper.classList.add('hidden');
+                if (vectorBatchListWrapper) vectorBatchListWrapper.classList.add('hidden');
+                if (vectorFileBadge) vectorFileBadge.classList.add('hidden');
+                if (btnRunVectorize) {
+                    btnRunVectorize.disabled = true;
+                    btnRunVectorize.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Dịch Sang .SVG Bằng AI Local Ngay';
+                }
+                return;
+            }
+
+            if (btnRunVectorize) btnRunVectorize.disabled = false;
+
+            if (count === 1) {
+                // Single File Mode
+                const file = selectedVectorFiles[0];
+                if (vectorDropPrompt) vectorDropPrompt.classList.add('hidden');
+                if (vectorPreviewWrapper) vectorPreviewWrapper.classList.remove('hidden');
+                if (vectorBatchListWrapper) vectorBatchListWrapper.classList.add('hidden');
+                if (vectorFileBadge) {
+                    vectorFileBadge.classList.remove('hidden');
+                    vectorFileBadge.textContent = '1 ảnh';
+                }
+                if (vectorFileName) vectorFileName.textContent = file.name;
+                if (vectorFileMeta) {
+                    const mb = (file.size / (1024 * 1024)).toFixed(2);
+                    vectorFileMeta.textContent = `${mb} MB · Đang đọc...`;
+                }
+                const blobUrl = URL.createObjectURL(file);
+                vectorPreviewBlobUrls.push(blobUrl);
+                if (vectorThumb) vectorThumb.src = blobUrl;
+
+                const img = new Image();
+                img.onload = () => {
+                    if (vectorFileMeta && selectedVectorFiles.length === 1) {
+                        const mb = (file.size / (1024 * 1024)).toFixed(2);
+                        vectorFileMeta.textContent = `${img.naturalWidth} × ${img.naturalHeight} · ${mb} MB`;
+                    }
+                };
+                img.src = blobUrl;
+
+                if (btnRunVectorize) {
+                    btnRunVectorize.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Dịch 1 Ảnh Sang .SVG Bằng AI Local';
+                }
+            } else {
+                // Multi-File Batch Mode
+                if (vectorDropPrompt) vectorDropPrompt.classList.add('hidden');
+                if (vectorPreviewWrapper) vectorPreviewWrapper.classList.add('hidden');
+                if (vectorBatchListWrapper) vectorBatchListWrapper.classList.remove('hidden');
+                if (vectorFileBadge) {
+                    vectorFileBadge.classList.remove('hidden');
+                    vectorFileBadge.textContent = `${count} ảnh`;
+                }
+                if (vectorBatchSelectedCount) vectorBatchSelectedCount.textContent = count;
+
+                if (btnRunVectorize) {
+                    btnRunVectorize.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> Dịch Hàng Loạt ${count} Ảnh Sang .SVG Bằng AI Local`;
+                }
+
+                if (vectorBatchFilesGrid) {
+                    vectorBatchFilesGrid.innerHTML = '';
+                    selectedVectorFiles.forEach((file, idx) => {
+                        const blobUrl = URL.createObjectURL(file);
+                        vectorPreviewBlobUrls.push(blobUrl);
+
+                        const card = document.createElement('div');
+                        card.className = 'batch-file-card';
+
+                        const sizeText = file.size > 1024 * 1024
+                            ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+                            : `${Math.round(file.size / 1024)} KB`;
+
+                        card.innerHTML = `
+                            <img src="${blobUrl}" alt="${file.name}" class="batch-file-thumb">
+                            <div class="batch-file-name" title="${file.name}">${file.name}</div>
+                            <div class="batch-file-meta">
+                                <span>#${idx + 1}</span>
+                                <span>${sizeText}</span>
+                            </div>
+                            <button type="button" class="btn-remove-batch-item" title="Xóa ảnh này" data-index="${idx}">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        `;
+
+                        const removeBtn = card.querySelector('.btn-remove-batch-item');
+                        if (removeBtn) {
+                            removeBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                selectedVectorFiles.splice(idx, 1);
+                                renderVectorFilesList();
+                            });
+                        }
+
+                        vectorBatchFilesGrid.appendChild(card);
+                    });
+                }
+            }
+        }
+
+        // Remove Single File
+        if (btnRemoveVectorFile) {
+            btnRemoveVectorFile.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectedVectorFiles = [];
+                renderVectorFilesList();
+                if (vectorFileInput) vectorFileInput.value = '';
+            });
+        }
+
+        // Clear All Batch Files
+        if (btnClearVectorBatch) {
+            btnClearVectorBatch.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectedVectorFiles = [];
+                renderVectorFilesList();
+                if (vectorFileInput) vectorFileInput.value = '';
+                showToast('Đã xóa tất cả ảnh đã chọn.');
+            });
+        }
+
+        // Add More Files Button
+        if (btnAddMoreVectorFiles) {
+            btnAddMoreVectorFiles.addEventListener('click', () => {
+                if (vectorFileInput) vectorFileInput.click();
+            });
+        }
+
+        // Input change listener
+        if (vectorFileInput) {
+            vectorFileInput.addEventListener('change', (e) => {
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                    appendVectorFiles(files);
+                }
+                vectorFileInput.value = '';
+            });
+        }
+
+        // Drag & Drop listener
+        if (vectorDropZone) {
+            vectorDropZone.addEventListener('click', (e) => {
+                if (e.target.closest('.btn-remove-file') || e.target.closest('.btn-remove-batch-item') || e.target.closest('.btn-clear-batch') || e.target.closest('.btn-add-more-files')) {
+                    return;
+                }
+                if (vectorFileInput) vectorFileInput.click();
+            });
+            vectorDropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                vectorDropZone.classList.add('drag-over');
+            });
+            vectorDropZone.addEventListener('dragleave', () => vectorDropZone.classList.remove('drag-over'));
+            vectorDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                vectorDropZone.classList.remove('drag-over');
+                if (e.dataTransfer && e.dataTransfer.files) {
+                    appendVectorFiles(e.dataTransfer.files);
+                }
+            });
+        }
+
+        // Paste Ctrl+V listener
+        window.addEventListener('paste', (e) => {
+            const activeTab = document.querySelector('.nav-main-tab.active');
+            if (!activeTab || activeTab.id !== 'tabBtnSvgStudio') return;
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    const blob = item.getAsFile();
+                    if (blob) {
+                        const file = new File([blob], `pasted_image_${Date.now()}.png`, { type: blob.type });
+                        appendVectorFiles([file]);
+                        showToast('Đã dán ảnh từ clipboard!', 'info');
+                    }
+                    break;
+                }
+            }
+        });
+
+        // Sample Loader
+        async function loadSampleForVector(samplePath, sampleName) {
+            try {
+                showToast(`Đang tải ảnh mẫu: ${sampleName}...`, 'info');
+                const resp = await fetch(samplePath);
+                const blob = await resp.blob();
+                const file = new File([blob], sampleName, { type: blob.type || 'image/jpeg' });
+                appendVectorFiles([file]);
+            } catch (err) {
+                showToast('Lỗi nạp ảnh mẫu: ' + err.message, 'error');
+            }
+        }
+
+        if (btnSampleVectorAnime) {
+            btnSampleVectorAnime.addEventListener('click', () => loadSampleForVector('/static/samples/sample_anime_lowres.jpg', 'sample_anime.jpg'));
+        }
+        if (btnSampleVectorPortrait) {
+            btnSampleVectorPortrait.addEventListener('click', () => loadSampleForVector('/static/samples/sample_portrait_lowres.jpg', 'sample_portrait.jpg'));
+        }
+        if (btnSampleVectorFrame) {
+            btnSampleVectorFrame.addEventListener('click', () => loadSampleForVector('/static/samples/sample_coordinates_frame.png', 'sample_frame.png'));
+        }
+
+        // Run Vectorization (Single or Batch)
+        if (btnRunVectorize) {
+            btnRunVectorize.addEventListener('click', async () => {
+                if (!selectedVectorFiles || selectedVectorFiles.length === 0) {
+                    showToast('Vui lòng chọn hoặc tải lên ít nhất một ảnh để vector hóa!', 'warning');
+                    return;
+                }
+
+                const selPresetEl = document.querySelector('input[name="vectorPreset"]:checked');
+                const preset = selPresetEl ? selPresetEl.value : 'fidelity';
+                const aiBoost = document.getElementById('chkVectorAiBoost') ? document.getElementById('chkVectorAiBoost').checked : true;
+                const maxRes = document.getElementById('chkVectorMaxRes') ? document.getElementById('chkVectorMaxRes').checked : true;
+
+                const fd = new FormData();
+                selectedVectorFiles.forEach(file => {
+                    fd.append('images', file);
+                });
+                fd.append('preset', preset);
+                fd.append('ai_line_boost', aiBoost ? 'true' : 'false');
+                fd.append('max_dimension', maxRes ? '4000' : '1920');
+
+                // Custom parameters if pro panel was used
+                if (rngColorPrecision) fd.append('color_precision', rngColorPrecision.value);
+                if (rngFilterSpeckle) fd.append('filter_speckle', rngFilterSpeckle.value);
+                if (rngCornerThreshold) fd.append('corner_threshold', rngCornerThreshold.value);
+                if (rngLengthThreshold) fd.append('length_threshold', rngLengthThreshold.value);
+                const modeSelect = document.getElementById('selVectorMode');
+                if (modeSelect) fd.append('mode', modeSelect.value);
+
+                // UI Transition
+                if (vectorEmptyState) vectorEmptyState.classList.add('hidden');
+                if (vectorResultWrapper) vectorResultWrapper.classList.add('hidden');
+                if (vectorBatchResultsContainer) vectorBatchResultsContainer.classList.add('hidden');
+                if (vectorProcessingState) vectorProcessingState.classList.remove('hidden');
+
+                const totalFiles = selectedVectorFiles.length;
+                if (vectorProcessingStatus) {
+                    if (totalFiles > 1) {
+                        vectorProcessingStatus.textContent = `AI đang vector hóa hàng loạt ${totalFiles} ảnh bằng thuật toán Bézier Splines...`;
+                    } else {
+                        vectorProcessingStatus.textContent = 'Đang lọc nhiễu đường biên & khớp đường cong Bézier spline...';
+                    }
+                }
+
+                if (vectorStatusBadge) {
+                    vectorStatusBadge.className = 'preview-badge badge-processing';
+                    vectorStatusBadge.textContent = totalFiles > 1 ? `Đang xử lý ${totalFiles} ảnh...` : 'AI Đang Vector Hóa...';
+                }
+                btnRunVectorize.disabled = true;
+
+                try {
+                    const resp = await fetch('/api/svg/vectorize', { method: 'POST', body: fd });
+                    const res = await resp.json();
+
+                    if (res.status === 'success') {
+                        if (res.batch && res.results && res.results.length > 0) {
+                            // Multi-file batch results
+                            lastVectorBatchResults = res;
+                            displayBatchVectorResults(res);
+                            showToast(`Đã dịch thành công hàng loạt ${res.count} ảnh sang định dạng SVG!`, 'success');
+                        } else if (res.data) {
+                            // Single file result
+                            lastVectorResult = res.data;
+                            if (btnBackToBatchResults) btnBackToBatchResults.classList.add('hidden');
+                            displayVectorResult(res.data);
+                            showToast(`Vector hóa hoàn tất! Tạo được ${res.data.stats.path_count.toLocaleString()} đường Bézier trong ${res.data.stats.duration_sec}s.`, 'success');
+                        }
+                    } else {
+                        showToast(res.message || 'Lỗi khi vector hóa ảnh', 'error');
+                        if (vectorEmptyState) vectorEmptyState.classList.remove('hidden');
+                        if (vectorStatusBadge) {
+                            vectorStatusBadge.className = 'preview-badge badge-error';
+                            vectorStatusBadge.textContent = 'Thất bại';
+                        }
+                    }
+                } catch (err) {
+                    showToast('Lỗi kết nối máy chủ: ' + err.message, 'error');
+                    if (vectorEmptyState) vectorEmptyState.classList.remove('hidden');
+                    if (vectorStatusBadge) {
+                        vectorStatusBadge.className = 'preview-badge badge-error';
+                        vectorStatusBadge.textContent = 'Lỗi';
+                    }
+                } finally {
+                    if (vectorProcessingState) vectorProcessingState.classList.add('hidden');
+                    btnRunVectorize.disabled = false;
+                }
+            });
+        }
+
+        // Display Vector Result (Single)
+        function displayVectorResult(data) {
+            if (!data) return;
+
+            if (vectorBatchResultsContainer) vectorBatchResultsContainer.classList.add('hidden');
+            if (vectorResultWrapper) vectorResultWrapper.classList.remove('hidden');
+            if (vectorStatusBadge) {
+                vectorStatusBadge.className = 'preview-badge badge-success';
+                vectorStatusBadge.textContent = 'Hoàn thành 100% Vector';
+            }
+
+            // Set images
+            if (vectorImgOriginal) vectorImgOriginal.src = data.original_url;
+            if (vectorSvgContainer) vectorSvgContainer.innerHTML = data.svg_content;
+            if (vectorSingleSvgContainer) vectorSingleSvgContainer.innerHTML = data.svg_content;
+
+            // Set quality metrics
+            if (resPathCount) resPathCount.textContent = (data.stats.path_count || 0).toLocaleString();
+            if (resColorCount) resColorCount.textContent = (data.stats.colors_count || 0).toLocaleString();
+            if (resSvgSize) resSvgSize.textContent = `${data.stats.svg_size_kb} KB`;
+            if (resDuration) resDuration.textContent = `${data.stats.duration_sec}s`;
+
+            // Palette swatches
+            if (vectorResultPalette) {
+                vectorResultPalette.innerHTML = '';
+                const pal = data.stats.palette || [];
+                pal.slice(0, 16).forEach(item => {
+                    const pill = document.createElement('button');
+                    pill.type = 'button';
+                    pill.className = 'swatch-pill';
+                    pill.title = `Bấm để sao chép mã màu ${item.hex}`;
+                    pill.innerHTML = `<span class="swatch-color-dot" style="background-color: ${item.hex}"></span><span>${item.hex}</span>`;
+                    pill.onclick = () => {
+                        navigator.clipboard.writeText(item.hex);
+                        showToast(`Đã sao chép mã màu ${item.hex}!`, 'success');
+                    };
+                    vectorResultPalette.appendChild(pill);
+                });
+            }
+
+            // Setup download links
+            if (btnDownloadVectorSvg) {
+                btnDownloadVectorSvg.href = data.download_url;
+                btnDownloadVectorSvg.setAttribute('download', data.clean_filename);
+            }
+
+            // Init slider divider
+            initComparisonSlider();
+        }
+
+        // Display Batch Vector Results (Multi-File Grid)
+        function displayBatchVectorResults(batchData) {
+            if (!batchData || !batchData.results) return;
+
+            if (vectorResultWrapper) vectorResultWrapper.classList.add('hidden');
+            if (vectorBatchResultsContainer) vectorBatchResultsContainer.classList.remove('hidden');
+
+            if (vectorStatusBadge) {
+                vectorStatusBadge.className = 'preview-badge badge-success';
+                vectorStatusBadge.textContent = `Hoàn thành (${batchData.count} ảnh SVG)`;
+            }
+
+            if (vectorBatchSuccessCount) {
+                vectorBatchSuccessCount.textContent = batchData.count;
+            }
+
+            if (btnDownloadVectorBatchZip) {
+                btnDownloadVectorBatchZip.href = batchData.zip_url || '#';
+                btnDownloadVectorBatchZip.setAttribute('download', batchData.zip_filename || 'Batch_SVG_Vector.zip');
+            }
+
+            if (vectorBatchResultsGrid) {
+                vectorBatchResultsGrid.innerHTML = '';
+
+                batchData.results.forEach((item, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'batch-svg-card';
+
+                    const paths = item.stats.path_count || 0;
+                    const colors = item.stats.colors_count || 0;
+                    const sizeKb = item.stats.svg_size_kb || 0;
+                    const dur = item.stats.duration_sec || 0;
+
+                    card.innerHTML = `
+                        <div class="batch-svg-preview-box bg-checkerboard">
+                            ${item.svg_content}
+                        </div>
+                        <div class="batch-svg-info">
+                            <div class="batch-svg-name" title="${item.clean_filename}">${item.clean_filename}</div>
+                            <div class="batch-svg-badges">
+                                <span class="batch-svg-badge text-cyan" title="Số lượng đường cong Bézier"><i class="fa-solid fa-bezier-curve"></i> ${paths.toLocaleString()} nét</span>
+                                <span class="batch-svg-badge text-emerald" title="Số lượng màu sắc"><i class="fa-solid fa-palette"></i> ${colors} màu</span>
+                                <span class="batch-svg-badge text-violet" title="Dung lượng file SVG">${sizeKb} KB</span>
+                                <span class="batch-svg-badge text-amber" title="Thời gian xử lý">${dur}s</span>
+                            </div>
+                            <div class="batch-svg-actions">
+                                <a href="${item.download_url}" download="${item.clean_filename}" class="btn-card-action btn-card-dl" title="Tải xuống file .SVG này">
+                                    <i class="fa-solid fa-download"></i> Tải SVG
+                                </a>
+                                <button type="button" class="btn-card-action btn-card-inspect" data-idx="${idx}" title="Mở trong Trình Biên Soạn XML">
+                                    <i class="fa-solid fa-code"></i> Soạn XML
+                                </button>
+                                <button type="button" class="btn-card-action btn-card-compare" data-idx="${idx}" title="Xem so sánh trước / sau với ảnh gốc">
+                                    <i class="fa-solid fa-arrows-split-up-and-left"></i> Kéo Trượt So Sánh
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    const btnInspect = card.querySelector('.btn-card-inspect');
+                    if (btnInspect) {
+                        btnInspect.addEventListener('click', () => {
+                            switchSvgSubMode('xml');
+                            renderLiveSvg(item.svg_content, true);
+                            showToast(`Đã mở ${item.clean_filename} trong Bộ Soạn Thảo XML!`, 'success');
+                        });
+                    }
+
+                    const btnCompare = card.querySelector('.btn-card-compare');
+                    if (btnCompare) {
+                        btnCompare.addEventListener('click', () => {
+                            lastVectorResult = item;
+                            displayVectorResult(item);
+                            if (btnBackToBatchResults) btnBackToBatchResults.classList.remove('hidden');
+                            const previewCard = document.querySelector('.preview-card');
+                            if (previewCard) previewCard.scrollIntoView({ behavior: 'smooth' });
+                            showToast(`Đang hiển thị so sánh ảnh gốc & SVG của ${item.clean_filename}`, 'info');
+                        });
+                    }
+
+                    vectorBatchResultsGrid.appendChild(card);
+                });
+            }
+        }
+
+        // Return to Batch Results Grid
+        if (btnBackToBatchResults) {
+            btnBackToBatchResults.addEventListener('click', () => {
+                if (vectorResultWrapper) vectorResultWrapper.classList.add('hidden');
+                if (vectorBatchResultsContainer) vectorBatchResultsContainer.classList.remove('hidden');
+                if (lastVectorBatchResults && vectorStatusBadge) {
+                    vectorStatusBadge.className = 'preview-badge badge-success';
+                    vectorStatusBadge.textContent = `Hoàn thành (${lastVectorBatchResults.count} ảnh SVG)`;
+                }
+            });
+        }
+
+        // Save All Batch SVGs to Downloads
+        if (btnSaveVectorBatchDownloads) {
+            btnSaveVectorBatchDownloads.addEventListener('click', async () => {
+                if (!lastVectorBatchResults || !lastVectorBatchResults.results || lastVectorBatchResults.results.length === 0) {
+                    showToast('Chưa có danh sách tệp vector để lưu!', 'warning');
+                    return;
+                }
+
+                try {
+                    showToast('Đang lưu toàn bộ tệp vector vào thư mục Downloads...', 'info');
+                    const resp = await fetch('/api/svg/save-batch-to-downloads', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items: lastVectorBatchResults.results })
+                    });
+                    const res = await resp.json();
+                    if (res.status === 'success') {
+                        showToast(res.message || `Đã lưu thành công ${res.count} tệp vector vào Downloads!`, 'success');
+                    } else {
+                        showToast(res.message || 'Lỗi khi lưu tệp vào Downloads', 'error');
+                    }
+                } catch (err) {
+                    showToast('Lỗi lưu hàng loạt: ' + err.message, 'error');
+                }
+            });
+        }
+
+        // Comparison Slider Dragger
+        function initComparisonSlider() {
+            if (!vectorComparisonStage || !vectorSvgOverlay || !vectorSliderDivider) return;
+
+            let isDragging = false;
+
+            const updateSlider = (clientX) => {
+                const rect = vectorComparisonStage.getBoundingClientRect();
+                let x = clientX - rect.left;
+                if (x < 10) x = 10;
+                if (x > rect.width - 10) x = rect.width - 10;
+                const pct = (x / rect.width) * 100;
+
+                vectorSvgOverlay.style.width = `${pct}%`;
+                vectorSliderDivider.style.left = `${pct}%`;
+            };
+
+            vectorComparisonStage.onmousedown = (e) => {
+                isDragging = true;
+                updateSlider(e.clientX);
+            };
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                updateSlider(e.clientX);
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            // Touch support
+            vectorComparisonStage.ontouchstart = (e) => {
+                if (e.touches && e.touches[0]) {
+                    isDragging = true;
+                    updateSlider(e.touches[0].clientX);
+                }
+            };
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isDragging || !e.touches || !e.touches[0]) return;
+                updateSlider(e.touches[0].clientX);
+            });
+
+            window.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+        }
+
+        // View Mode Toggles
+        if (btnToggleCompareSlider && btnToggleVectorOnly) {
+            btnToggleCompareSlider.addEventListener('click', () => {
+                btnToggleCompareSlider.classList.add('active');
+                btnToggleVectorOnly.classList.remove('active');
+                if (vectorComparisonStage) vectorComparisonStage.classList.remove('hidden');
+                if (vectorSingleStage) vectorSingleStage.classList.add('hidden');
+            });
+
+            btnToggleVectorOnly.addEventListener('click', () => {
+                btnToggleVectorOnly.classList.add('active');
+                btnToggleCompareSlider.classList.remove('active');
+                if (vectorComparisonStage) vectorComparisonStage.classList.add('hidden');
+                if (vectorSingleStage) vectorSingleStage.classList.remove('hidden');
+            });
+        }
+
+        // Send generated vector to XML Editor
+        if (btnSendToXmlEditor) {
+            btnSendToXmlEditor.addEventListener('click', () => {
+                if (!lastVectorResult || !lastVectorResult.svg_content) {
+                    showToast('Chưa có mã vector để chuyển!', 'warning');
+                    return;
+                }
+                switchSvgSubMode('xml');
+                renderLiveSvg(lastVectorResult.svg_content, true);
+                showToast('Đã nạp mã vector vào Bộ Soạn Thảo XML!', 'success');
+            });
+        }
+
+        // Copy XML from Vector result
+        if (btnCopyVectorXml) {
+            btnCopyVectorXml.addEventListener('click', () => {
+                if (!lastVectorResult || !lastVectorResult.svg_content) {
+                    showToast('Chưa có mã vector để sao chép!', 'warning');
+                    return;
+                }
+                navigator.clipboard.writeText(lastVectorResult.svg_content);
+                showToast('Đã sao chép mã SVG XML của ảnh!', 'success');
+            });
+        }
+
+        // Save Vector result to Downloads
+        if (btnSaveVectorDownloads) {
+            btnSaveVectorDownloads.addEventListener('click', async () => {
+                if (!lastVectorResult || !lastVectorResult.filename) {
+                    showToast('Chưa có tệp vector để lưu!', 'warning');
+                    return;
+                }
+                try {
+                    showToast('Đang lưu tệp vector vào Downloads...', 'info');
+                    const fd = new FormData();
+                    fd.append('filename', lastVectorResult.filename);
+                    fd.append('custom_name', lastVectorResult.clean_filename);
+                    const resp = await fetch('/api/svg/save-to-downloads', { method: 'POST', body: fd });
+                    const res = await resp.json();
+                    if (res.status === 'success') {
+                        showToast(res.message || 'Đã lưu tệp vector vào thư mục Downloads!', 'success');
+                    } else {
+                        showToast(res.message || 'Lỗi lưu tệp', 'error');
+                    }
+                } catch (e) {
+                    showToast('Lỗi lưu: ' + e.message, 'error');
+                }
+            });
+        }
+    }
+
+    // Initialize SVG & Vector Studio
+    initSvgStudio();
+
     initCoordinateInspector();
 });
 

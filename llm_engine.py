@@ -79,7 +79,7 @@ COLOR_NAMES_MAP = [
 
 
 def rgb_to_hex(r: int, g: int, b: int) -> str:
-    return f"#{int(r):02x}{int(g):02x}{int(b):02x}".upper()
+    return f"#{r:02x}{g:02x}{b:02x}".upper()
 
 
 def get_color_name(r: int, g: int, b: int) -> Tuple[str, str]:
@@ -132,7 +132,7 @@ def extract_dominant_colors(pil_image: Image.Image, num_colors: int = 5) -> List
                 if pct < 1.0 and len(results) >= 3:
                     continue
                 c = centroids[idx]
-                r, g, b = int(round(float(c[0]))), int(round(float(c[1]))), int(round(float(c[2])))
+                r, g, b = round(float(c[0])), round(float(c[1])), round(float(c[2]))
                 r = max(0, min(255, r))
                 g = max(0, min(255, g))
                 b = max(0, min(255, b))
@@ -795,7 +795,7 @@ class LLMEngine:
                     "models": ollama_status["models"],
                     "current_model": self.ollama_model,
                     "host": self.ollama_host,
-                    "badge": f"{len(ollama_status['models'])} model" if ollama_status["available"] else "Chưa bật",
+                    "badge": f"{len(ollama_status['models']) if isinstance(ollama_status['models'], list) else 0} model" if ollama_status["available"] else "Chưa bật",
                     "desc": "Kết nối máy chủ Ollama cục bộ (Llama 3.2, Qwen 2.5, Llava Vision, Mistral...)"
                 },
                 "lm_studio": {
@@ -804,7 +804,7 @@ class LLMEngine:
                     "models": lm_studio_status["models"],
                     "current_model": self.lm_studio_model,
                     "host": self.lm_studio_host,
-                    "badge": f"{len(lm_studio_status['models'])} model" if lm_studio_status["available"] else "Chưa bật",
+                    "badge": f"{len(lm_studio_status['models']) if isinstance(lm_studio_status['models'], list) else 0} model" if lm_studio_status["available"] else "Chưa bật",
                     "desc": "Cổng kết nối chuẩn OpenAI tương thích LM Studio, Text-Gen-WebUI, vLLM chạy tại localhost:1234."
                 }
             }
@@ -1059,13 +1059,15 @@ class LLMEngine:
         import re
         msg_low = user_msg.lower().strip()
         for item in KNOWLEDGE_DEFINITIONS:
-            for kw in item["keywords"]:
+            keywords = item.get("keywords", [])
+            content = str(item.get("content", ""))
+            for kw in keywords:
                 if len(kw) <= 4:
                     if re.search(r'\b' + re.escape(kw) + r'\b', msg_low):
-                        return item["content"]
+                        return content
                 else:
                     if kw in msg_low:
-                        return item["content"]
+                        return content
         return None
 
     def chat(
@@ -1085,7 +1087,7 @@ class LLMEngine:
         if has_image and any(k in msg_clean.lower() for k in ["tìm ảnh tương tự", "ảnh tương tự", "tìm giống", "tương tự", "similar", "reverse"]):
             from visual_search import visual_search_engine
             scope = "web" if any(w in msg_clean.lower() for w in ["trên web", "trên mạng", "internet", "toàn cầu"]) else "all"
-            results = visual_search_engine.search_by_image(image_path, top_k=8, min_similarity=0.20, scope=scope)
+            results = visual_search_engine.search_by_image(str(image_path), top_k=8, min_similarity=0.20, scope=scope)
             count = len(results)
             scope_label = "trên các trang Web Internet & Thư viện máy" if scope == "all" else "trên các trang Web Internet"
             if count > 0:
