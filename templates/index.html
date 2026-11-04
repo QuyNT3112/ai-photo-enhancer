@@ -3832,6 +3832,10 @@
                                     <div class="palette-extract-label" style="margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                         <i class="fa-solid fa-palette text-cyan"></i> <strong>Chỉnh Màu Nét Vẽ & Bảng Màu SVG</strong>:
                                         <span class="badge-mini" id="vectorColorEditStatus" style="font-weight: normal; font-size: 11px;">Bấm trực tiếp vào từng ô màu để đổi màu nét vẽ</span>
+                                        <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); cursor: pointer; user-select: none; margin-left: 6px;" title="Tự động phát hiện và đổi sạch toàn bộ các sắc độ viền đen và răng cưa tương đồng">
+                                            <input type="checkbox" id="chkSmartColorTolerance" checked style="accent-color: #06b6d4; cursor: pointer; width: 14px; height: 14px;">
+                                            <span><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> Tự động khử sạch viền đen (Smart Tolerance)</span>
+                                        </label>
                                     </div>
                                     <div style="display: flex; gap: 6px; align-items: center;">
                                         <button type="button" class="btn-tool-outline btn-tool-sm hidden" id="btnResetVectorColors" title="Khôi phục lại toàn bộ màu gốc của ảnh vector">
@@ -3867,23 +3871,28 @@
                                             </div>
                                         </div>
 
-                                        <!-- Tool 2: Single Stroke / Line Art Tint -->
+                                        <!-- Tool 2: Line Art Recolor & Dark Edge Buster -->
                                         <div class="recolor-tool-card">
                                             <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
-                                                <i class="fa-solid fa-pen-nib text-cyan"></i> Đổi màu toàn bộ nét vẽ thành 1 màu (Line Art Tint):
+                                                <i class="fa-solid fa-paintbrush text-cyan"></i> Đổi màu toàn bộ nét vẽ & Khử sạch viền đen (Line Art Recolor):
                                             </label>
-                                            <div style="display: flex; gap: 6px; align-items: center;">
-                                                <input type="color" id="pickerSingleTint" value="#06B6D4" style="width: 38px; height: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: transparent; cursor: pointer; padding: 2px;">
+                                            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                                                <input type="color" id="pickerSingleTint" value="#EF4444" style="width: 38px; height: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: transparent; cursor: pointer; padding: 2px;">
                                                 <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                                                    <button type="button" class="btn-tint-chip" data-color="#000000" style="background: #000; color: #fff;" title="Đen">Đen</button>
-                                                    <button type="button" class="btn-tint-chip" data-color="#FFFFFF" style="background: #fff; color: #000;" title="Trắng">Trắng</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#EF4444" style="background: #EF4444; color: #fff;" title="Đỏ">Đỏ</button>
                                                     <button type="button" class="btn-tint-chip" data-color="#06B6D4" style="background: #06B6D4; color: #000;" title="Cyan">Cyan</button>
                                                     <button type="button" class="btn-tint-chip" data-color="#FACC15" style="background: #FACC15; color: #000;" title="Vàng">Vàng</button>
-                                                    <button type="button" class="btn-tint-chip" data-color="#EF4444" style="background: #EF4444; color: #fff;" title="Đỏ">Đỏ</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#10B981" style="background: #10B981; color: #fff;" title="Xanh lá">Xanh lá</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#8B5CF6" style="background: #8B5CF6; color: #fff;" title="Tím">Tím</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#000000" style="background: #000; color: #fff;" title="Đen">Đen</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#FFFFFF" style="background: #fff; color: #000;" title="Trắng">Trắng</button>
                                                 </div>
-                                                <button type="button" class="btn-action-sm btn-cyan" id="btnApplySingleTint" title="Đổi tất cả nét vẽ sang màu này">
-                                                    <i class="fa-solid fa-fill-drip"></i> Đổi Nét
+                                                <button type="button" class="btn-action-sm btn-cyan" id="btnApplySingleTint" title="Đổi tất cả các sắc thái nét vẽ đen và khử sạch 100% viền răng cưa">
+                                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Đổi Sạch Nét Đen
                                                 </button>
+                                            </div>
+                                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">
+                                                <i class="fa-solid fa-circle-info text-cyan"></i> Quét và đổi sạch 100% nét viền đen và răng cưa mờ, cam kết không còn nét đen sót lại.
                                             </div>
                                         </div>
                                     </div>

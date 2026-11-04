@@ -9379,6 +9379,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const vectorColorEditStatus = document.getElementById('vectorColorEditStatus');
         const lblToggleRecolor = document.getElementById('lblToggleRecolor');
         const tintChips = document.querySelectorAll('.btn-tint-chip');
+        const chkSmartColorTolerance = document.getElementById('chkSmartColorTolerance');
+
+        // Helper Color Utilities
+        function hexToRgb(hex) {
+            if (!hex) return { r: 0, g: 0, b: 0 };
+            let h = hex.replace('#', '').trim();
+            if (h.length === 3) {
+                h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+            }
+            return {
+                r: parseInt(h.substring(0, 2), 16) || 0,
+                g: parseInt(h.substring(2, 4), 16) || 0,
+                b: parseInt(h.substring(4, 6), 16) || 0
+            };
+        }
+
+        function getHexLuminance(hex) {
+            const { r, g, b } = hexToRgb(hex);
+            return 0.299 * r + 0.587 * g + 0.114 * b;
+        }
+
+        function getColorDistance(h1, h2) {
+            const c1 = hexToRgb(h1);
+            const c2 = hexToRgb(h2);
+            return Math.sqrt((c1.r - c2.r) ** 2 + (c1.g - c2.g) ** 2 + (c1.b - c2.b) ** 2);
+        }
+
+        function getAllSvgHexColors(svgXml) {
+            if (!svgXml) return [];
+            const matches = svgXml.match(/#[0-9a-fA-F]{6}\b/g) || [];
+            const set = new Set();
+            matches.forEach(c => set.add(c.toUpperCase()));
+            return Array.from(set);
+        }
 
         // Toggle Recolor Tools Panel
         if (btnToggleRecolorPanel && vectorRecolorToolsPanel) {
@@ -9402,7 +9436,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Apply Single Tint to All Lines / Strokes
+        // Apply Single Tint & Bust All Dark Lines / Stray Fringes
         if (btnApplySingleTint && pickerSingleTint) {
             btnApplySingleTint.addEventListener('click', () => {
                 if (!originalVectorSvgContent || !lastVectorResult) {
@@ -9410,23 +9444,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 const targetColor = pickerSingleTint.value.toUpperCase();
-                const pal = (lastVectorResult.stats && lastVectorResult.stats.palette) || [];
-                if (pal.length === 0) {
+                const allColors = getAllSvgHexColors(originalVectorSvgContent);
+
+                if (allColors.length === 0) {
                     showToast('Không tìm thấy màu sắc trong file SVG để đổi nét!', 'warning');
                     return;
                 }
 
-                pal.forEach(item => {
-                    activeColorReplacements[item.hex.toUpperCase()] = targetColor;
+                let darkCount = 0;
+                allColors.forEach(c => {
+                    if (getHexLuminance(c) < 115) {
+                        activeColorReplacements[c] = targetColor;
+                        darkCount++;
+                    }
                 });
 
+                // Fallback: If no dark lines detected (e.g. pastel drawing), map all colors
+                if (darkCount === 0) {
+                    allColors.forEach(c => {
+                        activeColorReplacements[c] = targetColor;
+                    });
+                    darkCount = allColors.length;
+                }
+
                 applyVectorColorReplacements();
-                renderVectorColorSwatches(pal);
-                showToast(`Đã đổi toàn bộ nét vẽ sang màu ${targetColor}!`, 'success');
+                renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
+                showToast(`Đã đổi sạch toàn bộ nét vẽ (${darkCount} sắc thái) sang màu ${targetColor}! Không còn nét đen sót lại.`, 'success');
             });
         }
 
-        // Apply AI Presets Palette
+        // Apply AI Presets Palette with Dark Line Clustering
         if (btnApplyVectorPalette && selVectorRecolorPalette) {
             btnApplyVectorPalette.addEventListener('click', () => {
                 if (!originalVectorSvgContent || !lastVectorResult) {
@@ -9444,17 +9491,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     synthwave: ['#FF007F', '#7928CA', '#00F2FE', '#FFE600', '#FF5E36', '#3B82F6', '#8B5CF6']
                 };
                 const targetPalette = palMap[pKey] || palMap.cyberpunk;
-                const pal = (lastVectorResult.stats && lastVectorResult.stats.palette) || [];
+                const allColors = getAllSvgHexColors(originalVectorSvgContent);
 
-                pal.forEach((item, idx) => {
-                    const mapped = targetPalette[idx % targetPalette.length];
-                    activeColorReplacements[item.hex.toUpperCase()] = mapped.toUpperCase();
+                const primaryDarkTarget = targetPalette[0];
+                let nonDarkIdx = 1;
+
+                allColors.forEach(c => {
+                    if (getHexLuminance(c) < 115) {
+                        activeColorReplacements[c] = primaryDarkTarget.toUpperCase();
+                    } else {
+                        const mapped = targetPalette[nonDarkIdx % targetPalette.length];
+                        activeColorReplacements[c] = mapped.toUpperCase();
+                        nonDarkIdx++;
+                    }
                 });
 
                 applyVectorColorReplacements();
-                renderVectorColorSwatches(pal);
+                renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
                 const pName = selVectorRecolorPalette.options[selVectorRecolorPalette.selectedIndex].text;
-                showToast(`Đã áp dụng tông màu AI "${pName}"!`, 'success');
+                showToast(`Đã áp dụng tông màu AI "${pName}" (khử sạch viền đen)!`, 'success');
             });
         }
 
@@ -9464,13 +9519,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!originalVectorSvgContent || !lastVectorResult) return;
                 activeColorReplacements = {};
                 applyVectorColorReplacements();
-                const pal = (lastVectorResult.stats && lastVectorResult.stats.palette) || [];
-                renderVectorColorSwatches(pal);
+                renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
                 showToast('Đã khôi phục toàn bộ màu nét vẽ gốc ban đầu!', 'info');
             });
         }
 
-        // Apply Replacements Live into SVG DOM
+        // Apply Replacements Live into SVG DOM with Fast Regex Lookahead
         function applyVectorColorReplacements() {
             if (!originalVectorSvgContent) return;
 
@@ -9512,38 +9566,92 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (vectorColorEditStatus) {
                 if (editCount > 0) {
-                    vectorColorEditStatus.textContent = `Đã đổi ${editCount} màu nét vẽ (Live 0.01s)`;
+                    vectorColorEditStatus.textContent = `Đã đổi ${editCount} màu sắc nét vẽ (Khử sạch viền đen)`;
                 } else {
                     vectorColorEditStatus.textContent = 'Bấm trực tiếp vào từng ô màu để đổi màu nét vẽ';
                 }
             }
         }
 
-        // Render Interactive Color Swatches with Pickers
+        // Render Interactive Color Swatches with Grouping & Smart Tolerance
         function renderVectorColorSwatches(palette) {
             if (!vectorResultPalette) return;
             vectorResultPalette.innerHTML = '';
 
-            const colors = palette.slice(0, 24);
-            if (colors.length === 0) {
+            const allColors = getAllSvgHexColors(originalVectorSvgContent);
+            if (allColors.length === 0) {
                 vectorResultPalette.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">Không tìm thấy mã màu rõ ràng trong file SVG.</span>';
                 return;
             }
 
-            colors.forEach(item => {
-                const origHex = item.hex.toUpperCase();
+            // Count occurrences in original SVG
+            const colorCounts = {};
+            const matches = originalVectorSvgContent.match(/#[0-9a-fA-F]{6}\b/g) || [];
+            matches.forEach(c => {
+                const u = c.toUpperCase();
+                colorCounts[u] = (colorCounts[u] || 0) + 1;
+            });
+
+            // Group dark line shades (lum < 100) together into one primary swatch
+            const darkShades = [];
+            const otherColors = [];
+
+            allColors.forEach(c => {
+                if (getHexLuminance(c) < 100) {
+                    darkShades.push(c);
+                } else {
+                    otherColors.push(c);
+                }
+            });
+
+            // Sort dark shades by frequency
+            darkShades.sort((a, b) => (colorCounts[b] || 0) - (colorCounts[a] || 0));
+            // Sort other colors by frequency
+            otherColors.sort((a, b) => (colorCounts[b] || 0) - (colorCounts[a] || 0));
+
+            // List of display cards
+            const displayGroups = [];
+
+            if (darkShades.length > 0) {
+                displayGroups.push({
+                    type: 'dark_group',
+                    primaryHex: darkShades[0],
+                    members: darkShades,
+                    label: `Nét vẽ & viền đen (${darkShades.length} sắc thái)`
+                });
+            }
+
+            otherColors.slice(0, 20).forEach(c => {
+                displayGroups.push({
+                    type: 'single',
+                    primaryHex: c,
+                    members: [c],
+                    label: c
+                });
+            });
+
+            displayGroups.forEach(group => {
+                const origHex = group.primaryHex.toUpperCase();
                 const currentHex = (activeColorReplacements[origHex] || origHex).toUpperCase();
                 const isEdited = Boolean(activeColorReplacements[origHex] && activeColorReplacements[origHex] !== origHex);
 
                 const card = document.createElement('div');
                 card.className = `swatch-pill interactive-swatch ${isEdited ? 'is-customized' : ''}`;
-                card.title = `Màu gốc: ${origHex} - Bấm để chọn màu mới thay thế cho nét vẽ này`;
+                const titleText = group.type === 'dark_group'
+                    ? `Màu nét chính: ${origHex} - Nhóm ${group.members.length} sắc thái viền đen. Bấm để đổi toàn bộ nét vẽ mà không lo sót viền đen!`
+                    : `Màu: ${origHex} - Bấm để chọn màu thay thế`;
+                card.title = titleText;
+
+                const badgeHtml = group.type === 'dark_group' && group.members.length > 1
+                    ? `<span class="swatch-group-badge" title="${group.members.length} sắc độ viền đen được đồng bộ">${group.members.length} nét viền</span>`
+                    : '';
 
                 card.innerHTML = `
                     <input type="color" class="swatch-native-picker" value="${currentHex}">
                     <span class="swatch-color-dot" style="background-color: ${currentHex}"></span>
                     <span class="swatch-hex-text">${currentHex}</span>
-                    <i class="fa-solid fa-pen-to-square" style="font-size: 10px; opacity: ${isEdited ? '1' : '0.4'}; color: ${isEdited ? '#06b6d4' : 'inherit'};"></i>
+                    ${badgeHtml}
+                    <i class="fa-solid fa-pen-to-square" style="font-size: 10px; opacity: ${isEdited ? '1' : '0.4'}; color: ${isEdited ? '#06b6d4' : 'inherit'}; margin-left: 3px;"></i>
                 `;
 
                 const picker = card.querySelector('.swatch-native-picker');
@@ -9561,7 +9669,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         icon.style.color = '#06b6d4';
                     }
 
-                    activeColorReplacements[origHex] = newHex;
+                    const useSmartTolerance = !chkSmartColorTolerance || chkSmartColorTolerance.checked;
+
+                    if (group.type === 'dark_group' || (useSmartTolerance && getHexLuminance(origHex) < 110)) {
+                        // Recolor all dark line shades in this group and across the SVG
+                        const allDark = group.type === 'dark_group' ? group.members : allColors.filter(c => getHexLuminance(c) < 115);
+                        allDark.forEach(member => {
+                            activeColorReplacements[member] = newHex;
+                        });
+                        activeColorReplacements[origHex] = newHex;
+                    } else if (useSmartTolerance) {
+                        // For other colors, replace near shades with small color distance
+                        allColors.forEach(c => {
+                            if (getColorDistance(c, origHex) < 45) {
+                                activeColorReplacements[c] = newHex;
+                            }
+                        });
+                        activeColorReplacements[origHex] = newHex;
+                    } else {
+                        // Strict 1-to-1 replacement
+                        activeColorReplacements[origHex] = newHex;
+                    }
+
                     applyVectorColorReplacements();
                 };
 
@@ -9571,7 +9700,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 vectorResultPalette.appendChild(card);
             });
         }
-
         // Display Vector Result (Single)
         function displayVectorResult(data) {
             if (!data) return;

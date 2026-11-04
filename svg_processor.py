@@ -286,7 +286,7 @@ class SvgProcessor:
             'duration_sec': duration_sec,
             'path_count': svg_stats.get('path_count', 0),
             'colors_count': len(svg_stats.get('palette', [])),
-            'palette': svg_stats.get('palette', [])[:16],
+            'palette': svg_stats.get('palette', [])[:64],
             'viewBox': svg_stats.get('viewBox', f"0 0 {new_w} {new_h}"),
             'is_true_vector': True
         }
@@ -577,7 +577,7 @@ class SvgProcessor:
         }
 
     def _ai_recolor(self, svg_xml: str, palette_key: str) -> Dict[str, Any]:
-        """Re-maps colors in SVG XML according to selected palette."""
+        """Re-maps colors in SVG XML according to selected palette, grouping line-art shades."""
         pal = self.PALETTES.get(palette_key, self.PALETTES['cyberpunk'])
         target_colors = pal['colors']
 
@@ -588,17 +588,35 @@ class SvgProcessor:
         if not existing_palette:
             raise ValueError("Không tìm thấy màu sắc nào trong tệp SVG để đổi tông.")
 
-        # Create 1-to-1 or cyclic mapping
-        color_map: Dict[str, str] = {}
-        for idx, src_hex in enumerate(existing_palette):
-            target_hex = target_colors[idx % len(target_colors)]
-            color_map[src_hex.upper()] = target_hex
-            color_map[src_hex.lower()] = target_hex
+        def _calc_lum(hex_str: str) -> float:
+            try:
+                h = hex_str.lstrip('#')
+                if len(h) == 3:
+                    h = ''.join([c*2 for c in h])
+                r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+                return 0.299 * r + 0.587 * g + 0.114 * b
+            except Exception:
+                return 128.0
 
-        # Replace in XML
+        # Cluster dark line-art shades together to avoid rainbow fringe artifacts
+        primary_line_color = target_colors[0]
+        color_map: Dict[str, str] = {}
+        non_dark_idx = 1
+
+        for src_hex in existing_palette:
+            if _calc_lum(src_hex) < 110:
+                color_map[src_hex.upper()] = primary_line_color
+                color_map[src_hex.lower()] = primary_line_color
+            else:
+                mapped_color = target_colors[non_dark_idx % len(target_colors)]
+                color_map[src_hex.upper()] = mapped_color
+                color_map[src_hex.lower()] = mapped_color
+                non_dark_idx += 1
+
+        # Replace in XML with word-boundary lookahead
         recolored_xml = svg_xml
         for old_c, new_c in color_map.items():
-            recolored_xml = re.sub(re.escape(old_c), new_c, recolored_xml, flags=re.IGNORECASE)
+            recolored_xml = re.sub(re.escape(old_c) + r'(?![0-9a-fA-F])', new_c, recolored_xml, flags=re.IGNORECASE)
 
         return {
             'success': True,
