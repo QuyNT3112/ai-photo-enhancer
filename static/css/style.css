@@ -8205,3 +8205,105 @@ input:checked + .slider:before {
     stroke: #06b6d4 !important;
     stroke-width: 2.5px !important;
 }
+
+/* Direct On-Image Color Popover */
+.svg-color-popover {
+    position: absolute;
+    z-index: 1000;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(6, 182, 212, 0.45);
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65), 0 0 16px rgba(6, 182, 212, 0.35);
+    min-width: 230px;
+    max-width: 290px;
+    pointer-events: auto;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    animation: popoverFadeIn 0.15s ease-out;
+}
+
+@keyframes popoverFadeIn {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.popover-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.popover-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.btn-popover-close {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.btn-popover-close:hover {
+    color: #fff;
+}
+
+.popover-color-input {
+    width: 36px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: transparent;
+    cursor: pointer;
+    padding: 2px;
+}
+
+.popover-chips-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+}
+
+.btn-popover-chip {
+    padding: 4px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.btn-popover-chip:hover {
+    transform: scale(1.08);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Hover highlights on SVG paths */
+.vector-rendered-container path,
+#vectorSingleSvgContainer path {
+    cursor: pointer !important;
+    transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.vector-rendered-container path:hover,
+#vectorSingleSvgContainer path:hover {
+    filter: drop-shadow(0 0 7px #06b6d4) brightness(1.3) !important;
+}
+
+.vector-path-active-target {
+    filter: drop-shadow(0 0 10px #f59e0b) brightness(1.4) !important;
+    stroke: #f59e0b !important;
+    stroke-width: 2.5px !important;
+}

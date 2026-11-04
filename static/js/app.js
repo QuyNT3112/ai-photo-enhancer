@@ -9425,42 +9425,88 @@ document.addEventListener('DOMContentLoaded', () => {
             return Array.from(set);
         }
 
-        // Interactive Paint Bucket (Click to Recolor Any Path/Detail)
-        if (btnTogglePaintBucket) {
-            btnTogglePaintBucket.addEventListener('click', () => {
-                isPaintBucketActive = !isPaintBucketActive;
-                if (isPaintBucketActive) {
-                    btnTogglePaintBucket.classList.remove('btn-cyan');
-                    btnTogglePaintBucket.classList.add('btn-violet');
-                    if (lblPaintBucketStatus) lblPaintBucketStatus.textContent = 'Đang Bật Bút Đổ Màu (Click Để Tô)';
-                    if (paintBucketControls) paintBucketControls.classList.remove('hidden');
-                    if (vectorSvgContainer) vectorSvgContainer.classList.add('paint-bucket-active');
-                    if (vectorSingleSvgContainer) vectorSingleSvgContainer.classList.add('paint-bucket-active');
-                    showToast('Đã bật Bút Đổ Màu! Click trực tiếp vào mắt, mặt, nón, thắt lưng... trên ảnh để đổi màu!', 'info');
-                } else {
-                    btnTogglePaintBucket.classList.remove('btn-violet');
-                    btnTogglePaintBucket.classList.add('btn-cyan');
-                    if (lblPaintBucketStatus) lblPaintBucketStatus.textContent = 'Bật Bút Đổ Màu Chi Tiết';
-                    if (paintBucketControls) paintBucketControls.classList.add('hidden');
-                    if (vectorSvgContainer) vectorSvgContainer.classList.remove('paint-bucket-active');
-                    if (vectorSingleSvgContainer) vectorSingleSvgContainer.classList.remove('paint-bucket-active');
-                }
-            });
+        // State variables for Direct On-Image Region Recolor & Popover
+        let activeSelectedPath = null;
+        const svgDirectColorPopover = document.getElementById('svgDirectColorPopover');
+        const popoverRegionTitle = document.getElementById('popoverRegionTitle');
+        const popoverPartBadge = document.getElementById('popoverPartBadge');
+        const popoverNativeColor = document.getElementById('popoverNativeColor');
+        const popoverHexCode = document.getElementById('popoverHexCode');
+        const btnPopoverClose = document.getElementById('btnPopoverClose');
+        const popoverChips = document.querySelectorAll('.btn-popover-chip');
+
+        function hideDirectColorPopover() {
+            if (svgDirectColorPopover) svgDirectColorPopover.classList.add('hidden');
+            if (activeSelectedPath) {
+                activeSelectedPath.classList.remove('vector-path-active-target');
+                activeSelectedPath = null;
+            }
         }
 
-        // Paint Chips listener
-        if (paintChips) {
-            paintChips.forEach(chip => {
+        if (btnPopoverClose) {
+            btnPopoverClose.addEventListener('click', hideDirectColorPopover);
+        }
+
+        // Apply color from popover directly to the selected element
+        function applyPopoverColor(newColor) {
+            if (!activeSelectedPath || !newColor) return;
+            const hex = newColor.toUpperCase();
+
+            // Save undo
+            if (currentVectorSvgContent) {
+                paintBucketUndoStack.push(currentVectorSvgContent);
+                if (btnUndoPaintBucket) btnUndoPaintBucket.classList.remove('hidden');
+            }
+
+            // Update path
+            activeSelectedPath.setAttribute('fill', hex);
+            activeSelectedPath.setAttribute('stroke', hex);
+            activeSelectedPath.style.fill = hex;
+            activeSelectedPath.style.stroke = hex;
+
+            const partName = activeSelectedPath.getAttribute('data-part') || 'vùng chọn';
+
+            // Sync SVG in DOM
+            const container = activeSelectedPath.closest('.vector-rendered-container') || activeSelectedPath.closest('#vectorSingleSvgContainer');
+            if (container) {
+                const svgEl = container.querySelector('svg');
+                if (svgEl) {
+                    const serializer = new XMLSerializer();
+                    currentVectorSvgContent = serializer.serializeToString(svgEl);
+                    if (lastVectorResult) lastVectorResult.svg_content = currentVectorSvgContent;
+
+                    const otherContainer = container === vectorSvgContainer ? vectorSingleSvgContainer : vectorSvgContainer;
+                    if (otherContainer) otherContainer.innerHTML = currentVectorSvgContent;
+
+                    if (btnDownloadVectorSvg) {
+                        const blob = new Blob([currentVectorSvgContent], { type: 'image/svg+xml;charset=utf-8' });
+                        btnDownloadVectorSvg.href = URL.createObjectURL(blob);
+                    }
+
+                    renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
+                }
+            }
+
+            if (popoverHexCode) popoverHexCode.textContent = hex;
+            if (popoverNativeColor) popoverNativeColor.value = hex;
+            showToast(`Đã đổi màu ${hex} cho ${partName}!`, 'success');
+        }
+
+        if (popoverNativeColor) {
+            popoverNativeColor.addEventListener('input', (e) => applyPopoverColor(e.target.value));
+            popoverNativeColor.addEventListener('change', (e) => applyPopoverColor(e.target.value));
+        }
+
+        if (popoverChips) {
+            popoverChips.forEach(chip => {
                 chip.addEventListener('click', () => {
                     const c = chip.getAttribute('data-color');
-                    if (pickerPaintBucketColor && c) {
-                        pickerPaintBucketColor.value = c;
-                    }
+                    if (c) applyPopoverColor(c);
                 });
             });
         }
 
-        // Undo Paint Bucket Action
+        // Undo Action
         if (btnUndoPaintBucket) {
             btnUndoPaintBucket.addEventListener('click', () => {
                 if (paintBucketUndoStack.length === 0) return;
@@ -9475,6 +9521,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         btnDownloadVectorSvg.href = URL.createObjectURL(blob);
                     }
                     renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
+                    hideDirectColorPopover();
                     showToast('Đã hoàn tác bước tô màu vừa rồi!', 'info');
                 }
                 if (paintBucketUndoStack.length === 0) {
@@ -9483,58 +9530,81 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Attach Paint Bucket click listeners to SVG containers
-        function attachPaintBucketHandler(container) {
-            if (!container || container._hasPaintBucketHandler) return;
-            container._hasPaintBucketHandler = true;
+        // Attach Direct On-Image click handler to SVG containers
+        function attachDirectOnImageClickHandler(container) {
+            if (!container || container._hasDirectOnImageHandler) return;
+            container._hasDirectOnImageHandler = true;
 
             container.addEventListener('click', (e) => {
-                if (!isPaintBucketActive) return;
                 const target = e.target.closest('path') || e.target.closest('circle') || e.target.closest('polygon') || e.target.closest('rect');
                 if (!target) return;
 
                 e.preventDefault();
                 e.stopPropagation();
 
-                const color = pickerPaintBucketColor ? pickerPaintBucketColor.value.toUpperCase() : '#FACC15';
+                // Remove highlight from previous
+                if (activeSelectedPath) {
+                    activeSelectedPath.classList.remove('vector-path-active-target');
+                }
+                activeSelectedPath = target;
+                target.classList.add('vector-path-active-target');
 
-                // Save undo
-                if (currentVectorSvgContent) {
-                    paintBucketUndoStack.push(currentVectorSvgContent);
-                    if (btnUndoPaintBucket) btnUndoPaintBucket.classList.remove('hidden');
+                // Determine current color
+                let curColor = target.getAttribute('fill') || target.style.fill;
+                if (!curColor || curColor === 'none') {
+                    curColor = target.getAttribute('stroke') || target.style.stroke;
+                }
+                if (!curColor || curColor === 'none' || curColor.startsWith('rgb')) {
+                    curColor = '#FACC15';
+                }
+                curColor = curColor.toUpperCase();
+
+                // Region name
+                const partName = target.getAttribute('data-part') || (getHexLuminance(curColor) < 110 ? 'Nét viền' : 'Chi tiết vector');
+
+                if (popoverRegionTitle) {
+                    popoverRegionTitle.innerHTML = `<i class="fa-solid fa-paintbrush text-cyan"></i> Đổi màu: <strong>${partName}</strong>`;
+                }
+                if (popoverPartBadge) {
+                    popoverPartBadge.textContent = partName;
+                }
+                if (popoverNativeColor) {
+                    popoverNativeColor.value = curColor.startsWith('#') && curColor.length === 7 ? curColor : '#FACC15';
+                }
+                if (popoverHexCode) {
+                    popoverHexCode.textContent = curColor;
                 }
 
-                // Apply color to target element
-                target.setAttribute('fill', color);
-                target.setAttribute('stroke', color);
-                target.style.fill = color;
-                target.style.stroke = color;
+                // Position popover near mouse click inside vectorResultWrapper
+                if (svgDirectColorPopover && vectorResultWrapper) {
+                    const wrapperRect = vectorResultWrapper.getBoundingClientRect();
+                    let popX = e.clientX - wrapperRect.left + 15;
+                    let popY = e.clientY - wrapperRect.top + 15;
 
-                // Sync SVG contents
-                const svgEl = container.querySelector('svg');
-                if (svgEl) {
-                    const serializer = new XMLSerializer();
-                    currentVectorSvgContent = serializer.serializeToString(svgEl);
-                    if (lastVectorResult) lastVectorResult.svg_content = currentVectorSvgContent;
-
-                    // Sync other container
-                    const otherContainer = container === vectorSvgContainer ? vectorSingleSvgContainer : vectorSvgContainer;
-                    if (otherContainer) otherContainer.innerHTML = currentVectorSvgContent;
-
-                    // Update download link
-                    if (btnDownloadVectorSvg) {
-                        const blob = new Blob([currentVectorSvgContent], { type: 'image/svg+xml;charset=utf-8' });
-                        btnDownloadVectorSvg.href = URL.createObjectURL(blob);
+                    const popWidth = 270;
+                    const popHeight = 180;
+                    if (popX + popWidth > wrapperRect.width) {
+                        popX = Math.max(10, wrapperRect.width - popWidth - 15);
+                    }
+                    if (popY + popHeight > wrapperRect.height) {
+                        popY = Math.max(10, wrapperRect.height - popHeight - 15);
                     }
 
-                    renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
+                    svgDirectColorPopover.style.left = `${popX}px`;
+                    svgDirectColorPopover.style.top = `${popY}px`;
+                    svgDirectColorPopover.classList.remove('hidden');
                 }
-
-                const partName = target.getAttribute('data-part') || 'chi tiết';
-                showToast(`Đã đổ màu ${color} cho ${partName}!`, 'success');
             });
         }
 
+        // Close popover when clicking outside
+        document.addEventListener('click', (e) => {
+            if (svgDirectColorPopover && !svgDirectColorPopover.classList.contains('hidden')) {
+                if (!svgDirectColorPopover.contains(e.target) && !e.target.closest('path')) {
+                    hideDirectColorPopover();
+                }
+            }
+        });
         // AI Auto-Colorize for Line Art / Character
         if (btnApplyAutoColorize && selAutoColorizeTheme) {
             btnApplyAutoColorize.addEventListener('click', async () => {
@@ -9883,8 +9953,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 vectorStatusBadge.textContent = 'Hoàn thành 100% Vector';
             }
 
-            attachPaintBucketHandler(vectorSvgContainer);
-            attachPaintBucketHandler(vectorSingleSvgContainer);
+            attachDirectOnImageClickHandler(vectorSvgContainer);
+            attachDirectOnImageClickHandler(vectorSingleSvgContainer);
             // Store original and current SVG contents
             originalVectorSvgContent = data.svg_content;
             currentVectorSvgContent = data.svg_content;
