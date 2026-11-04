@@ -787,8 +787,58 @@ class SvgProcessor:
         """
         p_lower = prompt.lower()
 
+        # 0. Penguin / Chim Cánh Cụt / Cute Bird
+        if any(w in p_lower for w in ('penguin', 'cánh cụt', 'chim cánh cụt', 'pingu')):
+            return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="penBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="penBelly" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F1F5F9" />
+    </linearGradient>
+    <linearGradient id="penBeak" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="blushGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDA4AF" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#FB7185" stop-opacity="0.3"/>
+    </linearGradient>
+  </defs>
+  <!-- Shadow -->
+  <ellipse cx="250" cy="450" rx="140" ry="22" fill="rgba(0,0,0,0.15)"/>
+  <!-- Feet -->
+  <ellipse cx="190" cy="435" rx="36" ry="18" fill="url(#penBeak)"/>
+  <ellipse cx="310" cy="435" rx="36" ry="18" fill="url(#penBeak)"/>
+  <!-- Wings -->
+  <path d="M125 240 C95 270 95 340 135 360 C145 340 145 280 140 245 Z" fill="url(#penBody)" stroke="#334155" stroke-width="2"/>
+  <path d="M375 240 C405 270 405 340 365 360 C355 340 355 280 360 245 Z" fill="url(#penBody)" stroke="#334155" stroke-width="2"/>
+  <!-- Chubby Round Body -->
+  <ellipse cx="250" cy="275" rx="145" ry="165" fill="url(#penBody)"/>
+  <!-- White Fluffy Belly -->
+  <ellipse cx="250" cy="305" rx="100" ry="125" fill="url(#penBelly)"/>
+  <!-- Face White Patches -->
+  <circle cx="205" cy="195" r="42" fill="#FFFFFF"/>
+  <circle cx="295" cy="195" r="42" fill="#FFFFFF"/>
+  <!-- Adorable Expressive Eyes -->
+  <ellipse cx="205" cy="195" rx="16" ry="22" fill="#0F172A"/>
+  <ellipse cx="295" cy="195" rx="16" ry="22" fill="#0F172A"/>
+  <circle cx="199" cy="186" r="6" fill="#FFFFFF"/>
+  <circle cx="289" cy="186" r="6" fill="#FFFFFF"/>
+  <circle cx="209" cy="204" r="3" fill="#FFFFFF"/>
+  <circle cx="299" cy="204" r="3" fill="#FFFFFF"/>
+  <!-- Cute Pink Cheeks / Blush -->
+  <ellipse cx="165" cy="225" rx="18" ry="10" fill="url(#blushGrad)"/>
+  <ellipse cx="335" cy="225" rx="18" ry="10" fill="url(#blushGrad)"/>
+  <!-- Little Beak -->
+  <path d="M232 210 Q250 226 268 210 Q250 236 232 210 Z" fill="url(#penBeak)"/>
+</svg>"""
+
         # 1. Heart / Love
-        if any(w in p_lower for w in ('heart', 'tim', 'trái tim', 'love', 'yêu', 'tình yêu', 'thương')):
+        if re.search(r'\b(heart|tim|trái tim|love|yêu|tình yêu|thương)\b', p_lower):
             return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
   <defs>
     <linearGradient id="heartGrad" x1="0%" y1="0%" x2="100%" y2="100%">

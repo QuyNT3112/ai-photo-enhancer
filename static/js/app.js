@@ -8777,6 +8777,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+                // Bridge to T2I generator
+        const btnGoToT2I = document.getElementById('btnGoToT2I');
+        if (btnGoToT2I) {
+            btnGoToT2I.addEventListener('click', () => {
+                const text = svgAiPromptInput ? svgAiPromptInput.value.trim() : '';
+                const genTab = document.getElementById('tabBtnGenerator');
+                if (genTab) genTab.click();
+                const genPromptInput = document.getElementById('genPrompt');
+                if (genPromptInput && text) {
+                    genPromptInput.value = text;
+                }
+                showToast('Đã chuyển sang Tab Tạo Ảnh AI (T2I) và nạp sẵn prompt của bạn!', 'info');
+            });
+        }
+
         // Enter key to generate SVG from prompt
         if (svgAiPromptInput) {
             svgAiPromptInput.addEventListener('keydown', (e) => {
