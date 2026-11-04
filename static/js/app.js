@@ -9380,6 +9380,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const lblToggleRecolor = document.getElementById('lblToggleRecolor');
         const tintChips = document.querySelectorAll('.btn-tint-chip');
         const chkSmartColorTolerance = document.getElementById('chkSmartColorTolerance');
+        const btnTogglePaintBucket = document.getElementById('btnTogglePaintBucket');
+        const lblPaintBucketStatus = document.getElementById('lblPaintBucketStatus');
+        const paintBucketControls = document.getElementById('paintBucketControls');
+        const pickerPaintBucketColor = document.getElementById('pickerPaintBucketColor');
+        const btnUndoPaintBucket = document.getElementById('btnUndoPaintBucket');
+        const paintChips = document.querySelectorAll('.btn-paint-chip');
+        const btnApplyAutoColorize = document.getElementById('btnApplyAutoColorize');
+        const selAutoColorizeTheme = document.getElementById('selAutoColorizeTheme');
+
+        let isPaintBucketActive = false;
+        let paintBucketUndoStack = [];
 
         // Helper Color Utilities
         function hexToRgb(hex) {
@@ -9412,6 +9423,167 @@ document.addEventListener('DOMContentLoaded', () => {
             const set = new Set();
             matches.forEach(c => set.add(c.toUpperCase()));
             return Array.from(set);
+        }
+
+        // Interactive Paint Bucket (Click to Recolor Any Path/Detail)
+        if (btnTogglePaintBucket) {
+            btnTogglePaintBucket.addEventListener('click', () => {
+                isPaintBucketActive = !isPaintBucketActive;
+                if (isPaintBucketActive) {
+                    btnTogglePaintBucket.classList.remove('btn-cyan');
+                    btnTogglePaintBucket.classList.add('btn-violet');
+                    if (lblPaintBucketStatus) lblPaintBucketStatus.textContent = 'Đang Bật Bút Đổ Màu (Click Để Tô)';
+                    if (paintBucketControls) paintBucketControls.classList.remove('hidden');
+                    if (vectorSvgContainer) vectorSvgContainer.classList.add('paint-bucket-active');
+                    if (vectorSingleSvgContainer) vectorSingleSvgContainer.classList.add('paint-bucket-active');
+                    showToast('Đã bật Bút Đổ Màu! Click trực tiếp vào mắt, mặt, nón, thắt lưng... trên ảnh để đổi màu!', 'info');
+                } else {
+                    btnTogglePaintBucket.classList.remove('btn-violet');
+                    btnTogglePaintBucket.classList.add('btn-cyan');
+                    if (lblPaintBucketStatus) lblPaintBucketStatus.textContent = 'Bật Bút Đổ Màu Chi Tiết';
+                    if (paintBucketControls) paintBucketControls.classList.add('hidden');
+                    if (vectorSvgContainer) vectorSvgContainer.classList.remove('paint-bucket-active');
+                    if (vectorSingleSvgContainer) vectorSingleSvgContainer.classList.remove('paint-bucket-active');
+                }
+            });
+        }
+
+        // Paint Chips listener
+        if (paintChips) {
+            paintChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    const c = chip.getAttribute('data-color');
+                    if (pickerPaintBucketColor && c) {
+                        pickerPaintBucketColor.value = c;
+                    }
+                });
+            });
+        }
+
+        // Undo Paint Bucket Action
+        if (btnUndoPaintBucket) {
+            btnUndoPaintBucket.addEventListener('click', () => {
+                if (paintBucketUndoStack.length === 0) return;
+                const prev = paintBucketUndoStack.pop();
+                if (prev) {
+                    currentVectorSvgContent = prev;
+                    if (lastVectorResult) lastVectorResult.svg_content = prev;
+                    if (vectorSvgContainer) vectorSvgContainer.innerHTML = prev;
+                    if (vectorSingleSvgContainer) vectorSingleSvgContainer.innerHTML = prev;
+                    if (btnDownloadVectorSvg) {
+                        const blob = new Blob([prev], { type: 'image/svg+xml;charset=utf-8' });
+                        btnDownloadVectorSvg.href = URL.createObjectURL(blob);
+                    }
+                    renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
+                    showToast('Đã hoàn tác bước tô màu vừa rồi!', 'info');
+                }
+                if (paintBucketUndoStack.length === 0) {
+                    btnUndoPaintBucket.classList.add('hidden');
+                }
+            });
+        }
+
+        // Attach Paint Bucket click listeners to SVG containers
+        function attachPaintBucketHandler(container) {
+            if (!container || container._hasPaintBucketHandler) return;
+            container._hasPaintBucketHandler = true;
+
+            container.addEventListener('click', (e) => {
+                if (!isPaintBucketActive) return;
+                const target = e.target.closest('path') || e.target.closest('circle') || e.target.closest('polygon') || e.target.closest('rect');
+                if (!target) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                const color = pickerPaintBucketColor ? pickerPaintBucketColor.value.toUpperCase() : '#FACC15';
+
+                // Save undo
+                if (currentVectorSvgContent) {
+                    paintBucketUndoStack.push(currentVectorSvgContent);
+                    if (btnUndoPaintBucket) btnUndoPaintBucket.classList.remove('hidden');
+                }
+
+                // Apply color to target element
+                target.setAttribute('fill', color);
+                target.setAttribute('stroke', color);
+                target.style.fill = color;
+                target.style.stroke = color;
+
+                // Sync SVG contents
+                const svgEl = container.querySelector('svg');
+                if (svgEl) {
+                    const serializer = new XMLSerializer();
+                    currentVectorSvgContent = serializer.serializeToString(svgEl);
+                    if (lastVectorResult) lastVectorResult.svg_content = currentVectorSvgContent;
+
+                    // Sync other container
+                    const otherContainer = container === vectorSvgContainer ? vectorSingleSvgContainer : vectorSvgContainer;
+                    if (otherContainer) otherContainer.innerHTML = currentVectorSvgContent;
+
+                    // Update download link
+                    if (btnDownloadVectorSvg) {
+                        const blob = new Blob([currentVectorSvgContent], { type: 'image/svg+xml;charset=utf-8' });
+                        btnDownloadVectorSvg.href = URL.createObjectURL(blob);
+                    }
+
+                    renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
+                }
+
+                const partName = target.getAttribute('data-part') || 'chi tiết';
+                showToast(`Đã đổ màu ${color} cho ${partName}!`, 'success');
+            });
+        }
+
+        // AI Auto-Colorize for Line Art / Character
+        if (btnApplyAutoColorize && selAutoColorizeTheme) {
+            btnApplyAutoColorize.addEventListener('click', async () => {
+                if (!lastVectorResult) {
+                    showToast('Chưa có ảnh vector để tô màu!', 'warning');
+                    return;
+                }
+                const theme = selAutoColorizeTheme.value;
+                showToast('AI đang phân tích các vùng mắt, mặt, áo, thắt lưng để tự động phối màu...', 'info');
+
+                try {
+                    const fd = new FormData();
+                    fd.append('theme', theme);
+                    fd.append('filename', lastVectorResult.filename || '');
+                    fd.append('input_filename', lastVectorResult.input_filename || '');
+                    fd.append('svg_xml', currentVectorSvgContent || lastVectorResult.svg_content || '');
+
+                    const resp = await fetch('/api/svg/auto-colorize', {
+                        method: 'POST',
+                        body: fd
+                    });
+                    const res = await resp.json();
+
+                    if (res.status === 'success' && res.data && res.data.colorized_svg) {
+                        if (currentVectorSvgContent) {
+                            paintBucketUndoStack.push(currentVectorSvgContent);
+                            if (btnUndoPaintBucket) btnUndoPaintBucket.classList.remove('hidden');
+                        }
+
+                        currentVectorSvgContent = res.data.colorized_svg;
+                        if (lastVectorResult) lastVectorResult.svg_content = currentVectorSvgContent;
+
+                        if (vectorSvgContainer) vectorSvgContainer.innerHTML = currentVectorSvgContent;
+                        if (vectorSingleSvgContainer) vectorSingleSvgContainer.innerHTML = currentVectorSvgContent;
+
+                        if (btnDownloadVectorSvg) {
+                            const blob = new Blob([currentVectorSvgContent], { type: 'image/svg+xml;charset=utf-8' });
+                            btnDownloadVectorSvg.href = URL.createObjectURL(blob);
+                        }
+
+                        renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
+                        showToast(`AI đã tự động đổ màu ${res.data.region_count} chi tiết (mắt, mặt, áo, thắt lưng)!`, 'success');
+                    } else {
+                        showToast(res.message || 'Lỗi khi AI phối màu chi tiết', 'error');
+                    }
+                } catch (e) {
+                    showToast('Lỗi kết nối: ' + e.message, 'error');
+                }
+            });
         }
 
         // Toggle Recolor Tools Panel
@@ -9711,6 +9883,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 vectorStatusBadge.textContent = 'Hoàn thành 100% Vector';
             }
 
+            attachPaintBucketHandler(vectorSvgContainer);
+            attachPaintBucketHandler(vectorSingleSvgContainer);
             // Store original and current SVG contents
             originalVectorSvgContent = data.svg_content;
             currentVectorSvgContent = data.svg_content;

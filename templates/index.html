@@ -3774,6 +3774,36 @@
                         <!-- Result Area with Interactive Slider -->
                         <div class="vector-result-wrapper hidden" id="vectorResultWrapper">
                             
+                            <!-- Interactive Paint Bucket Bar (Tô Màu Từng Chi Tiết Trực Tiếp) -->
+                            <div class="paint-bucket-toolbar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(6, 182, 212, 0.35); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <button type="button" class="btn-action-sm btn-cyan" id="btnTogglePaintBucket" title="Bật chế độ click chuột để đổ màu trực tiếp vào từng mắt, mặt, thắt lưng...">
+                                        <i class="fa-solid fa-fill-drip"></i> <span id="lblPaintBucketStatus">Bật Bút Đổ Màu Chi Tiết</span>
+                                    </button>
+                                    <div id="paintBucketControls" class="hidden" style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        <input type="color" id="pickerPaintBucketColor" value="#FACC15" style="width: 32px; height: 28px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.25); background: transparent; cursor: pointer; padding: 1px;" title="Chọn màu bất kỳ">
+                                        <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                            <button type="button" class="btn-paint-chip" data-color="#FED7AA" style="background: #FED7AA; color: #000;" title="Màu da mặt">Mặt</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#38BDF8" style="background: #38BDF8; color: #000;" title="Xanh mắt">Mắt</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#FACC15" style="background: #FACC15; color: #000;" title="Vàng thắt lưng / logo">Vàng</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#1E293B" style="background: #1E293B; color: #fff;" title="Xanh than áo choàng">Áo</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#475569" style="background: #475569; color: #fff;" title="Xám giáp">Giáp</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#EF4444" style="background: #EF4444; color: #fff;" title="Đỏ">Đỏ</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#10B981" style="background: #10B981; color: #fff;" title="Xanh lá">Xanh</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#8B5CF6" style="background: #8B5CF6; color: #fff;" title="Tím">Tím</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#000000" style="background: #000; color: #fff;" title="Đen">Đen</button>
+                                            <button type="button" class="btn-paint-chip" data-color="#FFFFFF" style="background: #fff; color: #000;" title="Trắng">Trắng</button>
+                                        </div>
+                                        <span style="font-size: 11px; color: var(--text-muted); margin-left: 4px;">Click trực tiếp vào bất kỳ chi tiết nào trên ảnh để đổi màu!</span>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <button type="button" class="btn-tool-outline btn-tool-sm hidden" id="btnUndoPaintBucket" title="Hoàn tác bước tô màu vừa thực hiện">
+                                        <i class="fa-solid fa-rotate-left"></i> Hoàn Tác
+                                    </button>
+                                </div>
+                            </div>
+
                             <!-- Before/After Comparison Container -->
                             <div class="comparison-slider-stage" id="vectorComparisonStage">
                                 <!-- Raster Original (Left/Bottom) -->
@@ -3893,6 +3923,30 @@
                                             </div>
                                             <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">
                                                 <i class="fa-solid fa-circle-info text-cyan"></i> Quét và đổi sạch 100% nét viền đen và răng cưa mờ, cam kết không còn nét đen sót lại.
+                                            </div>
+                                        </div>
+
+                                        <!-- Tool 3: AI Auto-Colorize for Characters & Line Art -->
+                                        <div class="recolor-tool-card" style="grid-column: 1 / -1; border-color: rgba(139, 92, 246, 0.35); background: rgba(139, 92, 246, 0.05);">
+                                            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;">
+                                                <label style="font-size: 12px; font-weight: 700; color: #c084fc; margin: 0;">
+                                                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI Tự Động Phối Màu Đa Dạng Từng Chi Tiết (Mắt, Mặt, Thắt Lưng, Trang Phục):
+                                                </label>
+                                                <span class="badge-mini" style="background: rgba(139, 92, 246, 0.2); color: #d8b4fe; border-color: rgba(139, 92, 246, 0.4);">Dành riêng cho tranh nét Line-Art & Coloring Pages</span>
+                                            </div>
+                                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                                <select id="selAutoColorizeTheme" class="form-select" style="flex: 1; min-width: 240px; font-size: 12px;">
+                                                    <option value="batman">Hiệp Sĩ Bóng Đêm (Batman: Mặt da, Mắt cyan, Thắt lưng vàng gold, Áo xanh than)</option>
+                                                    <option value="anime">Anime / Manga Hero (Mặt da, Mắt lục bảo, Tóc vàng, Áo đỏ rực)</option>
+                                                    <option value="cyberpunk">Cyberpunk Neon (Mắt neon, Giáp xanh neon, Phụ kiện hồng tím 80s)</option>
+                                                    <option value="pastel">Pastel Cute Chibi (Tone pastel dịu ngọt, dễ thương cho nhân vật hoạt hình)</option>
+                                                </select>
+                                                <button type="button" class="btn-action-sm btn-violet" id="btnApplyAutoColorize" title="AI tự động phân tách các vùng kín và đổ màu phong phú cho từng bộ phận">
+                                                    <i class="fa-solid fa-palette"></i> AI Tô Màu Đa Dạng Tự Động
+                                                </button>
+                                            </div>
+                                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+                                                <i class="fa-solid fa-lightbulb text-violet"></i> Sau khi AI tô màu tự động, bạn vẫn có thể dùng <strong>Bút Đổ Màu Chi Tiết</strong> ở trên để click chỉnh lại màu bất kỳ chi tiết nào theo ý thích!
                                             </div>
                                         </div>
                                     </div>

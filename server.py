@@ -1581,6 +1581,7 @@ def api_convert_format():
                 'result_url': f"/outputs/{output_name}",
                 'download_url': f"/api/download/{output_name}?name={clean_filename}",
                 'filename': output_name,
+                'input_filename': input_name,
                 'stats': stats
             }
             return jsonify({'status': 'success', 'batch': False, 'data': result_data})
@@ -2757,6 +2758,58 @@ def api_svg_recolor():
         )
         return jsonify({'status': 'success', 'data': result})
     except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/svg/auto-colorize', methods=['POST'])
+def api_svg_auto_colorize():
+    """Automatically colors individual character details (eyes, face, belt, cape, suit) in line art SVG."""
+    try:
+        svg_xml = request.form.get('svg_xml', '').strip()
+        filename = request.form.get('filename', '').strip()
+        input_filename = request.form.get('input_filename', '').strip()
+        theme = request.form.get('theme', 'batman').strip().lower()
+
+        # Find original raster image path
+        img_path = None
+        if input_filename:
+            candidate = os.path.join(UPLOAD_DIR, secure_filename(input_filename))
+            if os.path.exists(candidate):
+                img_path = candidate
+
+        if not img_path and filename:
+            uuid_part = filename.replace('vector_', '').replace('.svg', '')
+            for f in os.listdir(UPLOAD_DIR):
+                if uuid_part in f:
+                    img_path = os.path.join(UPLOAD_DIR, f)
+                    break
+
+        if not img_path:
+            uploads = sorted([os.path.join(UPLOAD_DIR, f) for f in os.listdir(UPLOAD_DIR) if f.startswith('input_svg_')], key=os.path.getmtime, reverse=True)
+            if uploads:
+                img_path = uploads[0]
+
+        if not img_path or not os.path.exists(img_path):
+            return jsonify({'status': 'error', 'message': 'Không tìm thấy ảnh gốc để phân tích chi tiết'}), 404
+
+        if not svg_xml and filename:
+            svg_file_path = os.path.join(OUTPUT_DIR, secure_filename(filename))
+            if os.path.exists(svg_file_path):
+                with open(svg_file_path, 'r', encoding='utf-8') as f:
+                    svg_xml = f.read()
+
+        if not svg_xml:
+            return jsonify({'status': 'error', 'message': 'Chưa có mã SVG để tô màu chi tiết'}), 400
+
+        result = svg_processor.auto_colorize(
+            input_image_path=img_path,
+            svg_content=svg_xml,
+            theme=theme
+        )
+        return jsonify({'status': 'success', 'data': result})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 

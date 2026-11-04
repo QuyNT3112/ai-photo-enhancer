@@ -8174,3 +8174,34 @@ input:checked + .slider:before {
     margin-left: 5px;
     letter-spacing: 0.2px;
 }
+
+/* Interactive Paint Bucket & Path Highlighting */
+.btn-paint-chip {
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-paint-chip:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.paint-bucket-active {
+    cursor: crosshair !important;
+}
+
+.paint-bucket-active path {
+    cursor: crosshair !important;
+    transition: opacity 0.1s ease, filter 0.15s ease;
+}
+
+.paint-bucket-active path:hover {
+    filter: drop-shadow(0 0 6px #06b6d4) brightness(1.25) !important;
+    stroke: #06b6d4 !important;
+    stroke-width: 2.5px !important;
+}

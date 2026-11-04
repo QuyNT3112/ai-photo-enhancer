@@ -627,6 +627,172 @@ class SvgProcessor:
             'recolored_xml': recolored_xml
         }
 
+    def auto_colorize(
+        self,
+        input_image_path: str,
+        svg_content: str,
+        theme: str = 'batman'
+    ) -> Dict[str, Any]:
+        """
+        Detects closed internal regions of a line-art / sketch drawing
+        and injects semantic color-filled vector paths into the SVG.
+        Allows coloring eyes, face, suit, cape, and belt individually.
+        """
+        if not os.path.exists(input_image_path):
+            raise FileNotFoundError(f"Không tìm thấy ảnh gốc: {input_image_path}")
+
+        pil_img = Image.open(input_image_path).convert('RGBA')
+        w, h = pil_img.size
+        arr = np.array(pil_img)
+
+        alpha = arr[:, :, 3]
+        rgb = arr[:, :, :3]
+        is_stroke = (alpha > 50) & (np.mean(rgb, axis=2) < 180)
+        fill_grid = np.where(is_stroke, 0, 255).astype(np.uint8)
+
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(fill_grid, connectivity=4)
+
+        themes: Dict[str, Dict[str, str]] = {
+            'batman': {
+                'face': '#FED7AA',
+                'eyes': '#38BDF8',
+                'belt': '#FACC15',
+                'logo': '#FBBF24',
+                'cape': '#1E293B',
+                'mask': '#334155',
+                'suit': '#475569',
+                'boots': '#0F172A',
+                'misc': '#E2E8F0'
+            },
+            'anime': {
+                'face': '#FED7AA',
+                'eyes': '#22C55E',
+                'belt': '#FACC15',
+                'logo': '#EF4444',
+                'cape': '#3B82F6',
+                'mask': '#F59E0B',
+                'suit': '#EF4444',
+                'boots': '#1E293B',
+                'misc': '#FEF08A'
+            },
+            'cyberpunk': {
+                'face': '#E0E7FF',
+                'eyes': '#00F2FE',
+                'belt': '#FF007F',
+                'logo': '#FFE600',
+                'cape': '#0D1117',
+                'mask': '#7928CA',
+                'suit': '#4FACFE',
+                'boots': '#1E1B4B',
+                'misc': '#A78BFA'
+            },
+            'pastel': {
+                'face': '#FFDFBA',
+                'eyes': '#BAE1FF',
+                'belt': '#FFFFBA',
+                'logo': '#FFB3BA',
+                'cape': '#E8C5FF',
+                'mask': '#BAFFC9',
+                'suit': '#FBCFE8',
+                'boots': '#C7D2FE',
+                'misc': '#F1F5F9'
+            }
+        }
+        th = themes.get(theme.lower().strip(), themes['batman'])
+
+        fill_paths: List[str] = []
+        region_info: List[Dict[str, Any]] = []
+
+        for i in range(1, num_labels):
+            x, y, rw, rh, area = stats[i]
+            cx, cy = centroids[i]
+            if area < 15:
+                continue
+            # Exclude full canvas background
+            if x == 0 and y == 0 and rw == w and rh == h:
+                continue
+
+            region_mask = (labels == i).astype(np.uint8) * 255
+            contours, _ = cv2.findContours(region_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                continue
+
+            c = max(contours, key=cv2.contourArea)
+            epsilon = 0.0025 * cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, epsilon, True)
+
+            d_parts = [f"M {approx[0][0][0]} {approx[0][0][1]}"]
+            for pt in approx[1:]:
+                d_parts.append(f"L {pt[0][0]} {pt[0][1]}")
+            d_parts.append("Z")
+            d_str = " ".join(d_parts)
+
+            part_name = "Chi tiết"
+            part_key = "misc"
+
+            if 215 < cy < 285 and 150 < cx < 350 and area > 4000:
+                part_name = "Mặt & Cằm"
+                part_key = "face"
+            elif 180 < cy < 225 and (130 < cx < 200 or 320 < cx < 390):
+                part_name = "Mắt"
+                part_key = "eyes"
+            elif 375 < cy < 410 and 200 < cx < 300:
+                part_name = "Thắt lưng"
+                part_key = "belt"
+            elif 280 < cy < 320 and 230 < cx < 285 and area < 2000:
+                part_name = "Logo ngực"
+                part_key = "logo"
+            elif (cx < 160 or cx > 350) and cy > 280:
+                part_name = "Áo choàng"
+                part_key = "cape"
+            elif cy < 220 and area > 8000:
+                part_name = "Mặt nạ & Tai"
+                part_key = "mask"
+            elif 280 < cy < 370 and area > 3000:
+                part_name = "Áo giáp / Thân"
+                part_key = "suit"
+            elif cy > 430:
+                part_name = "Giày / Chân"
+                part_key = "boots"
+            elif 390 < cy < 440:
+                part_name = "Quần"
+                part_key = "boots"
+
+            fill_color = th[part_key]
+            fill_paths.append(
+                f'<path id="detail_region_{i}" d="{d_str}" fill="{fill_color}" stroke="{fill_color}" stroke-width="1.2" class="vector-fill-detail" data-part="{part_name}" data-key="{part_key}"/>'
+            )
+            region_info.append({
+                'id': f"detail_region_{i}",
+                'name': part_name,
+                'key': part_key,
+                'color': fill_color,
+                'area': int(area),
+                'center': (round(float(cx), 1), round(float(cy), 1))
+            })
+
+        fills_group = f'<g id="vector-color-fills" style="mix-blend-mode: normal;">\n' + "\n".join(fill_paths) + '\n</g>'
+        
+        # Read or use SVG content
+        svg_xml = svg_content.strip()
+        # Clean any old fills group
+        svg_xml = re.sub(r'<g id="vector-color-fills"[\s\S]*?</g>', '', svg_xml)
+
+        svg_open_match = re.search(r'<svg[^>]*>', svg_xml)
+        if svg_open_match:
+            idx = svg_open_match.end()
+            colorized_svg = svg_xml[:idx] + "\n" + fills_group + svg_xml[idx:]
+        else:
+            colorized_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">\n{fills_group}\n{svg_xml}\n</svg>'
+
+        return {
+            'success': True,
+            'theme': theme,
+            'colorized_svg': colorized_svg,
+            'region_count': len(region_info),
+            'regions': region_info
+        }
+
     def _ai_fix_xml(self, svg_xml: str) -> Dict[str, Any]:
         """Repairs common syntax errors in malformed SVG XML."""
         fixed = svg_xml.strip()
