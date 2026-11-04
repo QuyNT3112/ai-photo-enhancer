@@ -7802,7 +7802,8 @@ input:checked + .slider:before {
     position: relative;
     width: 100%;
     min-height: 420px;
-    max-height: 540px;
+    height: 540px;
+    max-height: 72vh;
     border-radius: 10px;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -7827,19 +7828,19 @@ input:checked + .slider:before {
     position: absolute;
     top: 0;
     left: 0;
-    width: 50%;
+    width: 100%;
     height: 100%;
-    overflow: hidden;
-    border-right: 2px solid #06b6d4;
-    background: rgba(15, 23, 42, 0.3);
-    backdrop-filter: blur(1px);
+    clip-path: inset(0 0 0 50%);
+    -webkit-clip-path: inset(0 0 0 50%);
+    pointer-events: none;
+    background: transparent;
 }
 
 .vector-rendered-container {
     position: absolute;
     top: 0;
     left: 0;
-    width: 200%;
+    width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
@@ -7848,9 +7849,12 @@ input:checked + .slider:before {
 }
 
 .vector-rendered-container svg {
-    max-width: 50%;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+    pointer-events: auto;
 }
 
 .slider-divider {
@@ -7915,20 +7919,32 @@ input:checked + .slider:before {
 
 .single-svg-stage {
     min-height: 420px;
-    max-height: 540px;
+    height: 540px;
+    max-height: 72vh;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 24px;
-    overflow: auto;
+    overflow: hidden;
 }
 
-.single-svg-stage svg {
+#vectorSingleSvgContainer {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.single-svg-stage svg,
+#vectorSingleSvgContainer svg {
+    width: 100%;
+    height: 100%;
     max-width: 100%;
-    max-height: 440px;
-    height: auto;
+    max-height: 100%;
+    object-fit: contain;
 }
 
 /* Vector Quality Banner */
@@ -8307,3 +8323,49 @@ input:checked + .slider:before {
     stroke: #f59e0b !important;
     stroke-width: 2.5px !important;
 }
+
+/* Popover Delete Button */
+.btn-popover-delete {
+    width: 100%;
+    padding: 7px 12px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 6px;
+    color: #fca5a5;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.btn-popover-delete:hover {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+}
+
+/* Eraser Mode Active States */
+.btn-eraser-active {
+    background: rgba(239, 68, 68, 0.25) !important;
+    border-color: #ef4444 !important;
+    color: #fca5a5 !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4) !important;
+}
+
+.eraser-mode-active .vector-rendered-container path,
+.eraser-mode-active #vectorSingleSvgContainer path {
+    cursor: crosshair !important;
+}
+
+.eraser-mode-active .vector-rendered-container path:hover,
+.eraser-mode-active #vectorSingleSvgContainer path:hover {
+    filter: drop-shadow(0 0 10px #ef4444) brightness(1.6) !important;
+    opacity: 0.65 !important;
+    outline: 2px dashed #ef4444 !important;
+}
+

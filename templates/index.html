@@ -3803,6 +3803,11 @@
                                         <button type="button" class="btn-popover-chip" data-color="#FFFFFF" style="background: #fff; color: #000;">Trắng</button>
                                         <button type="button" class="btn-popover-chip" data-color="#F97316" style="background: #F97316; color: #fff;">Cam</button>
                                     </div>
+                                    <div class="popover-footer" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 6px;">
+                                        <button type="button" class="btn-popover-delete" id="btnPopoverDeletePath" title="Xóa bỏ nét vẽ đang chọn này khỏi ảnh vector (hoặc phím Delete/Backspace)">
+                                            <i class="fa-solid fa-trash-can"></i> Xóa Nét Này (Del)
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -3812,12 +3817,15 @@
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <i class="fa-solid fa-hand-pointer text-cyan" style="font-size: 14px;"></i>
                                     <span style="font-size: 12px; color: #e2e8f0; font-weight: 500;">
-                                        Mẹo: <strong>Click chuột trực tiếp vào bất kỳ vùng nào trên ảnh</strong> (mắt, mặt, nón, thắt lưng...) để mở bảng chọn màu và đổi màu ngay lập tức!
+                                        Mẹo: <strong>Click trực tiếp vào nét trên ảnh</strong> để đổi màu hoặc xóa. Bấm <kbd style="background: rgba(255,255,255,0.12); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; border: 1px solid rgba(255,255,255,0.2);">Delete</kbd> để xóa nét đang chọn!
                                     </span>
                                 </div>
-                                <div style="display: flex; gap: 6px; align-items: center;">
-                                    <button type="button" class="btn-tool-outline btn-tool-sm hidden" id="btnUndoPaintBucket" title="Hoàn tác bước tô màu vừa thực hiện">
-                                        <i class="fa-solid fa-rotate-left text-amber"></i> Hoàn Tác
+                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                                    <button type="button" class="btn-tool-outline btn-tool-sm" id="btnToggleEraserMode" title="Bật/Tắt chế độ tẩy xóa nét: Click vào nét nào để xóa ngay nét đó">
+                                        <i class="fa-solid fa-eraser text-rose-400"></i> <span id="eraserBtnText">Bút Tẩy Nét</span>
+                                    </button>
+                                    <button type="button" class="btn-tool-outline btn-tool-sm hidden" id="btnUndoPaintBucket" title="Hoàn tác thao tác đổi màu hoặc xóa nét vừa thực hiện (Ctrl+Z)">
+                                        <i class="fa-solid fa-rotate-left text-amber"></i> Hoàn Tác (Ctrl+Z)
                                     </button>
                                 </div>
                             </div>

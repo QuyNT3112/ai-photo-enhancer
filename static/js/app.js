@@ -9425,6 +9425,35 @@ document.addEventListener('DOMContentLoaded', () => {
             return Array.from(set);
         }
 
+        // SVG ViewBox & Responsive Scaling Normalizer
+        function ensureSvgViewBox(svgXml) {
+            if (!svgXml || typeof svgXml !== 'string') return svgXml;
+            if (!svgXml.includes('<svg')) return svgXml;
+
+            if (/\bviewBox\s*=/i.test(svgXml)) {
+                return svgXml.replace(/<svg\b([^>]*)>/i, (match, attrs) => {
+                    let clean = attrs.replace(/\bwidth\s*=\s*["'][^"']*["']/gi, '')
+                                     .replace(/\bheight\s*=\s*["'][^"']*["']/gi, '');
+                    if (!/\bpreserveAspectRatio\s*=/i.test(clean)) {
+                        clean += ' preserveAspectRatio="xMidYMid meet"';
+                    }
+                    return `<svg width="100%" height="100%" ${clean.trim()}>`;
+                });
+            }
+
+            const wMatch = svgXml.match(/\bwidth\s*=\s*["']([0-9.]+)(?:px)?["']/i);
+            const hMatch = svgXml.match(/\bheight\s*=\s*["']([0-9.]+)(?:px)?["']/i);
+            const w = wMatch ? wMatch[1] : '800';
+            const h = hMatch ? hMatch[1] : '600';
+
+            return svgXml.replace(/<svg\b([^>]*)>/i, (match, attrs) => {
+                let clean = attrs.replace(/\bwidth\s*=\s*["'][^"']*["']/gi, '')
+                                 .replace(/\bheight\s*=\s*["'][^"']*["']/gi, '')
+                                 .replace(/\bviewBox\s*=\s*["'][^"']*["']/gi, '');
+                return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" ${clean.trim()}>`;
+            });
+        }
+
         // State variables for Direct On-Image Region Recolor & Popover
         let activeSelectedPath = null;
         const svgDirectColorPopover = document.getElementById('svgDirectColorPopover');
@@ -9506,6 +9535,109 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        const btnPopoverDeletePath = document.getElementById('btnPopoverDeletePath');
+        const btnToggleEraserMode = document.getElementById('btnToggleEraserMode');
+        const eraserBtnText = document.getElementById('eraserBtnText');
+        let isEraserMode = false;
+
+        function deleteTargetElement(target) {
+            if (!target) return;
+
+            // Push undo state
+            if (currentVectorSvgContent) {
+                paintBucketUndoStack.push(currentVectorSvgContent);
+                if (btnUndoPaintBucket) btnUndoPaintBucket.classList.remove('hidden');
+            }
+
+            const container = target.closest('.vector-rendered-container') || target.closest('#vectorSingleSvgContainer');
+            const partName = target.getAttribute('data-part') || 'nét vẽ';
+
+            // Remove element from DOM
+            target.remove();
+            activeSelectedPath = null;
+            hideDirectColorPopover();
+
+            // Re-serialize SVG XML
+            if (container) {
+                const svgEl = container.querySelector('svg');
+                if (svgEl) {
+                    const serializer = new XMLSerializer();
+                    currentVectorSvgContent = serializer.serializeToString(svgEl);
+                    if (lastVectorResult) {
+                        lastVectorResult.svg_content = currentVectorSvgContent;
+                        if (lastVectorResult.stats) {
+                            const remainingPaths = svgEl.querySelectorAll('path').length;
+                            lastVectorResult.stats.path_count = remainingPaths;
+                            if (resPathCount) resPathCount.textContent = remainingPaths.toLocaleString();
+                        }
+                    }
+
+                    const otherContainer = container === vectorSvgContainer ? vectorSingleSvgContainer : vectorSvgContainer;
+                    if (otherContainer) otherContainer.innerHTML = currentVectorSvgContent;
+
+                    if (btnDownloadVectorSvg) {
+                        const blob = new Blob([currentVectorSvgContent], { type: 'image/svg+xml;charset=utf-8' });
+                        btnDownloadVectorSvg.href = URL.createObjectURL(blob);
+                    }
+
+                    renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
+                }
+            }
+
+            showToast(`Đã xóa 1 ${partName}! Bấm phím Ctrl+Z hoặc 'Hoàn Tác' để khôi phục.`, 'info');
+        }
+
+        if (btnPopoverDeletePath) {
+            btnPopoverDeletePath.addEventListener('click', () => {
+                if (activeSelectedPath) {
+                    deleteTargetElement(activeSelectedPath);
+                }
+            });
+        }
+
+        if (btnToggleEraserMode) {
+            btnToggleEraserMode.addEventListener('click', () => {
+                isEraserMode = !isEraserMode;
+                if (isEraserMode) {
+                    btnToggleEraserMode.classList.add('btn-eraser-active');
+                    if (eraserBtnText) eraserBtnText.textContent = 'Đang Bật Tẩy (Click xóa)';
+                    if (vectorComparisonStage) vectorComparisonStage.classList.add('eraser-mode-active');
+                    if (vectorSingleStage) vectorSingleStage.classList.add('eraser-mode-active');
+                    hideDirectColorPopover();
+                    showToast('🧹 Chế độ Bút Tẩy ĐANG BẬT: Click chuột vào bất kỳ nét vẽ nào để xóa ngay!', 'warning');
+                } else {
+                    btnToggleEraserMode.classList.remove('btn-eraser-active');
+                    if (eraserBtnText) eraserBtnText.textContent = 'Bút Tẩy Nét';
+                    if (vectorComparisonStage) vectorComparisonStage.classList.remove('eraser-mode-active');
+                    if (vectorSingleStage) vectorSingleStage.classList.remove('eraser-mode-active');
+                    showToast('Đã tắt Bút Tẩy. Trở về chế độ chọn & đổi màu nét.', 'info');
+                }
+            });
+        }
+
+        // Global Keydown Listener for Delete / Backspace and Ctrl+Z
+        window.addEventListener('keydown', (e) => {
+            // Delete / Backspace
+            if (activeSelectedPath && (e.key === 'Delete' || e.key === 'Backspace')) {
+                const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+                e.preventDefault();
+                deleteTargetElement(activeSelectedPath);
+            }
+
+            // Ctrl+Z Undo
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+                if (tag === 'input' || tag === 'textarea') return;
+
+                if (paintBucketUndoStack.length > 0) {
+                    e.preventDefault();
+                    if (btnUndoPaintBucket) btnUndoPaintBucket.click();
+                }
+            }
+        });
+
         // Undo Action
         if (btnUndoPaintBucket) {
             btnUndoPaintBucket.addEventListener('click', () => {
@@ -9520,9 +9652,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         const blob = new Blob([prev], { type: 'image/svg+xml;charset=utf-8' });
                         btnDownloadVectorSvg.href = URL.createObjectURL(blob);
                     }
+                    if (lastVectorResult && lastVectorResult.stats) {
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = prev;
+                        const pCount = tempDiv.querySelectorAll('path').length;
+                        lastVectorResult.stats.path_count = pCount;
+                        if (resPathCount) resPathCount.textContent = pCount.toLocaleString();
+                    }
                     renderVectorColorSwatches(lastVectorResult.stats && lastVectorResult.stats.palette);
                     hideDirectColorPopover();
-                    showToast('Đã hoàn tác bước tô màu vừa rồi!', 'info');
+                    showToast('Đã hoàn tác thao tác vừa rồi!', 'info');
                 }
                 if (paintBucketUndoStack.length === 0) {
                     btnUndoPaintBucket.classList.add('hidden');
@@ -9541,6 +9680,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 e.preventDefault();
                 e.stopPropagation();
+
+                // If Eraser Mode is active, delete path immediately!
+                if (isEraserMode) {
+                    deleteTargetElement(target);
+                    return;
+                }
 
                 // Remove highlight from previous
                 if (activeSelectedPath) {
@@ -9955,18 +10100,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
             attachDirectOnImageClickHandler(vectorSvgContainer);
             attachDirectOnImageClickHandler(vectorSingleSvgContainer);
-            // Store original and current SVG contents
-            originalVectorSvgContent = data.svg_content;
-            currentVectorSvgContent = data.svg_content;
+            // Store original and current SVG contents (with guaranteed responsive viewBox)
+            const normalizedSvg = ensureSvgViewBox(data.svg_content);
+            data.svg_content = normalizedSvg;
+            originalVectorSvgContent = normalizedSvg;
+            currentVectorSvgContent = normalizedSvg;
             activeColorReplacements = {};
+
+            if (vectorSvgOverlay) {
+                vectorSvgOverlay.style.clipPath = 'inset(0 0 0 50%)';
+                vectorSvgOverlay.style.webkitClipPath = 'inset(0 0 0 50%)';
+            }
+            if (vectorSliderDivider) {
+                vectorSliderDivider.style.left = '50%';
+            }
 
             if (btnResetVectorColors) btnResetVectorColors.classList.add('hidden');
             if (vectorColorEditStatus) vectorColorEditStatus.textContent = 'Bấm trực tiếp vào từng ô màu để đổi màu nét vẽ';
 
             // Set images
             if (vectorImgOriginal) vectorImgOriginal.src = data.original_url;
-            if (vectorSvgContainer) vectorSvgContainer.innerHTML = data.svg_content;
-            if (vectorSingleSvgContainer) vectorSingleSvgContainer.innerHTML = data.svg_content;
+            if (vectorSvgContainer) vectorSvgContainer.innerHTML = normalizedSvg;
+            if (vectorSingleSvgContainer) vectorSingleSvgContainer.innerHTML = normalizedSvg;
 
             // Set quality metrics
             if (resPathCount) resPathCount.textContent = (data.stats.path_count || 0).toLocaleString();
@@ -10144,7 +10299,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (x > rect.width - 10) x = rect.width - 10;
                 const pct = (x / rect.width) * 100;
 
-                vectorSvgOverlay.style.width = `${pct}%`;
+                vectorSvgOverlay.style.clipPath = `inset(0 0 0 ${pct}%)`;
+                vectorSvgOverlay.style.webkitClipPath = `inset(0 0 0 ${pct}%)`;
                 vectorSliderDivider.style.left = `${pct}%`;
             };
 

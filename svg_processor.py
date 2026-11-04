@@ -19,12 +19,15 @@ Capabilities:
    - SVG XML Error Auto-Fixer.
 """
 
+import logging
 import os
 import re
 import time
 import xml.etree.ElementTree as ET
 from typing import Dict, Any, List, Optional, Tuple
 from xml.dom import minidom
+
+logger = logging.getLogger('SvgProcessor')
 
 import cv2  # type: ignore
 import numpy as np  # type: ignore
@@ -140,6 +143,48 @@ class SvgProcessor:
 
     def __init__(self):
         pass
+
+    @staticmethod
+    def ensure_svg_viewbox_and_scaling(svg_xml: str, fallback_w: int = 800, fallback_h: int = 600) -> str:
+        """
+        Ensures SVG has a proper viewBox and 100% width/height so it scales responsively
+        without being clipped or cut off in any container or aspect ratio.
+        """
+        if not svg_xml or '<svg' not in svg_xml.lower():
+            return svg_xml
+
+        m = re.search(r'<svg([^>]*)>', svg_xml, re.IGNORECASE)
+        if not m:
+            return svg_xml
+
+        tag_content = m.group(1)
+
+        # Extract existing width and height if available
+        w_match = re.search(r'\bwidth=["\']([0-9.]+)(?:px)?["\']', tag_content, re.IGNORECASE)
+        h_match = re.search(r'\bheight=["\']([0-9.]+)(?:px)?["\']', tag_content, re.IGNORECASE)
+
+        w_val = float(w_match.group(1)) if w_match else float(fallback_w)
+        h_val = float(h_match.group(1)) if h_match else float(fallback_h)
+
+        # Check if viewBox exists
+        vb_match = re.search(r'\bviewBox=["\']([^"\']+)["\']', tag_content, re.IGNORECASE)
+        if vb_match and vb_match.group(1).strip():
+            viewbox_str = vb_match.group(1).strip()
+        else:
+            viewbox_str = f"0 0 {int(w_val)} {int(h_val)}"
+
+        # Strip existing width, height, viewBox, preserveAspectRatio from tag_content
+        cleaned_attrs = tag_content
+        cleaned_attrs = re.sub(r'\bwidth=["\'][^"\']*["\']', '', cleaned_attrs, flags=re.IGNORECASE)
+        cleaned_attrs = re.sub(r'\bheight=["\'][^"\']*["\']', '', cleaned_attrs, flags=re.IGNORECASE)
+        cleaned_attrs = re.sub(r'\bviewBox=["\'][^"\']*["\']', '', cleaned_attrs, flags=re.IGNORECASE)
+        cleaned_attrs = re.sub(r'\bpreserveAspectRatio=["\'][^"\']*["\']', '', cleaned_attrs, flags=re.IGNORECASE)
+        cleaned_attrs = ' '.join(cleaned_attrs.split())
+
+        new_tag = f'<svg viewBox="{viewbox_str}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" {cleaned_attrs}>'
+
+        return svg_xml[:m.start()] + new_tag + svg_xml[m.end():]
+
 
     # =========================================================================
     # 1. LOCAL AI RASTER-TO-SVG VECTORIZATION
@@ -262,6 +307,17 @@ class SvgProcessor:
                     pass
 
         # 5. Post-Process & Validate SVG
+        # Ensure standard responsive viewBox and scaling attributes so image is never clipped
+        if os.path.exists(output_svg_path):
+            try:
+                with open(output_svg_path, 'r', encoding='utf-8') as f:
+                    raw_svg = f.read()
+                fixed_svg = self.ensure_svg_viewbox_and_scaling(raw_svg, fallback_w=new_w, fallback_h=new_h)
+                with open(output_svg_path, 'w', encoding='utf-8') as f:
+                    f.write(fixed_svg)
+            except Exception as ex:
+                logger.warning(f"Không thể chèn viewBox vào SVG: {ex}")
+
         svg_stats = self.inspect_svg_file(output_svg_path)
         duration_sec = round(time.time() - t0, 3)
 
@@ -450,7 +506,8 @@ class SvgProcessor:
         # Ensure output directory exists
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
-        # Write clean SVG
+        # Write clean SVG with viewBox and responsive scaling
+        xml_clean = self.ensure_svg_viewbox_and_scaling(xml_clean)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(xml_clean)
 
@@ -784,6 +841,8 @@ class SvgProcessor:
             colorized_svg = svg_xml[:idx] + "\n" + fills_group + svg_xml[idx:]
         else:
             colorized_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">\n{fills_group}\n{svg_xml}\n</svg>'
+
+        colorized_svg = self.ensure_svg_viewbox_and_scaling(colorized_svg, fallback_w=w, fallback_h=h)
 
         return {
             'success': True,
