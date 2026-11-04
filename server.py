@@ -2469,7 +2469,7 @@ def api_svg_vectorize():
             max_dimension = 1920
 
         # Custom tuning overrides if preset is custom
-        custom_params = {}
+        custom_params: Dict[str, Any] = {}
         for param in ['colormode', 'hierarchical', 'mode', 'filter_speckle', 'color_precision', 
                       'layer_difference', 'corner_threshold', 'length_threshold', 'path_precision']:
             val = request.form.get(param)
@@ -2741,6 +2741,25 @@ def api_svg_ai_assist():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/svg/recolor', methods=['POST'])
+def api_svg_recolor():
+    """Applies palette recolor to an SVG XML string."""
+    try:
+        svg_xml = request.form.get('svg_xml', '').strip()
+        palette_key = request.form.get('palette_key', 'cyberpunk').strip().lower()
+        if not svg_xml:
+            return jsonify({'status': 'error', 'message': 'Chưa có mã SVG XML để đổi màu'}), 400
+
+        result = svg_processor.ai_assist(
+            action='recolor',
+            svg_xml=svg_xml,
+            palette_key=palette_key
+        )
+        return jsonify({'status': 'success', 'data': result})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/api/svg/save-to-downloads', methods=['POST'])
 def api_svg_save_to_downloads():
     """Saves SVG vector file to the user's Downloads folder."""
@@ -2750,10 +2769,15 @@ def api_svg_save_to_downloads():
         if not filename:
             return jsonify({'status': 'error', 'message': 'Tên tệp không hợp lệ'}), 400
 
-        safe_name = secure_filename(filename)
+        safe_name = secure_filename(filename) if filename else 'vector.svg'
+        if not safe_name.lower().endswith('.svg'):
+            safe_name += '.svg'
         src_path = os.path.join(OUTPUT_DIR, safe_name)
-        if not os.path.exists(src_path):
-            return jsonify({'status': 'error', 'message': 'Không tìm thấy tệp vector trên máy chủ'}), 404
+        svg_content = request.form.get('svg_content')
+
+        if not svg_content or not svg_content.strip():
+            if not os.path.exists(src_path):
+                return jsonify({'status': 'error', 'message': 'Không tìm thấy tệp vector trên máy chủ'}), 404
 
         downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
         os.makedirs(downloads_dir, exist_ok=True)
@@ -2765,7 +2789,13 @@ def api_svg_save_to_downloads():
             target_name = safe_name
 
         dst_path = os.path.join(downloads_dir, target_name)
-        shutil.copy2(src_path, dst_path)
+        if svg_content and svg_content.strip():
+            with open(dst_path, 'w', encoding='utf-8') as f:
+                f.write(svg_content.strip())
+            with open(src_path, 'w', encoding='utf-8') as f:
+                f.write(svg_content.strip())
+        else:
+            shutil.copy2(src_path, dst_path)
 
         return jsonify({
             'status': 'success',

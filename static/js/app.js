@@ -9364,6 +9364,214 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // State variables for interactive Vector Recolor Studio
+        let originalVectorSvgContent = '';
+        let currentVectorSvgContent = '';
+        let activeColorReplacements = {}; // originalHex -> newHex
+
+        const btnResetVectorColors = document.getElementById('btnResetVectorColors');
+        const btnToggleRecolorPanel = document.getElementById('btnToggleRecolorPanel');
+        const vectorRecolorToolsPanel = document.getElementById('vectorRecolorToolsPanel');
+        const selVectorRecolorPalette = document.getElementById('selVectorRecolorPalette');
+        const btnApplyVectorPalette = document.getElementById('btnApplyVectorPalette');
+        const pickerSingleTint = document.getElementById('pickerSingleTint');
+        const btnApplySingleTint = document.getElementById('btnApplySingleTint');
+        const vectorColorEditStatus = document.getElementById('vectorColorEditStatus');
+        const lblToggleRecolor = document.getElementById('lblToggleRecolor');
+        const tintChips = document.querySelectorAll('.btn-tint-chip');
+
+        // Toggle Recolor Tools Panel
+        if (btnToggleRecolorPanel && vectorRecolorToolsPanel) {
+            btnToggleRecolorPanel.addEventListener('click', () => {
+                const isHidden = vectorRecolorToolsPanel.classList.toggle('hidden');
+                if (lblToggleRecolor) {
+                    lblToggleRecolor.textContent = isHidden ? 'Tùy Chọn Đổi Tông Màu AI' : 'Đóng Bộ Tùy Chọn';
+                }
+            });
+        }
+
+        // Tint Chips listener
+        if (tintChips) {
+            tintChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    const c = chip.getAttribute('data-color');
+                    if (pickerSingleTint && c) {
+                        pickerSingleTint.value = c;
+                    }
+                });
+            });
+        }
+
+        // Apply Single Tint to All Lines / Strokes
+        if (btnApplySingleTint && pickerSingleTint) {
+            btnApplySingleTint.addEventListener('click', () => {
+                if (!originalVectorSvgContent || !lastVectorResult) {
+                    showToast('Chưa có ảnh vector để đổi màu!', 'warning');
+                    return;
+                }
+                const targetColor = pickerSingleTint.value.toUpperCase();
+                const pal = (lastVectorResult.stats && lastVectorResult.stats.palette) || [];
+                if (pal.length === 0) {
+                    showToast('Không tìm thấy màu sắc trong file SVG để đổi nét!', 'warning');
+                    return;
+                }
+
+                pal.forEach(item => {
+                    activeColorReplacements[item.hex.toUpperCase()] = targetColor;
+                });
+
+                applyVectorColorReplacements();
+                renderVectorColorSwatches(pal);
+                showToast(`Đã đổi toàn bộ nét vẽ sang màu ${targetColor}!`, 'success');
+            });
+        }
+
+        // Apply AI Presets Palette
+        if (btnApplyVectorPalette && selVectorRecolorPalette) {
+            btnApplyVectorPalette.addEventListener('click', () => {
+                if (!originalVectorSvgContent || !lastVectorResult) {
+                    showToast('Chưa có ảnh vector để đổi màu!', 'warning');
+                    return;
+                }
+                const pKey = selVectorRecolorPalette.value;
+                const palMap = {
+                    cyberpunk: ['#00F2FE', '#4FACFE', '#FF007F', '#7928CA', '#06B6D4', '#9B51E0', '#FF5500'],
+                    sunset: ['#FFAA00', '#FF5500', '#FF0055', '#990033', '#FFD200', '#FF8F00', '#EA580C'],
+                    pastel: ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#E8C5FF', '#FBCFE8'],
+                    emerald: ['#10B981', '#059669', '#047857', '#065F46', '#34D399', '#6EE7B7', '#A7F3D0'],
+                    monochrome: ['#FFFFFF', '#E2E8F0', '#94A3B8', '#475569', '#1E293B', '#0F172A', '#000000'],
+                    luxury_gold: ['#FFD700', '#D4AF37', '#AA771C', '#85581A', '#FBBF24', '#F59E0B', '#B45309'],
+                    synthwave: ['#FF007F', '#7928CA', '#00F2FE', '#FFE600', '#FF5E36', '#3B82F6', '#8B5CF6']
+                };
+                const targetPalette = palMap[pKey] || palMap.cyberpunk;
+                const pal = (lastVectorResult.stats && lastVectorResult.stats.palette) || [];
+
+                pal.forEach((item, idx) => {
+                    const mapped = targetPalette[idx % targetPalette.length];
+                    activeColorReplacements[item.hex.toUpperCase()] = mapped.toUpperCase();
+                });
+
+                applyVectorColorReplacements();
+                renderVectorColorSwatches(pal);
+                const pName = selVectorRecolorPalette.options[selVectorRecolorPalette.selectedIndex].text;
+                showToast(`Đã áp dụng tông màu AI "${pName}"!`, 'success');
+            });
+        }
+
+        // Reset Original Colors
+        if (btnResetVectorColors) {
+            btnResetVectorColors.addEventListener('click', () => {
+                if (!originalVectorSvgContent || !lastVectorResult) return;
+                activeColorReplacements = {};
+                applyVectorColorReplacements();
+                const pal = (lastVectorResult.stats && lastVectorResult.stats.palette) || [];
+                renderVectorColorSwatches(pal);
+                showToast('Đã khôi phục toàn bộ màu nét vẽ gốc ban đầu!', 'info');
+            });
+        }
+
+        // Apply Replacements Live into SVG DOM
+        function applyVectorColorReplacements() {
+            if (!originalVectorSvgContent) return;
+
+            let updatedSvg = originalVectorSvgContent;
+            let editCount = 0;
+
+            for (const [origHex, newHex] of Object.entries(activeColorReplacements)) {
+                if (!origHex || !newHex || origHex.toUpperCase() === newHex.toUpperCase()) continue;
+                editCount++;
+                const esc = origHex.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp(esc + '(?![0-9a-fA-F])', 'gi');
+                updatedSvg = updatedSvg.replace(re, newHex);
+            }
+
+            currentVectorSvgContent = updatedSvg;
+            if (lastVectorResult) {
+                lastVectorResult.svg_content = updatedSvg;
+            }
+
+            // Live update preview containers
+            if (vectorSvgContainer) vectorSvgContainer.innerHTML = updatedSvg;
+            if (vectorSingleSvgContainer) vectorSingleSvgContainer.innerHTML = updatedSvg;
+
+            // Update download link
+            if (btnDownloadVectorSvg) {
+                const blob = new Blob([updatedSvg], { type: 'image/svg+xml;charset=utf-8' });
+                const blobUrl = URL.createObjectURL(blob);
+                btnDownloadVectorSvg.href = blobUrl;
+                btnDownloadVectorSvg.setAttribute('download', (lastVectorResult && lastVectorResult.clean_filename) || 'custom_vector.svg');
+            }
+
+            // Status and Reset button
+            if (btnResetVectorColors) {
+                if (editCount > 0) {
+                    btnResetVectorColors.classList.remove('hidden');
+                } else {
+                    btnResetVectorColors.classList.add('hidden');
+                }
+            }
+            if (vectorColorEditStatus) {
+                if (editCount > 0) {
+                    vectorColorEditStatus.textContent = `Đã đổi ${editCount} màu nét vẽ (Live 0.01s)`;
+                } else {
+                    vectorColorEditStatus.textContent = 'Bấm trực tiếp vào từng ô màu để đổi màu nét vẽ';
+                }
+            }
+        }
+
+        // Render Interactive Color Swatches with Pickers
+        function renderVectorColorSwatches(palette) {
+            if (!vectorResultPalette) return;
+            vectorResultPalette.innerHTML = '';
+
+            const colors = palette.slice(0, 24);
+            if (colors.length === 0) {
+                vectorResultPalette.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">Không tìm thấy mã màu rõ ràng trong file SVG.</span>';
+                return;
+            }
+
+            colors.forEach(item => {
+                const origHex = item.hex.toUpperCase();
+                const currentHex = (activeColorReplacements[origHex] || origHex).toUpperCase();
+                const isEdited = Boolean(activeColorReplacements[origHex] && activeColorReplacements[origHex] !== origHex);
+
+                const card = document.createElement('div');
+                card.className = `swatch-pill interactive-swatch ${isEdited ? 'is-customized' : ''}`;
+                card.title = `Màu gốc: ${origHex} - Bấm để chọn màu mới thay thế cho nét vẽ này`;
+
+                card.innerHTML = `
+                    <input type="color" class="swatch-native-picker" value="${currentHex}">
+                    <span class="swatch-color-dot" style="background-color: ${currentHex}"></span>
+                    <span class="swatch-hex-text">${currentHex}</span>
+                    <i class="fa-solid fa-pen-to-square" style="font-size: 10px; opacity: ${isEdited ? '1' : '0.4'}; color: ${isEdited ? '#06b6d4' : 'inherit'};"></i>
+                `;
+
+                const picker = card.querySelector('.swatch-native-picker');
+                const dot = card.querySelector('.swatch-color-dot');
+                const text = card.querySelector('.swatch-hex-text');
+                const icon = card.querySelector('i');
+
+                const onColorChange = (newVal) => {
+                    const newHex = newVal.toUpperCase();
+                    dot.style.backgroundColor = newHex;
+                    text.textContent = newHex;
+                    card.classList.add('is-customized');
+                    if (icon) {
+                        icon.style.opacity = '1';
+                        icon.style.color = '#06b6d4';
+                    }
+
+                    activeColorReplacements[origHex] = newHex;
+                    applyVectorColorReplacements();
+                };
+
+                picker.addEventListener('input', (e) => onColorChange(e.target.value));
+                picker.addEventListener('change', (e) => onColorChange(e.target.value));
+
+                vectorResultPalette.appendChild(card);
+            });
+        }
+
         // Display Vector Result (Single)
         function displayVectorResult(data) {
             if (!data) return;
@@ -9374,6 +9582,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 vectorStatusBadge.className = 'preview-badge badge-success';
                 vectorStatusBadge.textContent = 'Hoàn thành 100% Vector';
             }
+
+            // Store original and current SVG contents
+            originalVectorSvgContent = data.svg_content;
+            currentVectorSvgContent = data.svg_content;
+            activeColorReplacements = {};
+
+            if (btnResetVectorColors) btnResetVectorColors.classList.add('hidden');
+            if (vectorColorEditStatus) vectorColorEditStatus.textContent = 'Bấm trực tiếp vào từng ô màu để đổi màu nét vẽ';
 
             // Set images
             if (vectorImgOriginal) vectorImgOriginal.src = data.original_url;
@@ -9386,27 +9602,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resSvgSize) resSvgSize.textContent = `${data.stats.svg_size_kb} KB`;
             if (resDuration) resDuration.textContent = `${data.stats.duration_sec}s`;
 
-            // Palette swatches
-            if (vectorResultPalette) {
-                vectorResultPalette.innerHTML = '';
-                const pal = data.stats.palette || [];
-                pal.slice(0, 16).forEach(item => {
-                    const pill = document.createElement('button');
-                    pill.type = 'button';
-                    pill.className = 'swatch-pill';
-                    pill.title = `Bấm để sao chép mã màu ${item.hex}`;
-                    pill.innerHTML = `<span class="swatch-color-dot" style="background-color: ${item.hex}"></span><span>${item.hex}</span>`;
-                    pill.onclick = () => {
-                        navigator.clipboard.writeText(item.hex);
-                        showToast(`Đã sao chép mã màu ${item.hex}!`, 'success');
-                    };
-                    vectorResultPalette.appendChild(pill);
-                });
-            }
+            // Interactive Palette swatches
+            renderVectorColorSwatches(data.stats.palette || []);
 
-            // Setup download links
+            // Setup download link
             if (btnDownloadVectorSvg) {
-                btnDownloadVectorSvg.href = data.download_url;
+                const blob = new Blob([data.svg_content], { type: 'image/svg+xml;charset=utf-8' });
+                const blobUrl = URL.createObjectURL(blob);
+                btnDownloadVectorSvg.href = blobUrl;
                 btnDownloadVectorSvg.setAttribute('download', data.clean_filename);
             }
 
@@ -9463,16 +9666,33 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <a href="${item.download_url}" download="${item.clean_filename}" class="btn-card-action btn-card-dl" title="Tải xuống file .SVG này">
                                     <i class="fa-solid fa-download"></i> Tải SVG
                                 </a>
+                                <button type="button" class="btn-card-action btn-card-recolor" data-idx="${idx}" title="Chỉnh màu các nét vẽ của ảnh này">
+                                    <i class="fa-solid fa-palette"></i> Chỉnh Màu
+                                </button>
                                 <button type="button" class="btn-card-action btn-card-inspect" data-idx="${idx}" title="Mở trong Trình Biên Soạn XML">
                                     <i class="fa-solid fa-code"></i> Soạn XML
                                 </button>
                                 <button type="button" class="btn-card-action btn-card-compare" data-idx="${idx}" title="Xem so sánh trước / sau với ảnh gốc">
-                                    <i class="fa-solid fa-arrows-split-up-and-left"></i> Kéo Trượt So Sánh
+                                    <i class="fa-solid fa-arrows-split-up-and-left"></i> So Sánh
                                 </button>
                             </div>
                         </div>
                     `;
 
+                    // Recolor button
+                    const btnRecolor = card.querySelector('.btn-card-recolor');
+                    if (btnRecolor) {
+                        btnRecolor.addEventListener('click', () => {
+                            lastVectorResult = item;
+                            displayVectorResult(item);
+                            if (btnBackToBatchResults) btnBackToBatchResults.classList.remove('hidden');
+                            const recolorSection = document.querySelector('.palette-extract-row');
+                            if (recolorSection) recolorSection.scrollIntoView({ behavior: 'smooth' });
+                            showToast(`Đang mở bộ chỉnh màu nét vẽ cho ${item.clean_filename}`, 'info');
+                        });
+                    }
+
+                    // Inspect XML button
                     const btnInspect = card.querySelector('.btn-card-inspect');
                     if (btnInspect) {
                         btnInspect.addEventListener('click', () => {
@@ -9482,6 +9702,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
+                    // Compare slider button
                     const btnCompare = card.querySelector('.btn-card-compare');
                     if (btnCompare) {
                         btnCompare.addEventListener('click', () => {
@@ -9607,25 +9828,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // Send generated vector to XML Editor
         if (btnSendToXmlEditor) {
             btnSendToXmlEditor.addEventListener('click', () => {
-                if (!lastVectorResult || !lastVectorResult.svg_content) {
+                const contentToSend = currentVectorSvgContent || (lastVectorResult && lastVectorResult.svg_content);
+                if (!contentToSend) {
                     showToast('Chưa có mã vector để chuyển!', 'warning');
                     return;
                 }
                 switchSvgSubMode('xml');
-                renderLiveSvg(lastVectorResult.svg_content, true);
-                showToast('Đã nạp mã vector vào Bộ Soạn Thảo XML!', 'success');
+                renderLiveSvg(contentToSend, true);
+                showToast('Đã nạp mã vector (kèm màu sắc đã chỉnh) vào Bộ Soạn Thảo XML!', 'success');
             });
         }
 
         // Copy XML from Vector result
         if (btnCopyVectorXml) {
             btnCopyVectorXml.addEventListener('click', () => {
-                if (!lastVectorResult || !lastVectorResult.svg_content) {
+                const contentToCopy = currentVectorSvgContent || (lastVectorResult && lastVectorResult.svg_content);
+                if (!contentToCopy) {
                     showToast('Chưa có mã vector để sao chép!', 'warning');
                     return;
                 }
-                navigator.clipboard.writeText(lastVectorResult.svg_content);
-                showToast('Đã sao chép mã SVG XML của ảnh!', 'success');
+                navigator.clipboard.writeText(contentToCopy);
+                showToast('Đã sao chép mã SVG XML (kèm màu sắc đã chỉnh)!', 'success');
             });
         }
 
@@ -9641,6 +9864,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const fd = new FormData();
                     fd.append('filename', lastVectorResult.filename);
                     fd.append('custom_name', lastVectorResult.clean_filename);
+                    const finalContent = currentVectorSvgContent || lastVectorResult.svg_content;
+                    if (finalContent) {
+                        fd.append('svg_content', finalContent);
+                    }
                     const resp = await fetch('/api/svg/save-to-downloads', { method: 'POST', body: fd });
                     const res = await resp.json();
                     if (res.status === 'success') {

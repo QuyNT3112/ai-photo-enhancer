@@ -3826,11 +3826,70 @@
                                 </div>
                             </div>
 
-                            <!-- Extracted Palette Swatches -->
-                            <div class="palette-extract-row" style="margin-top: 12px;">
-                                <div class="palette-extract-label">
-                                    <i class="fa-solid fa-palette text-cyan"></i> Bảng Màu Đã Được AI Dịch Chuẩn Xác Sang SVG:
+                            <!-- Extracted Palette Swatches & Interactive Recolor Studio -->
+                            <div class="palette-extract-row" style="margin-top: 14px;">
+                                <div class="palette-extract-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                                    <div class="palette-extract-label" style="margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        <i class="fa-solid fa-palette text-cyan"></i> <strong>Chỉnh Màu Nét Vẽ & Bảng Màu SVG</strong>:
+                                        <span class="badge-mini" id="vectorColorEditStatus" style="font-weight: normal; font-size: 11px;">Bấm trực tiếp vào từng ô màu để đổi màu nét vẽ</span>
+                                    </div>
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                        <button type="button" class="btn-tool-outline btn-tool-sm hidden" id="btnResetVectorColors" title="Khôi phục lại toàn bộ màu gốc của ảnh vector">
+                                            <i class="fa-solid fa-rotate-left"></i> Khôi phục màu gốc
+                                        </button>
+                                        <button type="button" class="btn-tool-outline btn-tool-sm" id="btnToggleRecolorPanel" title="Mở bộ đổi tông màu AI & chỉnh nét vẽ hàng loạt">
+                                            <i class="fa-solid fa-sliders text-cyan"></i> <span id="lblToggleRecolor">Tùy Chọn Đổi Tông Màu AI</span>
+                                        </button>
+                                    </div>
                                 </div>
+
+                                <!-- Collapsible AI Recolor & Batch Tuning Tools -->
+                                <div class="recolor-tools-panel hidden" id="vectorRecolorToolsPanel" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+                                        <!-- Tool 1: AI Palette Recolor -->
+                                        <div class="recolor-tool-card">
+                                            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
+                                                <i class="fa-solid fa-wand-magic-sparkles text-violet"></i> Đổi tông màu tổng thể (AI Presets):
+                                            </label>
+                                            <div style="display: flex; gap: 6px;">
+                                                <select id="selVectorRecolorPalette" class="form-select" style="flex: 1; font-size: 12px;">
+                                                    <option value="cyberpunk">Cyberpunk Neon (Cyan / Hồng / Tím)</option>
+                                                    <option value="sunset">Hoàng Hôn (Cam / Đỏ / Vàng)</option>
+                                                    <option value="pastel">Soft Pastel (Dịu nhẹ / Mộng mơ)</option>
+                                                    <option value="emerald">Emerald Thiên Nhiên (Lục bảo / Xanh lá)</option>
+                                                    <option value="monochrome">Monochrome Đen Trắng (Hiện đại / Tối giản)</option>
+                                                    <option value="luxury_gold">Hoàng Kim (Luxury Gold / Vàng đồng)</option>
+                                                    <option value="synthwave">Synthwave Retro (Tím / Vàng / Hồng 80s)</option>
+                                                </select>
+                                                <button type="button" class="btn-action-sm btn-violet" id="btnApplyVectorPalette" title="Áp dụng bảng màu AI">
+                                                    <i class="fa-solid fa-brush"></i> Áp Dụng
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Tool 2: Single Stroke / Line Art Tint -->
+                                        <div class="recolor-tool-card">
+                                            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
+                                                <i class="fa-solid fa-pen-nib text-cyan"></i> Đổi màu toàn bộ nét vẽ thành 1 màu (Line Art Tint):
+                                            </label>
+                                            <div style="display: flex; gap: 6px; align-items: center;">
+                                                <input type="color" id="pickerSingleTint" value="#06B6D4" style="width: 38px; height: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: transparent; cursor: pointer; padding: 2px;">
+                                                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                                    <button type="button" class="btn-tint-chip" data-color="#000000" style="background: #000; color: #fff;" title="Đen">Đen</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#FFFFFF" style="background: #fff; color: #000;" title="Trắng">Trắng</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#06B6D4" style="background: #06B6D4; color: #000;" title="Cyan">Cyan</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#FACC15" style="background: #FACC15; color: #000;" title="Vàng">Vàng</button>
+                                                    <button type="button" class="btn-tint-chip" data-color="#EF4444" style="background: #EF4444; color: #fff;" title="Đỏ">Đỏ</button>
+                                                </div>
+                                                <button type="button" class="btn-action-sm btn-cyan" id="btnApplySingleTint" title="Đổi tất cả nét vẽ sang màu này">
+                                                    <i class="fa-solid fa-fill-drip"></i> Đổi Nét
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Swatches Grid -->
                                 <div class="palette-swatches-grid" id="vectorResultPalette"></div>
                             </div>
 
