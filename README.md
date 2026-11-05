@@ -41,7 +41,7 @@
   - **Dọc 9:16**: TikTok, Facebook Reels, YouTube Shorts, Instagram Story.
   - **Ngang 16:9**: YouTube Video, màn hình máy tính, TV, banner.
 - **5 Cơ chế chuyển đổi hiện đại**:
-  - **AI Generative Outpaint (LaMa Neural Network)**: Mạng nơ-ron tự vẽ bù và mở rộng không gian xung quanh một cách tự nhiên mà **không cắt xén chủ thể**.
+  - **AI Generative Outpaint (LaMa + Background-Coherent Synthesis)**: Mô phỏng không gian môi trường thực và ánh sáng phòng chụp (ambient lighting & gradient), kết hợp nối viền nơ-ron cục bộ (Neural Seam Fusion) mở rộng khung hình tự nhiên, **triệt tiêu hoàn toàn viền xám**, bảo toàn 100% chủ thể gốc sắc nét và tối ưu tốc độ xử lý siêu tốc (~1.8s trên GPU CUDA).
   - **Smart Center Crop**: Cắt tràn viền thông minh giữ trung tâm chủ thể.
   - **Ambient Blur Expand**: Mở rộng ảnh bằng nền mờ chiều sâu studio kèm bóng đổ (Drop Shadow).
   - **Fit & Pad viền sạch**: Thêm viền màu đen, trắng hoặc màu chủ đạo tự động.
@@ -165,6 +165,24 @@
 - **Nhiều chế độ quan sát**: Kéo thanh trượt, Đặt cạnh nhau (Side-by-Side), Phóng to chi tiết (Zoom 180%), Xem riêng ảnh gốc hoặc ảnh xử lý.
 - **Thao tác tải ảnh cực nhanh**: Kéo & thả tệp, chọn từ máy tính, hoặc **dán ảnh trực tiếp từ Clipboard (`Ctrl + V`)**.
 - **Lưu ảnh linh hoạt**: Tải PNG/JPG/WebP chất lượng cao, hoặc bấm **"Lưu Thẳng Vào Downloads"** của Windows chỉ với 1 click.
+
+### 11. 🖋️ AI Dịch SVG, Vector Hóa Tranh Nét & Chỉnh Sửa Vector (SVG Studio)
+- **Vector hóa tự động từ PNG/JPG sang .SVG**: Biến tranh phác thảo, line-art hoạt hình, logo và chữ ký thành định dạng Vector Bézier vô hạn độ phân giải, sắc nét hoàn hảo khi phóng to in ấn mọi kích cỡ.
+- **4 Chế độ Vector hóa thông minh**:
+  - **Chân Thực Đa Sắc**: Giữ nguyên toàn bộ màu sắc và các lớp chuyển tiếp phong cách tranh vẽ.
+  - **Đồ Họa & Logo (Cutout)**: Nét cắt sắc sảo, phân lớp màu phẳng.
+  - **Line Art & Tranh Nét (CAD/Sketch)**: Bóc tách đường nét nét đen đơn sắc sạch sẽ, khử răng cưa AI.
+  - **Chân Dung & Ảnh Thật**: Vector hóa phân tầng chi tiết cao.
+- **Trình chỉnh sửa màu nét vẽ tương tác trực tiếp (Interactive Click-to-Recolor)**:
+  - Click chuột trực tiếp vào bất kỳ nét vẽ hoặc chi tiết nào trên ảnh để mở bảng màu đổi màu ngay lập tức.
+  - Tách bạch thông minh giữa **Đổi màu viền nét vẽ (Strokes)** và **Tô màu ruột/lòng khối (Fill)**, bảo toàn độ rỗng tự nhiên của tranh nét.
+  - Hỗ trợ dán trực tiếp mã màu HEX tùy ý từ bên ngoài (`#FF5733`, `#3B82F6`...).
+- **Chỉnh sửa & Đồng bộ hàng loạt nhiều file SVG (Batch Multi-SVG Studio)**:
+  - Tải lên hàng chục file `.svg` cùng lúc.
+  - Áp dụng đổi màu nét vẽ đồng loạt cho toàn bộ danh sách file chỉ với 1 click, đóng gói tải về trọn bộ file ZIP hoặc lưu vào Downloads.
+- **Bút Tẩy Xóa Nét & Phím Tắt Tiện Lợi**:
+  - Click chọn nét vẽ và nhấn phím `Delete` hoặc bật công cụ **Bút Tẩy Nét** để xóa các nét vẽ thừa, kèm tính năng Hoàn Tác (`Ctrl + Z`).
+  - Hỗ trợ khử sạch 100% viền đen thừa và tự động co giãn `viewBox` chống che khuất chi tiết.
 
 ---
 
