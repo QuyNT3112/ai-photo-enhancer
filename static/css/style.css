@@ -8368,4 +8368,102 @@ input:checked + .slider:before {
     opacity: 0.65 !important;
     outline: 2px dashed #ef4444 !important;
 }
+/* Custom External Hex Inputs & Paste Buttons */
+.popover-hex-text-input:focus,
+#txtCustomTintHex:focus,
+#batchStrokeHexInput:focus,
+#batchFindColorInput:focus,
+#batchReplaceColorInput:focus {
+    outline: none !important;
+    border-color: #06b6d4 !important;
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.4) !important;
+}
 
+.btn-popover-paste:hover,
+#btnPasteCustomTint:hover,
+#btnBatchPasteStrokeHex:hover,
+#btnBatchPasteReplaceColor:hover {
+    background: #06b6d4 !important;
+    color: #020617 !important;
+}
+
+.btn-popover-apply-btn:hover {
+    background: #22d3ee !important;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.6) !important;
+}
+
+/* Batch SVG Multi-File Recolor & Edit Studio */
+.batch-edit-studio-panel {
+    animation: fadeIn 0.25s ease-out;
+}
+
+.batch-tool-card {
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.batch-tool-card:hover {
+    border-color: rgba(6, 182, 212, 0.45);
+}
+
+.btn-batch-chip {
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.btn-batch-chip:hover {
+    transform: scale(1.08);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Batch Card Checkbox & Selected State */
+.batch-card-checkbox-wrapper {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 10;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    padding: 3px 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 10px;
+    color: #cbd5e1;
+    transition: all 0.15s ease;
+}
+
+.batch-card-checkbox-wrapper:hover {
+    border-color: #06b6d4;
+    background: rgba(15, 23, 42, 0.95);
+}
+
+.batch-card-checkbox {
+    accent-color: #06b6d4;
+    cursor: pointer;
+    width: 14px;
+    height: 14px;
+}
+
+.batch-svg-card {
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.batch-svg-card.is-selected {
+    border-color: rgba(6, 182, 212, 0.5) !important;
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.15);
+}
+
+.batch-svg-card.is-deselected {
+    opacity: 0.55;
+    filter: grayscale(0.5);
+}

@@ -2887,7 +2887,17 @@ def api_svg_save_batch_to_downloads():
                 target_name += '.svg'
 
             dst_path = os.path.join(downloads_dir, target_name)
-            shutil.copy2(src_path, dst_path)
+            
+            # Prefer modified svg_content if provided
+            svg_content = it.get('svg_content')
+            if svg_content:
+                with open(dst_path, 'w', encoding='utf-8') as f:
+                    f.write(svg_content)
+            elif os.path.exists(src_path):
+                shutil.copy2(src_path, dst_path)
+            else:
+                continue
+
             saved_files.append(target_name)
 
         return jsonify({
@@ -2895,6 +2905,47 @@ def api_svg_save_batch_to_downloads():
             'count': len(saved_files),
             'saved_files': saved_files,
             'message': f'Đã lưu thành công {len(saved_files)} tệp vector .SVG vào thư mục Downloads của bạn!'
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/svg/zip-batch', methods=['POST'])
+def api_svg_zip_batch():
+    """Generates a downloadable ZIP archive from a list of updated SVG contents."""
+    try:
+        data = request.get_json(silent=True) or {}
+        items = data.get('items', [])
+        if not items:
+            return jsonify({'status': 'error', 'message': 'Không có tệp vector nào để nén'}), 400
+
+        batch_uuid = uuid.uuid4().hex[:10]
+        zip_filename = f"ClarityAI_Batch_SVG_{batch_uuid}.zip"
+        zip_path = os.path.join(OUTPUT_DIR, zip_filename)
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for idx, it in enumerate(items):
+                custom_name = it.get('clean_filename') or it.get('original_filename') or f"vector_{idx+1}.svg"
+                if not custom_name.endswith('.svg'):
+                    custom_name += '.svg'
+
+                content = it.get('svg_content', '')
+                if not content and it.get('filename'):
+                    safe_f = secure_filename(it['filename'])
+                    p = os.path.join(OUTPUT_DIR, safe_f)
+                    if os.path.exists(p):
+                        with open(p, 'r', encoding='utf-8') as sf:
+                            content = sf.read()
+
+                if content:
+                    zf.writestr(custom_name, content.encode('utf-8'))
+
+        return jsonify({
+            'status': 'success',
+            'zip_url': f"/outputs/{zip_filename}",
+            'zip_filename': zip_filename,
+            'download_url': f"/api/download/{zip_filename}?name={zip_filename}",
+            'count': len(items)
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
