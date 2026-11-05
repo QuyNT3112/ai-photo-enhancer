@@ -9526,6 +9526,64 @@ document.addEventListener('DOMContentLoaded', () => {
         const popoverHexInput = document.getElementById('popoverHexInput');
         const btnPopoverPasteClipboard = document.getElementById('btnPopoverPasteClipboard');
         const btnPopoverApplyCustomHex = document.getElementById('btnPopoverApplyCustomHex');
+        const btnPopoverModeStroke = document.getElementById('btnPopoverModeStroke');
+        const btnPopoverModeFill = document.getElementById('btnPopoverModeFill');
+        const btnPopoverModeBoth = document.getElementById('btnPopoverModeBoth');
+        let currentPopoverTargetMode = 'stroke'; // 'stroke' | 'fill' | 'both'
+
+        function setPopoverTargetMode(mode) {
+            currentPopoverTargetMode = mode;
+            const items = [
+                { el: btnPopoverModeStroke, m: 'stroke' },
+                { el: btnPopoverModeFill, m: 'fill' },
+                { el: btnPopoverModeBoth, m: 'both' }
+            ];
+            items.forEach(({ el, m }) => {
+                if (!el) return;
+                if (m === mode) {
+                    el.classList.add('active');
+                    el.style.background = '#06b6d4';
+                    el.style.color = '#020617';
+                    el.style.fontWeight = '700';
+                } else {
+                    el.classList.remove('active');
+                    el.style.background = 'transparent';
+                    el.style.color = '#94a3b8';
+                    el.style.fontWeight = '600';
+                }
+            });
+
+            if (popoverPartBadge) {
+                if (mode === 'stroke') popoverPartBadge.textContent = 'Nét vẽ';
+                else if (mode === 'fill') popoverPartBadge.textContent = 'Màu ruột';
+                else popoverPartBadge.textContent = 'Nét & Ruột';
+            }
+
+            if (activeSelectedPath) {
+                let targetColor = '#FACC15';
+                if (mode === 'stroke') {
+                    targetColor = activeSelectedPath.getAttribute('stroke') || activeSelectedPath.style.stroke || '#FACC15';
+                } else if (mode === 'fill') {
+                    targetColor = activeSelectedPath.getAttribute('fill') || activeSelectedPath.style.fill || '#FACC15';
+                } else {
+                    targetColor = activeSelectedPath.getAttribute('stroke') || activeSelectedPath.getAttribute('fill') || '#FACC15';
+                }
+                const norm = normalizeAnyColorToHex(targetColor) || (targetColor.startsWith('#') && targetColor.length === 7 ? targetColor : '#FACC15');
+                if (popoverNativeColor) popoverNativeColor.value = norm;
+                if (popoverHexCode) popoverHexCode.textContent = norm;
+                if (popoverHexInput) popoverHexInput.value = norm;
+            }
+        }
+
+        if (btnPopoverModeStroke) {
+            btnPopoverModeStroke.addEventListener('click', () => setPopoverTargetMode('stroke'));
+        }
+        if (btnPopoverModeFill) {
+            btnPopoverModeFill.addEventListener('click', () => setPopoverTargetMode('fill'));
+        }
+        if (btnPopoverModeBoth) {
+            btnPopoverModeBoth.addEventListener('click', () => setPopoverTargetMode('both'));
+        }
 
         function hideDirectColorPopover() {
             if (svgDirectColorPopover) svgDirectColorPopover.classList.add('hidden');
@@ -9550,13 +9608,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnUndoPaintBucket) btnUndoPaintBucket.classList.remove('hidden');
             }
 
-            // Update path
-            activeSelectedPath.setAttribute('fill', hex);
-            activeSelectedPath.setAttribute('stroke', hex);
-            activeSelectedPath.style.fill = hex;
-            activeSelectedPath.style.stroke = hex;
+            // Update path intelligently without ruining unfilled shapes (do NOT pour fill into empty strokes)
+            if (currentPopoverTargetMode === 'stroke') {
+                activeSelectedPath.setAttribute('stroke', hex);
+                activeSelectedPath.style.stroke = hex;
+                // CRITICAL: Keep fill strictly as 'none' so it NEVER fills the inside of the stroke!
+                activeSelectedPath.setAttribute('fill', 'none');
+                activeSelectedPath.style.fill = 'none';
+            } else if (currentPopoverTargetMode === 'fill') {
+                activeSelectedPath.setAttribute('fill', hex);
+                activeSelectedPath.style.fill = hex;
+            } else { // 'both'
+                activeSelectedPath.setAttribute('fill', hex);
+                activeSelectedPath.setAttribute('stroke', hex);
+                activeSelectedPath.style.fill = hex;
+                activeSelectedPath.style.stroke = hex;
+            }
 
-            const partName = activeSelectedPath.getAttribute('data-part') || 'vùng chọn';
+            const partName = activeSelectedPath.getAttribute('data-part') || (currentPopoverTargetMode === 'stroke' ? 'Nét vẽ' : 'Vùng vector');
 
             // Sync SVG in DOM
             const container = activeSelectedPath.closest('.vector-rendered-container') || activeSelectedPath.closest('#vectorSingleSvgContainer');
@@ -9799,27 +9868,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeSelectedPath = target;
                 target.classList.add('vector-path-active-target');
 
-                // Determine current color
-                let curColor = target.getAttribute('fill') || target.style.fill;
-                if (!curColor || curColor === 'none') {
-                    curColor = target.getAttribute('stroke') || target.style.stroke;
+                // Determine whether target is stroke-oriented or fill-oriented
+                const rawFill = (target.getAttribute('fill') || target.style.fill || '').trim();
+                const rawStroke = (target.getAttribute('stroke') || target.style.stroke || '').trim();
+                const isNoneFill = !rawFill || rawFill === 'none' || rawFill === 'transparent';
+                const hasStroke = rawStroke && rawStroke !== 'none' && rawStroke !== 'transparent';
+                const isLine = target.tagName.toLowerCase() === 'line' || target.tagName.toLowerCase() === 'polyline';
+
+                let detectedMode = 'stroke';
+                let curColor = '#FACC15';
+
+                if (isNoneFill || isLine) {
+                    // Pure stroke path (Line Art / Sketch / CAD outline) -> Default to stroke mode!
+                    detectedMode = 'stroke';
+                    curColor = rawStroke || '#FACC15';
+                } else if (rawFill && !hasStroke) {
+                    // Solid fill shape without stroke -> Default to fill mode!
+                    detectedMode = 'fill';
+                    curColor = rawFill;
+                } else if (rawFill && hasStroke) {
+                    if (rawFill.toUpperCase() === rawStroke.toUpperCase()) {
+                        detectedMode = 'both';
+                        curColor = rawFill;
+                    } else {
+                        detectedMode = 'stroke';
+                        curColor = rawStroke;
+                    }
+                } else {
+                    detectedMode = 'stroke';
+                    curColor = rawStroke || rawFill || '#FACC15';
                 }
-                if (!curColor || curColor === 'none' || curColor.startsWith('rgb')) {
-                    curColor = '#FACC15';
-                }
-                curColor = curColor.toUpperCase();
+
+                setPopoverTargetMode(detectedMode);
+
+                const normColor = normalizeAnyColorToHex(curColor) || (curColor.startsWith('#') && curColor.length === 7 ? curColor : '#FACC15');
+                curColor = normColor.toUpperCase();
 
                 // Region name
-                const partName = target.getAttribute('data-part') || (getHexLuminance(curColor) < 110 ? 'Nét viền' : 'Chi tiết vector');
+                const partName = target.getAttribute('data-part') || (detectedMode === 'stroke' ? 'Nét viền' : 'Chi tiết vector');
 
                 if (popoverRegionTitle) {
                     popoverRegionTitle.innerHTML = `<i class="fa-solid fa-paintbrush text-cyan"></i> Đổi màu: <strong>${partName}</strong>`;
                 }
                 if (popoverPartBadge) {
-                    popoverPartBadge.textContent = partName;
+                    popoverPartBadge.textContent = detectedMode === 'stroke' ? 'Nét vẽ' : (detectedMode === 'fill' ? 'Màu ruột' : 'Nét & Ruột');
                 }
                 if (popoverNativeColor) {
-                    popoverNativeColor.value = curColor.startsWith('#') && curColor.length === 7 ? curColor : '#FACC15';
+                    popoverNativeColor.value = curColor;
                 }
                 if (popoverHexCode) {
                     popoverHexCode.textContent = curColor;
@@ -9835,7 +9930,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let popY = e.clientY - wrapperRect.top + 15;
 
                     const popWidth = 270;
-                    const popHeight = 180;
+                    const popHeight = 225;
                     if (popX + popWidth > wrapperRect.width) {
                         popX = Math.max(10, wrapperRect.width - popWidth - 15);
                     }
@@ -9853,7 +9948,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Close popover when clicking outside
         document.addEventListener('click', (e) => {
             if (svgDirectColorPopover && !svgDirectColorPopover.classList.contains('hidden')) {
-                if (!svgDirectColorPopover.contains(e.target) && !e.target.closest('path')) {
+                if (!svgDirectColorPopover.contains(e.target) && !e.target.closest('path, circle, polygon, rect, line, polyline')) {
                     hideDirectColorPopover();
                 }
             }

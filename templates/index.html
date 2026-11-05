@@ -3789,6 +3789,18 @@
                                     <button type="button" class="btn-popover-close" id="btnPopoverClose" title="Đóng">&times;</button>
                                 </div>
                                 <div class="popover-body">
+                                    <!-- Target mode selector: Stroke only vs Fill only vs Both -->
+                                    <div class="popover-target-mode-bar" id="popoverTargetModeBar" style="display: flex; gap: 4px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.7); padding: 2px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                                        <button type="button" class="btn-popover-mode active" id="btnPopoverModeStroke" data-mode="stroke" style="flex: 1; padding: 4px 6px; font-size: 10.5px; font-weight: 700; border: none; border-radius: 4px; background: #06b6d4; color: #020617; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Chỉ đổi màu nét vẽ bên ngoài, không đổ màu vào phần bên trong">
+                                            <i class="fa-solid fa-pen-nib"></i> Nét vẽ
+                                        </button>
+                                        <button type="button" class="btn-popover-mode" id="btnPopoverModeFill" data-mode="fill" style="flex: 1; padding: 4px 6px; font-size: 10.5px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Đổ màu vào phần ruột bên trong của hình">
+                                            <i class="fa-solid fa-fill-drip"></i> Ruột (Fill)
+                                        </button>
+                                        <button type="button" class="btn-popover-mode" id="btnPopoverModeBoth" data-mode="both" style="flex: 1; padding: 4px 6px; font-size: 10.5px; font-weight: 600; border: none; border-radius: 4px; background: transparent; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Đổi màu đồng thời cả nét viền và ruột bên trong">
+                                            <i class="fa-solid fa-layer-group"></i> Cả hai
+                                        </button>
+                                    </div>
                                     <div class="popover-color-input-row" style="margin-bottom: 8px;">
                                         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
                                             <input type="color" id="popoverNativeColor" value="#FACC15" class="popover-color-input" title="Bấm để chọn mã màu bất kỳ">

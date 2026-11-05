@@ -8392,6 +8392,19 @@ input:checked + .slider:before {
     box-shadow: 0 0 10px rgba(6, 182, 212, 0.6) !important;
 }
 
+.btn-popover-mode {
+    transition: all 0.15s ease;
+}
+.btn-popover-mode:hover {
+    color: #f8fafc !important;
+}
+.btn-popover-mode.active {
+    background: #06b6d4 !important;
+    color: #020617 !important;
+    font-weight: 700 !important;
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+}
+
 /* Batch SVG Multi-File Recolor & Edit Studio */
 .batch-edit-studio-panel {
     animation: fadeIn 0.25s ease-out;
