@@ -168,10 +168,68 @@ class AspectConverter:
         if pad_top <= 0 and pad_bot <= 0 and pad_left <= 0 and pad_right <= 0:
             return fg_resized[:target_h, :target_w]
 
-        # 2. Neural 2D Structural Outpainting with LaMa
-        # Pad with reflective symmetry to give LaMa rich geometric cues for extending lines/textures
-        canvas_init = cv2.copyMakeBorder(fg_resized, pad_top, pad_bot, pad_left, pad_right, cv2.BORDER_REFLECT_101)
+        # 2. Extract genuine background profile and filter out foreground intrusions (e.g. dark clothing/shoulders)
+        # Upper portion (top 35%) of perimeter is authentic background (wall, studio, sky).
+        # We ensure clothing/shoulders touching the bottom do NOT leak into the expanded side margins.
+        top_sample_h = max(20, int(fg_h * 0.35))
+        edge_sample_w = max(2, min(12, fg_w // 16))
 
+        left_edge_full = fg_resized[:, :edge_sample_w].mean(axis=1)   # (fg_h, 3)
+        right_edge_full = fg_resized[:, -edge_sample_w:].mean(axis=1) # (fg_h, 3)
+
+        bg_l = left_edge_full[:top_sample_h].mean(axis=0)
+        bg_r = right_edge_full[:top_sample_h].mean(axis=0)
+
+        # Detect clothing/subject intrusion at edges
+        diff_l = np.linalg.norm(left_edge_full - bg_l, axis=1)
+        diff_r = np.linalg.norm(right_edge_full - bg_r, axis=1)
+
+        cloth_l = ((left_edge_full.mean(axis=1) < 65) & (left_edge_full.mean(axis=1) < bg_l.mean() * 0.6)) | \
+                  ((diff_l > 85) & (left_edge_full[:, :2].mean(axis=1) < 60))
+
+        cloth_r = ((right_edge_full.mean(axis=1) < 65) & (right_edge_full.mean(axis=1) < bg_r.mean() * 0.6)) | \
+                  ((diff_r > 85) & (right_edge_full[:, :2].mean(axis=1) < 60))
+
+        clean_left = left_edge_full.copy()
+        if cloth_l.any():
+            first_bad_y = np.where(cloth_l)[0][0]
+            good_y = max(10, first_bad_y - 8)
+            grad = (clean_left[good_y] - clean_left[0]) / float(good_y)
+            for y in range(good_y, fg_h):
+                clean_left[y] = clean_left[good_y] + grad * (y - good_y)
+            clean_left = np.clip(clean_left, max(bg_l.min() * 0.7, 35), 255)
+
+        clean_right = right_edge_full.copy()
+        if cloth_r.any():
+            first_bad_y = np.where(cloth_r)[0][0]
+            good_y = max(10, first_bad_y - 8)
+            grad = (clean_right[good_y] - clean_right[0]) / float(good_y)
+            for y in range(good_y, fg_h):
+                clean_right[y] = clean_right[good_y] + grad * (y - good_y)
+            clean_right = np.clip(clean_right, max(bg_r.min() * 0.7, 35), 255)
+
+        # 3. Assemble clean background canvas initialization for neural outpainting
+        canvas_init = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+        canvas_init[pad_top:pad_top + fg_h, pad_left:pad_left + fg_w] = fg_resized
+
+        if pad_left > 0:
+            canvas_init[pad_top:pad_top + fg_h, :pad_left] = np.tile(clean_left[:, None, :], (1, pad_left, 1)).astype(np.uint8)
+        if pad_right > 0:
+            canvas_init[pad_top:pad_top + fg_h, pad_left + fg_w:] = np.tile(clean_right[:, None, :], (1, pad_right, 1)).astype(np.uint8)
+
+        if pad_top > 0:
+            top_row = canvas_init[pad_top:pad_top + 1, :].copy()
+            canvas_init[:pad_top, :] = np.tile(top_row, (pad_top, 1, 1))
+        if pad_bot > 0:
+            bot_row = canvas_init[pad_top + fg_h - 1:pad_top + fg_h, :].copy()
+            canvas_init[pad_top + fg_h:, :] = np.tile(bot_row, (pad_bot, 1, 1))
+
+        # Add subtle micro-texture to avoid flat bands
+        noise = np.random.normal(0, 1.2, canvas_init.shape).astype(np.float32)
+        canvas_init = np.clip(canvas_init.astype(np.float32) + noise, 0, 255).astype(np.uint8)
+        canvas_init[pad_top:pad_top + fg_h, pad_left:pad_left + fg_w] = fg_resized
+
+        # 4. Neural 2D Structural Outpainting with LaMa
         target_w_aligned = ((target_w + 7) // 8) * 8
         target_h_aligned = ((target_h + 7) // 8) * 8
         canvas_al = cv2.resize(canvas_init, (target_w_aligned, target_h_aligned), interpolation=cv2.INTER_LINEAR)
@@ -202,28 +260,8 @@ class AspectConverter:
             print(f"[AspectConverter] LaMa outpaint fallback: {e}")
             lama_res = canvas_init[:target_h, :target_w]
 
-        # 3. Ambient Chrominance & Lighting Harmonization
-        # Combines LaMa's high-frequency structural textures with the authentic color temperature & lighting gradient
-        edge_w = max(2, min(12, fg_w // 16))
-        edge_h = max(2, min(12, fg_h // 16))
-
-        color_guide = np.zeros((target_h, target_w, 3), dtype=np.float32)
-        color_guide[pad_top:pad_top + fg_h, pad_left:pad_left + fg_w] = fg_resized
-
-        if pad_left > 0:
-            left_col = fg_resized[:, :edge_w].mean(axis=1, keepdims=True)
-            color_guide[pad_top:pad_top + fg_h, :pad_left] = np.tile(left_col, (1, pad_left, 1))
-        if pad_right > 0:
-            right_col = fg_resized[:, -edge_w:].mean(axis=1, keepdims=True)
-            color_guide[pad_top:pad_top + fg_h, pad_left + fg_w:] = np.tile(right_col, (1, pad_right, 1))
-
-        if pad_top > 0:
-            top_row = color_guide[pad_top:pad_top + 1, :].copy()
-            color_guide[:pad_top, :] = np.tile(top_row, (pad_top, 1, 1))
-        if pad_bot > 0:
-            bot_row = color_guide[pad_top + fg_h - 1:pad_top + fg_h, :].copy()
-            color_guide[pad_top + fg_h:, :] = np.tile(bot_row, (pad_bot, 1, 1))
-
+        # 5. Dual-Frequency Ambient Harmonization with Clean Background Guide
+        color_guide = canvas_init.astype(np.float32)
         color_guide_blur = cv2.GaussianBlur(color_guide, (31, 31), 10)
 
         # LAB frequency domain transfer
