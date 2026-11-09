@@ -168,9 +168,7 @@ class AspectConverter:
         if pad_top <= 0 and pad_bot <= 0 and pad_left <= 0 and pad_right <= 0:
             return fg_resized[:target_h, :target_w]
 
-        # 2. Extract genuine background profile and filter out foreground intrusions (e.g. dark clothing/shoulders)
-        # Upper portion (top 35%) of perimeter is authentic background (wall, studio, sky).
-        # We ensure clothing/shoulders touching the bottom do NOT leak into the expanded side margins.
+        # 2. Extract genuine background profile from authentic upper perimeter (top 35%)
         top_sample_h = max(20, int(fg_h * 0.35))
         edge_sample_w = max(2, min(12, fg_w // 16))
 
@@ -180,51 +178,34 @@ class AspectConverter:
         bg_l = left_edge_full[:top_sample_h].mean(axis=0)
         bg_r = right_edge_full[:top_sample_h].mean(axis=0)
 
-        # Detect clothing/subject intrusion at edges
+        # Detect subject/clothing intrusions at bottom edges (e.g. dark shirt, bright collar)
         diff_l = np.linalg.norm(left_edge_full - bg_l, axis=1)
         diff_r = np.linalg.norm(right_edge_full - bg_r, axis=1)
 
-        cloth_l = ((left_edge_full.mean(axis=1) < 65) & (left_edge_full.mean(axis=1) < bg_l.mean() * 0.6)) | \
-                  ((diff_l > 85) & (left_edge_full[:, :2].mean(axis=1) < 60))
+        cloth_l = ((left_edge_full.mean(axis=1) < 65) & (left_edge_full.mean(axis=1) < bg_l.mean() * 0.6)) | (diff_l > 80)
+        cloth_r = ((right_edge_full.mean(axis=1) < 65) & (right_edge_full.mean(axis=1) < bg_r.mean() * 0.6)) | (diff_r > 80)
 
-        cloth_r = ((right_edge_full.mean(axis=1) < 65) & (right_edge_full.mean(axis=1) < bg_r.mean() * 0.6)) | \
-                  ((diff_r > 85) & (right_edge_full[:, :2].mean(axis=1) < 60))
+        # 3. Assemble 2D organic canvas initialization (no 1D horizontal streaks)
+        canvas_init = cv2.copyMakeBorder(fg_resized, pad_top, pad_bot, pad_left, pad_right, cv2.BORDER_REFLECT_101)
 
-        clean_left = left_edge_full.copy()
-        if cloth_l.any():
+        # If clothing/subject touches bottom edges, smoothly blend bottom corners to authentic background
+        if pad_left > 0 and cloth_l[int(fg_h * 0.65):].any():
             first_bad_y = np.where(cloth_l)[0][0]
-            good_y = max(10, first_bad_y - 8)
-            grad = (clean_left[good_y] - clean_left[0]) / float(good_y)
-            for y in range(good_y, fg_h):
-                clean_left[y] = clean_left[good_y] + grad * (y - good_y)
-            clean_left = np.clip(clean_left, max(bg_l.min() * 0.7, 35), 255)
+            blend_y_start = pad_top + max(int(fg_h * 0.4), first_bad_y - 15)
+            for y in range(blend_y_start, pad_top + fg_h):
+                alpha = min(1.0, (y - blend_y_start) / max(1, (pad_top + fg_h - blend_y_start) * 0.75))
+                target_col = bg_l * (1.0 - 0.08 * ((y - blend_y_start) / fg_h))
+                canvas_init[y, :pad_left] = (canvas_init[y, :pad_left].astype(float) * (1.0 - alpha) + target_col * alpha).astype(np.uint8)
 
-        clean_right = right_edge_full.copy()
-        if cloth_r.any():
+        if pad_right > 0 and cloth_r[int(fg_h * 0.65):].any():
             first_bad_y = np.where(cloth_r)[0][0]
-            good_y = max(10, first_bad_y - 8)
-            grad = (clean_right[good_y] - clean_right[0]) / float(good_y)
-            for y in range(good_y, fg_h):
-                clean_right[y] = clean_right[good_y] + grad * (y - good_y)
-            clean_right = np.clip(clean_right, max(bg_r.min() * 0.7, 35), 255)
+            blend_y_start = pad_top + max(int(fg_h * 0.4), first_bad_y - 15)
+            for y in range(blend_y_start, pad_top + fg_h):
+                alpha = min(1.0, (y - blend_y_start) / max(1, (pad_top + fg_h - blend_y_start) * 0.75))
+                target_col = bg_r * (1.0 - 0.08 * ((y - blend_y_start) / fg_h))
+                canvas_init[y, pad_left + fg_w:] = (canvas_init[y, pad_left + fg_w:].astype(float) * (1.0 - alpha) + target_col * alpha).astype(np.uint8)
 
-        # 3. Assemble clean background canvas initialization for neural outpainting
-        canvas_init = np.zeros((target_h, target_w, 3), dtype=np.uint8)
-        canvas_init[pad_top:pad_top + fg_h, pad_left:pad_left + fg_w] = fg_resized
-
-        if pad_left > 0:
-            canvas_init[pad_top:pad_top + fg_h, :pad_left] = np.tile(clean_left[:, None, :], (1, pad_left, 1)).astype(np.uint8)
-        if pad_right > 0:
-            canvas_init[pad_top:pad_top + fg_h, pad_left + fg_w:] = np.tile(clean_right[:, None, :], (1, pad_right, 1)).astype(np.uint8)
-
-        if pad_top > 0:
-            top_row = canvas_init[pad_top:pad_top + 1, :].copy()
-            canvas_init[:pad_top, :] = np.tile(top_row, (pad_top, 1, 1))
-        if pad_bot > 0:
-            bot_row = canvas_init[pad_top + fg_h - 1:pad_top + fg_h, :].copy()
-            canvas_init[pad_top + fg_h:, :] = np.tile(bot_row, (pad_bot, 1, 1))
-
-        # Add subtle micro-texture to avoid flat bands
+        # Add subtle micro-texture to avoid flat patterns
         noise = np.random.normal(0, 1.2, canvas_init.shape).astype(np.float32)
         canvas_init = np.clip(canvas_init.astype(np.float32) + noise, 0, 255).astype(np.uint8)
         canvas_init[pad_top:pad_top + fg_h, pad_left:pad_left + fg_w] = fg_resized
@@ -260,24 +241,65 @@ class AspectConverter:
             print(f"[AspectConverter] LaMa outpaint fallback: {e}")
             lama_res = canvas_init[:target_h, :target_w]
 
-        # 5. Dual-Frequency Ambient Harmonization with Clean Background Guide
-        color_guide = canvas_init.astype(np.float32)
-        color_guide_blur = cv2.GaussianBlur(color_guide, (31, 31), 10)
-
-        # LAB frequency domain transfer
+        # 5. Dual-Frequency 2D Macro Ambient Illumination Harmonization (No 1D Streaks)
         lama_lab = cv2.cvtColor(lama_res, cv2.COLOR_BGR2LAB).astype(np.float32)
-        guide_lab = cv2.cvtColor(color_guide_blur.astype(np.uint8), cv2.COLOR_BGR2LAB).astype(np.float32)
+        l_chan, a_chan, b_chan = cv2.split(lama_lab)
 
-        l_lama, a_lama, b_lama = cv2.split(lama_lab)
-        l_guide, a_guide, b_guide = cv2.split(guide_lab)
+        # Large 2D kernel (sigma=45, size=141) isolates ONLY macro ambient lighting
+        l_low = cv2.GaussianBlur(l_chan, (141, 141), 45)
+        l_high = l_chan - l_low
+        a_low = cv2.GaussianBlur(a_chan, (141, 141), 45)
+        a_high = a_chan - a_low
+        b_low = cv2.GaussianBlur(b_chan, (141, 141), 45)
+        b_high = b_chan - b_low
 
-        # Extract high-frequency structural variation from LaMa (stairs, masonry, walls)
-        l_lama_low = cv2.GaussianBlur(l_lama, (31, 31), 10)
-        l_lama_high = l_lama - l_lama_low
+        l_adj = l_low.copy()
+        a_adj = a_low.copy()
+        b_adj = b_low.copy()
 
-        # Merge structural variation with true background lighting gradient & chrominance
-        l_synth = np.clip(l_guide + l_lama_high * 1.1, 0, 255)
-        synth_lab = cv2.merge([l_synth, a_guide, b_guide]).astype(np.uint8)
+        # Measure & compensate for Fourier boundary decay in authentic background region
+        check_h = max(20, int(fg_h * 0.35))
+        if pad_left > 0:
+            b_ref_l = l_low[pad_top:pad_top + check_h, pad_left:pad_left + 16].mean()
+            b_ref_a = a_low[pad_top:pad_top + check_h, pad_left:pad_left + 16].mean()
+            b_ref_b = b_low[pad_top:pad_top + check_h, pad_left:pad_left + 16].mean()
+
+            edge_ref_l = l_low[pad_top:pad_top + check_h, :16].mean()
+            edge_ref_a = a_low[pad_top:pad_top + check_h, :16].mean()
+            edge_ref_b = b_low[pad_top:pad_top + check_h, :16].mean()
+
+            dl = b_ref_l - edge_ref_l
+            da = b_ref_a - edge_ref_a
+            db = b_ref_b - edge_ref_b
+
+            w_left = np.linspace(1.0, 0.0, pad_left)[None, :]
+            l_adj[:, :pad_left] += dl * w_left * 0.8
+            a_adj[:, :pad_left] += da * w_left * 0.8
+            b_adj[:, :pad_left] += db * w_left * 0.8
+
+        if pad_right > 0:
+            b_ref_l = l_low[pad_top:pad_top + check_h, pad_left + fg_w - 16:pad_left + fg_w].mean()
+            b_ref_a = a_low[pad_top:pad_top + check_h, pad_left + fg_w - 16:pad_left + fg_w].mean()
+            b_ref_b = b_low[pad_top:pad_top + check_h, pad_left + fg_w - 16:pad_left + fg_w].mean()
+
+            edge_ref_l = l_low[pad_top:pad_top + check_h, -16:].mean()
+            edge_ref_a = a_low[pad_top:pad_top + check_h, -16:].mean()
+            edge_ref_b = b_low[pad_top:pad_top + check_h, -16:].mean()
+
+            dl = b_ref_l - edge_ref_l
+            da = b_ref_a - edge_ref_a
+            db = b_ref_b - edge_ref_b
+
+            w_right = np.linspace(0.0, 1.0, pad_right)[None, :]
+            l_adj[:, pad_left + fg_w:] += dl * w_right * 0.8
+            a_adj[:, pad_left + fg_w:] += da * w_right * 0.8
+            b_adj[:, pad_left + fg_w:] += db * w_right * 0.8
+
+        l_final = np.clip(l_adj + l_high, 0, 255)
+        a_final = np.clip(a_adj + a_high, 0, 255)
+        b_final = np.clip(b_adj + b_high, 0, 255)
+
+        synth_lab = cv2.merge([l_final, a_final, b_final]).astype(np.uint8)
         synth_bgr = cv2.cvtColor(synth_lab, cv2.COLOR_LAB2BGR)
 
         # 4. Composite sharp original foreground subject with feathered inner transition
