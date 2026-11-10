@@ -1890,7 +1890,7 @@ def api_generate_image():
             negative_prompt=negative_prompt,
             style_preset=style_preset,
             aspect_ratio=aspect_ratio,
-            strength=meta.get('strength', strength) if mode == 'i2i' else float(mcfg.get('default_strength', 0.55)),
+            strength=float(meta.get('strength', strength)) if mode == 'i2i' else float(mcfg.get('default_strength', 0.55)),
             source_image=orig_filename if mode == 'i2i' else ""
         )
 

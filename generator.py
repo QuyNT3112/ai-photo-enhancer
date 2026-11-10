@@ -16,7 +16,7 @@ import random
 import threading
 import urllib.request
 import urllib.parse
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, cast
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try:
@@ -721,7 +721,8 @@ class ImageGenerator:
         """Loads madebyollin/sdxl-vae-fp16-fix so FP16 VAE decode never produces NaNs or slows down with FP32 upcast."""
         vae_repo = "madebyollin/sdxl-vae-fp16-fix"
         try:
-            return AutoencoderKL.from_pretrained(vae_repo, torch_dtype=self.torch_dtype, local_files_only=True)
+            raw_vae = AutoencoderKL.from_pretrained(vae_repo, torch_dtype=self.torch_dtype, local_files_only=True)
+            return cast(AutoencoderKL, raw_vae[0] if isinstance(raw_vae, tuple) else raw_vae)
         except Exception:
             try:
                 storage = os.path.join(hf_constants.HF_HUB_CACHE, f"models--{vae_repo.replace('/', '--')}")
@@ -730,7 +731,8 @@ class ImageGenerator:
                     are_symlinks_supported(storage)
                 except Exception:
                     pass
-                return AutoencoderKL.from_pretrained(vae_repo, torch_dtype=self.torch_dtype)
+                raw_vae = AutoencoderKL.from_pretrained(vae_repo, torch_dtype=self.torch_dtype)
+                return cast(AutoencoderKL, raw_vae[0] if isinstance(raw_vae, tuple) else raw_vae)
             except Exception as e:
                 safe_print(f"[ImageGenerator] Warning: Could not load sdxl-vae-fp16-fix ({e}), using model default VAE.")
                 return None
@@ -827,7 +829,7 @@ class ImageGenerator:
             load_kwargs: Dict[str, Any] = {
                 "torch_dtype": self.torch_dtype,
                 "use_safetensors": True,
-                "local_files_only": bool(snap_dir or os.path.isdir(str(load_source))),
+                "local_files_only": bool(snap_dir or os.path.isdir(load_source)),
             }
             if variant:
                 load_kwargs["variant"] = variant
@@ -837,25 +839,16 @@ class ImageGenerator:
                 load_kwargs["vae"] = vae
 
             try:
-                pipe = StableDiffusionXLPipeline.from_pretrained(load_source, **load_kwargs)
+                raw_pipe = StableDiffusionXLPipeline.from_pretrained(load_source, **load_kwargs)
             except Exception:
                 load_kwargs["local_files_only"] = False
-                pipe = StableDiffusionXLPipeline.from_pretrained(mid, **load_kwargs)
+                raw_pipe = StableDiffusionXLPipeline.from_pretrained(mid, **load_kwargs)
 
+            pipe: Any = raw_pipe[0] if isinstance(raw_pipe, tuple) else raw_pipe
             self._configure_scheduler(pipe, model_cfg.get("scheduler", "dpmsolver_2m_karras"), mid)
 
             # Build shared I2I pipeline with zero duplicate weights
-            i2i_pipe = StableDiffusionXLImg2ImgPipeline(
-                vae=pipe.vae,
-                text_encoder=pipe.text_encoder,
-                text_encoder_2=pipe.text_encoder_2,
-                tokenizer=pipe.tokenizer,
-                tokenizer_2=pipe.tokenizer_2,
-                unet=pipe.unet,
-                scheduler=pipe.scheduler,
-                image_encoder=None,
-                feature_extractor=None,
-            )
+            i2i_pipe: Any = StableDiffusionXLImg2ImgPipeline.from_pipe(pipe)
 
             # Enable VAE slicing & tiling (keeps VAE memory < 500MB without slowing down SDPA attention!)
             try:
@@ -876,7 +869,7 @@ class ImageGenerator:
         else:
             # Legacy SD 1.5 path
             try:
-                pipe = StableDiffusionPipeline.from_pretrained(
+                raw_pipe = StableDiffusionPipeline.from_pretrained(
                     load_source,
                     torch_dtype=self.torch_dtype,
                     safety_checker=None,
@@ -884,13 +877,14 @@ class ImageGenerator:
                     local_files_only=bool(snap_dir)
                 )
             except Exception:
-                pipe = StableDiffusionPipeline.from_pretrained(
+                raw_pipe = StableDiffusionPipeline.from_pretrained(
                     mid,
                     torch_dtype=self.torch_dtype,
                     safety_checker=None,
                     requires_safety_checker=False
                 )
 
+            pipe: Any = raw_pipe[0] if isinstance(raw_pipe, tuple) else raw_pipe
             self._configure_scheduler(pipe, model_cfg.get("scheduler", "dpmsolver_2m_karras"), mid)
             pipe.to(self.device)
             if self.device == "cuda":
@@ -899,16 +893,7 @@ class ImageGenerator:
                 except Exception:
                     pass
 
-            i2i_pipe = StableDiffusionImg2ImgPipeline(
-                vae=pipe.vae,
-                text_encoder=pipe.text_encoder,
-                tokenizer=pipe.tokenizer,
-                unet=pipe.unet,
-                scheduler=pipe.scheduler,
-                safety_checker=None,
-                feature_extractor=None,
-                requires_safety_checker=False
-            )
+            i2i_pipe: Any = StableDiffusionImg2ImgPipeline.from_pipe(pipe)
             i2i_pipe.to(self.device)
             self._active_offload_mode = None
 
@@ -1079,7 +1064,7 @@ class ImageGenerator:
         w = max(lo, min(hi, w))
         h = round((w / aspect) / 64.0) * 64
         h = max(lo, min(hi, h))
-        return int(w), int(h)
+        return w, h
 
     def _resolve_aspect_dimensions(
         self,
@@ -1183,9 +1168,9 @@ class ImageGenerator:
         height: Optional[int] = None,
         steps: Optional[int] = None,
         cfg_scale: Optional[float] = None,
-        seed: int = -1,
+        seed: Optional[int] = -1,
         model_id: str = DEFAULT_MODEL_ID
-    ):
+    ) -> Tuple[Image.Image, Dict[str, Any]]:
         """
         Generates a high-resolution image from text using SDXL (1024px native) or SD 1.5.
         Supports >77 token prompts via chunked dual/single CLIP encoding.
@@ -1210,7 +1195,7 @@ class ImageGenerator:
             )
 
             norm_steps, norm_cfg = self._normalize_params(model_cfg, steps, cfg_scale)
-            actual_seed = random.randint(0, 2147483647) if (seed is None or seed < 0) else int(seed)
+            actual_seed = random.randint(0, 2147483647) if (seed is None or seed < 0) else seed
             generator = torch.Generator(device=self.device).manual_seed(actual_seed)
 
             safe_print(
@@ -1251,14 +1236,14 @@ class ImageGenerator:
                         generator=generator
                     )
 
-        raw_image = result.images[0]
+        raw_image = cast(Image.Image, result.images[0])
         if raw_image.size != (target_w, target_h):
             image = raw_image.resize((target_w, target_h), Image.Resampling.LANCZOS)
         else:
             image = raw_image
 
         duration = round(time.time() - t0, 2)
-        meta = {
+        meta: Dict[str, Any] = {
             "mode": "t2i",
             "prompt": prompt,
             "translated_prompt": prompt_en,
@@ -1291,9 +1276,9 @@ class ImageGenerator:
         strength: Optional[float] = None,
         steps: Optional[int] = None,
         cfg_scale: Optional[float] = None,
-        seed: int = -1,
+        seed: Optional[int] = -1,
         model_id: str = DEFAULT_MODEL_ID
-    ):
+    ) -> Tuple[Image.Image, Dict[str, Any]]:
         """
         Generates a transformed image from an existing input image with zero distortion.
         Supports 'auto' aspect ratio matching exact source proportions and guarantees
@@ -1350,7 +1335,7 @@ class ImageGenerator:
             if int(exec_steps * norm_strength) < min_active_steps:
                 exec_steps = min(50, max(norm_steps, math.ceil(min_active_steps / max(norm_strength, 0.15))))
 
-            actual_seed = random.randint(0, 2147483647) if (seed is None or seed < 0) else int(seed)
+            actual_seed = random.randint(0, 2147483647) if (seed is None or seed < 0) else seed
             generator = torch.Generator(device=self.device).manual_seed(actual_seed)
 
             safe_print(
@@ -1392,14 +1377,14 @@ class ImageGenerator:
                         generator=generator
                     )
 
-        raw_image = result.images[0]
+        raw_image = cast(Image.Image, result.images[0])
         if raw_image.size != (target_w, target_h):
             image = raw_image.resize((target_w, target_h), Image.Resampling.LANCZOS)
         else:
             image = raw_image
 
         duration = round(time.time() - t0, 2)
-        meta = {
+        meta: Dict[str, Any] = {
             "mode": "i2i",
             "prompt": prompt,
             "translated_prompt": prompt_en,
