@@ -2657,13 +2657,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Settings
     const genModelSelect = document.getElementById('genModelSelect');
+    const genModelHint = document.getElementById('genModelHint');
     const genRatioRadios = document.querySelectorAll('input[name="genAspectRatio"]');
     const genRatioPills = document.querySelectorAll('.ratio-pill');
+    const genRatioAutoPill = document.getElementById('genRatioAutoPill');
+    const genRatio11Dims = document.getElementById('genRatio11Dims');
     const genSteps = document.getElementById('genSteps');
     const genStepsVal = document.getElementById('genStepsVal');
     const genCfg = document.getElementById('genCfg');
     const genCfgVal = document.getElementById('genCfgVal');
     const genSeed = document.getElementById('genSeed');
+
+    let genDefaultModelId = 'RunDiffusion/Juggernaut-XL-v9';
+    let genModelsMap = {};
+    let lastT2IRatio = '1:1';
 
     // Action & States
     const btnGenerate = document.getElementById('btnGenerate');
@@ -2707,7 +2714,120 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnApplyTuneToMain = document.getElementById('btnApplyTuneToMain');
     const genAuditPromptEn = document.getElementById('genAuditPromptEn');
 
-    // 1. Mode Switcher (T2I vs I2I)
+    // 1. Mode Switcher & Model Metadata Helpers (T2I vs I2I)
+    function selectAspectRatio(ratioVal) {
+        const targetRadio = document.querySelector(`input[name="genAspectRatio"][value="${ratioVal}"]`);
+        if (targetRadio) {
+            targetRadio.checked = true;
+            if (ratioVal !== 'auto') {
+                lastT2IRatio = ratioVal;
+            }
+        }
+        genRatioPills.forEach(pill => {
+            const r = pill.querySelector('input[type="radio"]');
+            if (r) pill.classList.toggle('active', r.value === ratioVal);
+        });
+    }
+
+    function updateStrengthHint(val) {
+        const num = parseFloat(val);
+        if (isNaN(num)) return;
+        if (genStrengthVal) genStrengthVal.textContent = num.toFixed(2);
+        if (genStrengthHint) {
+            if (num <= 0.35) {
+                genStrengthHint.innerHTML = `<b>${num.toFixed(2)} (Bảo toàn cao)</b>: Giữ tối đa đường nét, phong cách và màu sắc ảnh gốc, chỉ tinh chỉnh nhẹ.`;
+            } else if (num <= 0.60) {
+                genStrengthHint.innerHTML = `<b>${num.toFixed(2)} (Cân bằng - Khuyên dùng)</b>: Giữ trọn vẹn bố cục & phong cách ảnh gốc, nâng nét và bổ sung chi tiết sắc sảo theo Prompt.`;
+            } else {
+                genStrengthHint.innerHTML = `<b>${num.toFixed(2)} (Biến đổi mạnh)</b>: Sáng tạo lại chất liệu và chi tiết mạnh theo Prompt, vẫn giữ bố cục nguồn.`;
+            }
+        }
+    }
+
+    function syncGeneratorParamsForModel(modelId, applyDefaults = true) {
+        const cfg = genModelsMap[modelId];
+        const isSdxl = cfg ? cfg.type === 'sdxl' : !String(modelId || '').includes('v1-5');
+
+        if (genRatio11Dims) {
+            genRatio11Dims.textContent = isSdxl ? '1024 x 1024' : '512 x 512';
+        }
+
+        if (cfg) {
+            if (genModelHint) {
+                const statusBadge = cfg.is_cached
+                    ? '<span style="color:#34d399; font-weight:600;">✓ Đã sẵn sàng trên máy</span>'
+                    : '<span style="color:#fbbf24; font-weight:600;">⬇ Tự động tải lần đầu</span>';
+                genModelHint.innerHTML = `${statusBadge} · <b>${cfg.scheduler_name || 'DPM++ 2M Karras'}</b> · ${cfg.eta_hint || '~18-24 giây'}<br>${cfg.desc || ''}`;
+            }
+            if (genProcessingSubText) {
+                const archLabel = isSdxl ? 'SDXL FP16' : 'SD 1.5 FP16';
+                genProcessingSubText.textContent = `Tính toán ${archLabel} trên GPU NVIDIA RTX 3060 · Dự kiến ${cfg.eta_hint || '~18-24 giây'}...`;
+            }
+
+            if (genSteps) {
+                genSteps.min = cfg.min_steps ?? (cfg.is_distilled ? 4 : 10);
+                genSteps.max = cfg.max_steps ?? 50;
+                if (applyDefaults && cfg.default_steps !== undefined) {
+                    genSteps.value = cfg.default_steps;
+                    if (genStepsVal) genStepsVal.textContent = cfg.default_steps;
+                }
+            }
+            if (genCfg) {
+                genCfg.min = cfg.min_cfg ?? 1.0;
+                genCfg.max = cfg.max_cfg ?? 15.0;
+                if (applyDefaults && cfg.default_cfg !== undefined) {
+                    genCfg.value = cfg.default_cfg;
+                    if (genCfgVal) genCfgVal.textContent = parseFloat(cfg.default_cfg).toFixed(1);
+                }
+            }
+            if (genStrength && applyDefaults && cfg.default_strength !== undefined) {
+                genStrength.value = cfg.default_strength;
+                updateStrengthHint(cfg.default_strength);
+            }
+        }
+    }
+
+    async function loadGeneratorMeta() {
+        try {
+            const res = await fetch('/api/generator-meta');
+            const data = await res.json();
+            if (data.status !== 'success' || !Array.isArray(data.models)) return;
+
+            genDefaultModelId = data.default_model_id || 'RunDiffusion/Juggernaut-XL-v9';
+            genModelsMap = {};
+            data.models.forEach(m => {
+                genModelsMap[m.id] = m;
+            });
+
+            if (genModelSelect) {
+                const prevVal = genModelSelect.value;
+                genModelSelect.innerHTML = '';
+                data.models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    const cachedMark = m.is_cached ? ' ✓' : '';
+                    opt.textContent = `${m.name}${cachedMark}`;
+                    genModelSelect.appendChild(opt);
+                });
+
+                const targetId = genModelsMap[prevVal] ? prevVal : (genModelsMap[genDefaultModelId] ? genDefaultModelId : data.models[0]?.id);
+                if (targetId) {
+                    genModelSelect.value = targetId;
+                    syncGeneratorParamsForModel(targetId, true);
+                }
+            }
+        } catch (err) {
+            console.warn('[Generator] Could not fetch generator-meta:', err);
+        }
+    }
+
+    if (genModelSelect) {
+        genModelSelect.addEventListener('change', (e) => {
+            syncGeneratorParamsForModel(e.target.value, true);
+        });
+    }
+    loadGeneratorMeta();
+
     function setGenMode(mode) {
         currentGenMode = mode;
         if (btnModeT2I) btnModeT2I.classList.toggle('active', mode === 't2i');
@@ -2717,16 +2837,27 @@ document.addEventListener('DOMContentLoaded', () => {
             genI2iSection.classList.toggle('hidden', mode !== 'i2i');
         }
 
+        const currentCheckedRatio = document.querySelector('input[name="genAspectRatio"]:checked')?.value || '1:1';
         if (mode === 'i2i') {
+            if (currentCheckedRatio !== 'auto') {
+                lastT2IRatio = currentCheckedRatio;
+            }
+            if (genRatioAutoPill) genRatioAutoPill.classList.remove('hidden');
+            selectAspectRatio('auto');
             if (genPromptStepBadge) genPromptStepBadge.textContent = '3';
             if (genSettingsStepBadge) genSettingsStepBadge.textContent = '4';
             if (btnGenerateText) btnGenerateText.textContent = 'BẮT ĐẦU BIẾN ĐỔI ẢNH (I2I · GPU RTX 3060)';
         } else {
+            if (genRatioAutoPill) genRatioAutoPill.classList.add('hidden');
+            if (currentCheckedRatio === 'auto') {
+                selectAspectRatio(lastT2IRatio || '1:1');
+            }
             if (genPromptStepBadge) genPromptStepBadge.textContent = '2';
             if (genSettingsStepBadge) genSettingsStepBadge.textContent = '3';
             if (btnGenerateText) btnGenerateText.textContent = 'BẮT ĐẦU TẠO ẢNH AI (T2I · GPU RTX 3060)';
         }
     }
+    window.setGenMode = setGenMode;
 
     if (btnModeT2I) btnModeT2I.addEventListener('click', () => setGenMode('t2i'));
     if (btnModeI2I) btnModeI2I.addEventListener('click', () => setGenMode('i2i'));
@@ -2855,17 +2986,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Strength Slider & Hint
     if (genStrength) {
         genStrength.addEventListener('input', (e) => {
-            const val = parseFloat(e.target.value);
-            if (genStrengthVal) genStrengthVal.textContent = val.toFixed(2);
-            if (genStrengthHint) {
-                if (val <= 0.35) {
-                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Bảo toàn cao)</b>: Giữ tối đa đường nét, phong cách và màu sắc ảnh gốc, chỉ tinh chỉnh nhẹ.`;
-                } else if (val <= 0.55) {
-                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Cân bằng - Khuyên dùng)</b>: Giữ trọn vẹn nét vẽ & phong cách ảnh gốc, bổ sung chi tiết theo Prompt.`;
-                } else {
-                    genStrengthHint.innerHTML = `<b>${val.toFixed(2)} (Biến đổi mạnh)</b>: Chuyển đổi sang phong cách mới, dựa trên hình khối ảnh nguồn.`;
-                }
-            }
+            updateStrengthHint(e.target.value);
         });
     }
 
@@ -2922,7 +3043,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({
                         prompt: promptText,
                         style_preset: genStylePreset?.value || 'auto',
-                        model_id: genModelSelect?.value || 'runwayml/stable-diffusion-v1-5',
+                        model_id: genModelSelect?.value || genDefaultModelId,
                         negative_prompt: genNegativePrompt?.value?.trim() || ''
                     })
                 });
@@ -2972,6 +3093,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ratio Pills
     genRatioRadios.forEach(radio => {
         radio.addEventListener('change', () => {
+            if (radio.checked && radio.value !== 'auto') {
+                lastT2IRatio = radio.value;
+            }
             genRatioPills.forEach(p => p.classList.remove('active'));
             radio.closest('.ratio-pill')?.classList.add('active');
         });
@@ -3035,16 +3159,16 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('prompt', promptText);
             formData.append('negative_prompt', genNegativePrompt?.value?.trim() || '');
             formData.append('style_preset', genStylePreset?.value || 'auto');
-            formData.append('model_id', genModelSelect?.value || 'runwayml/stable-diffusion-v1-5');
+            formData.append('model_id', genModelSelect?.value || genDefaultModelId);
 
-            const selectedRatio = document.querySelector('input[name="genAspectRatio"]:checked')?.value || '1:1';
+            const selectedRatio = document.querySelector('input[name="genAspectRatio"]:checked')?.value || (currentGenMode === 'i2i' ? 'auto' : '1:1');
             formData.append('aspect_ratio', selectedRatio);
-            formData.append('steps', genSteps?.value || 25);
-            formData.append('cfg_scale', genCfg?.value || 7.5);
+            formData.append('steps', genSteps?.value || 24);
+            formData.append('cfg_scale', genCfg?.value || 6.0);
             formData.append('seed', genSeed?.value || -1);
 
             if (currentGenMode === 'i2i') {
-                formData.append('strength', genStrength?.value || 0.45);
+                formData.append('strength', genStrength?.value || 0.55);
                 if (currentGenFile) {
                     formData.append('image', currentGenFile);
                 } else if (currentGenSourceFilename) {
@@ -3090,9 +3214,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update Result UI
                 if (genResultImg) genResultImg.src = currentGenResult.result_url;
                 if (genResultModeTag) genResultModeTag.textContent = (currentGenResult.mode || 'T2I').toUpperCase();
-                if (genResultDimsTag) genResultDimsTag.textContent = `${meta.width || 512} x ${meta.height || 512}`;
+                if (genResultDimsTag) genResultDimsTag.textContent = `${meta.width || 1024} x ${meta.height || 1024}`;
 
-                if (genStatResolution) genStatResolution.textContent = `${meta.width || 512} x ${meta.height || 512}`;
+                if (genStatResolution) genStatResolution.textContent = `${meta.width || 1024} x ${meta.height || 1024}`;
                 if (genStatFilesize) genStatFilesize.textContent = `${currentGenResult.file_sizes?.result_kb || 0} KB`;
                 if (genStatDuration) genStatDuration.textContent = `${meta.duration_sec || 0}s`;
                 if (genStatSeed) genStatSeed.textContent = meta.seed || 'Ngẫu nhiên';
@@ -3556,34 +3680,32 @@ document.addEventListener('DOMContentLoaded', () => {
             genStylePreset.value = item.style_preset;
         }
 
+        if (genModelSelect && item.model_id) {
+            if (genModelsMap[item.model_id] || Array.from(genModelSelect.options).some(o => o.value === item.model_id)) {
+                genModelSelect.value = item.model_id;
+            }
+            syncGeneratorParamsForModel(genModelSelect.value, false);
+        }
+
         if (item.aspect_ratio) {
-            const radio = document.querySelector(`input[name="genAspectRatio"][value="${item.aspect_ratio}"]`);
-            if (radio) {
-                radio.checked = true;
-                radio.dispatchEvent(new Event('change'));
-            }
-            if (genRatioPills) {
-                genRatioPills.forEach(pill => {
-                    const r = pill.querySelector('input[type="radio"]');
-                    if (r) pill.classList.toggle('active', r.value === item.aspect_ratio);
-                });
-            }
+            selectAspectRatio(item.aspect_ratio);
         }
 
         if (genSeed) {
             genSeed.value = (item.seed !== undefined && item.seed !== -1 && item.seed !== null) ? item.seed : '';
         }
         if (genSteps && item.steps) {
+            if (Number(item.steps) < Number(genSteps.min)) genSteps.min = item.steps;
             genSteps.value = item.steps;
             if (genStepsVal) genStepsVal.textContent = item.steps;
         }
         if (genCfg && item.cfg_scale) {
             genCfg.value = item.cfg_scale;
-            if (genCfgVal) genCfgVal.textContent = item.cfg_scale;
+            if (genCfgVal) genCfgVal.textContent = parseFloat(item.cfg_scale).toFixed(1);
         }
         if (genStrength && item.strength) {
             genStrength.value = item.strength;
-            if (genStrengthVal) genStrengthVal.textContent = item.strength;
+            updateStrengthHint(item.strength);
         }
 
         if (genNegativePrompt && item.negative_prompt) {

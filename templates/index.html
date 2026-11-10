@@ -2044,11 +2044,11 @@
                             <label class="param-label" for="genStrength">
                                 <i class="fa-solid fa-sliders text-cyan"></i> Mức độ biến đổi ảnh gốc (Strength):
                             </label>
-                            <span class="param-value-badge" id="genStrengthVal">0.45</span>
+                            <span class="param-value-badge" id="genStrengthVal">0.55</span>
                         </div>
-                        <input type="range" id="genStrength" min="0.1" max="0.95" step="0.05" value="0.45" class="custom-range">
+                        <input type="range" id="genStrength" min="0.1" max="0.95" step="0.05" value="0.55" class="custom-range">
                         <div class="param-hint-text" id="genStrengthHint">
-                            <b>0.45 (Khuyên dùng - Cân bằng)</b>: Giữ trọn nét vẽ, phong cách và bố cục ảnh nguồn, nâng nét và tinh chỉnh chi tiết theo Prompt.
+                            <b>0.55 (Khuyên dùng - Cân bằng SDXL)</b>: Giữ vững bố cục & phong cách ảnh gốc, nâng nét và tái tạo chi tiết sắc nét theo Prompt.
                         </div>
                     </div>
                 </div>
@@ -2177,14 +2177,21 @@
                     <!-- Model Selector -->
                     <div class="form-group">
                         <label class="form-label" for="genModelSelect">
-                            <i class="fa-solid fa-microchip text-purple"></i> Mô hình AI (Local CUDA):
+                            <i class="fa-solid fa-microchip text-purple"></i> Mô hình AI (Local CUDA · SDXL &amp; SD 1.5):
                         </label>
                         <select id="genModelSelect" class="custom-select">
-                            <option value="runwayml/stable-diffusion-v1-5" selected>⚡ Stable Diffusion v1.5 (Local RTX 3060 · Siêu Nhanh ~2.5s)</option>
-                            <option value="prompthero/openjourney">🌌 Openjourney v4 (Phong Cách Nghệ Thuật Midjourney · Sẵn Sàng)</option>
-                            <option value="Lykon/dreamshaper-8">🎨 DreamShaper v8 (Tranh 3D, Nghệ Thuật & Concept)</option>
-                            <option value="SG161222/Realistic_Vision_V5.1_noVAE">📸 Realistic Vision v5.1 (Chân Dung & Nhiếp Ảnh Thực Tế)</option>
+                            <option value="RunDiffusion/Juggernaut-XL-v9" selected>🏆 Juggernaut XL v9 (SDXL · Đa Năng Đỉnh Cao · Bám Prompt Nhất)</option>
+                            <option value="SG161222/RealVisXL_V5.0_Lightning">⚡ RealVisXL v5.0 Lightning (SDXL · Ảnh Thật DSLR · Siêu Tốc ~7s)</option>
+                            <option value="Lykon/dreamshaper-xl-v2-turbo">🎨 DreamShaper XL v2 Turbo (SDXL · 3D Pixar, Viễn Tưởng &amp; Nghệ Thuật)</option>
+                            <option value="cagliostrolab/animagine-xl-4.0">🌸 Animagine XL 4.0 (SDXL · Chuyên Anime &amp; Illustration Đỉnh Cao)</option>
+                            <option value="stabilityai/stable-diffusion-xl-base-1.0">🏛️ Stable Diffusion XL 1.0 Base (SDXL · Chuẩn Gốc Stability AI)</option>
+                            <option value="SG161222/Realistic_Vision_V5.1_noVAE">📷 Realistic Vision v5.1 (SD 1.5 · Cũ/Nhẹ ~3s)</option>
+                            <option value="Lykon/dreamshaper-8">🖌️ DreamShaper v8 (SD 1.5 · Cũ/Nhẹ ~3s)</option>
+                            <option value="runwayml/stable-diffusion-v1-5">⚙️ Stable Diffusion v1.5 (SD 1.5 · Cơ Bản ~2.5s)</option>
                         </select>
+                        <div class="param-hint-text" id="genModelHint" style="margin-top: 6px;">
+                            Mô hình SDXL toàn diện hàng đầu (1024px gốc): bám sát từng chi tiết Prompt, xuất sắc cho cả nhiếp ảnh thực tế, điện ảnh, phong cảnh, 3D và Img2Img.
+                        </div>
                     </div>
 
                     <!-- Aspect Ratio Grid -->
@@ -2193,11 +2200,19 @@
                             <i class="fa-solid fa-crop-simple text-cyan"></i> Tỷ lệ & Kích thước ảnh:
                         </label>
                         <div class="aspect-ratio-selector-grid">
+                            <label class="ratio-pill hidden" id="genRatioAutoPill" for="genRatioAuto" style="grid-column: 1 / -1;">
+                                <input type="radio" name="genAspectRatio" id="genRatioAuto" value="auto">
+                                <div class="ratio-pill-inner">
+                                    <span class="ratio-pill-name">✨ Giữ Tỷ Lệ Ảnh Gốc (Auto I2I)</span>
+                                    <span class="ratio-pill-dims">Tự căn chuẩn SDXL ~1MP · Không méo hay cắt xén</span>
+                                </div>
+                            </label>
+
                             <label class="ratio-pill active" for="genRatio11">
                                 <input type="radio" name="genAspectRatio" id="genRatio11" value="1:1" checked>
                                 <div class="ratio-pill-inner">
                                     <span class="ratio-pill-name">1:1 Vuông</span>
-                                    <span class="ratio-pill-dims">512 x 512</span>
+                                    <span class="ratio-pill-dims" id="genRatio11Dims">1024 x 1024</span>
                                 </div>
                             </label>
 
@@ -2237,17 +2252,17 @@
                                 <div class="param-col">
                                     <div class="param-header">
                                         <label class="param-label" for="genSteps">Số bước (Steps):</label>
-                                        <span class="param-value-badge" id="genStepsVal">25</span>
+                                        <span class="param-value-badge" id="genStepsVal">24</span>
                                     </div>
-                                    <input type="range" id="genSteps" min="15" max="50" step="1" value="25" class="custom-range">
+                                    <input type="range" id="genSteps" min="4" max="50" step="1" value="24" class="custom-range">
                                 </div>
 
                                 <div class="param-col">
                                     <div class="param-header">
                                         <label class="param-label" for="genCfg">Độ bám Prompt (CFG):</label>
-                                        <span class="param-value-badge" id="genCfgVal">7.5</span>
+                                        <span class="param-value-badge" id="genCfgVal">6.0</span>
                                     </div>
-                                    <input type="range" id="genCfg" min="1.0" max="15.0" step="0.5" value="7.5" class="custom-range">
+                                    <input type="range" id="genCfg" min="1.0" max="15.0" step="0.5" value="6.0" class="custom-range">
                                 </div>
                             </div>
 
@@ -2275,13 +2290,13 @@
                     <div class="empty-icon-circle">
                         <i class="fa-solid fa-palette text-cyan"></i>
                     </div>
-                    <h3 class="empty-title">Khởi Nguồn Sáng Tạo Nghệ Thuật Với AI</h3>
+                    <h3 class="empty-title">Khởi Nguồn Sáng Tạo Nghệ Thuật Với AI SDXL</h3>
                     <p class="empty-sub">
-                        Nhập lời nhắc (Prompt) hoặc chọn ảnh mẫu bên trái để sinh tác phẩm ảnh hoàn toàn mới chỉ trong <b>2-3 giây</b> với GPU NVIDIA GeForce RTX 3060 (12GB VRAM CUDA).
+                        Nhập lời nhắc (Prompt) hoặc chọn ảnh mẫu bên trái để sinh tác phẩm độ phân giải <b>1024px+ SDXL</b> bám sát từng chi tiết trên GPU NVIDIA GeForce RTX 3060 (12GB VRAM CUDA).
                     </p>
                     <div class="empty-feature-tags">
-                        <span class="feat-tag"><i class="fa-solid fa-bolt text-cyan"></i> Siêu tốc ~2.5s</span>
-                        <span class="feat-tag"><i class="fa-solid fa-image text-purple"></i> Hỗ trợ T2I & I2I</span>
+                        <span class="feat-tag"><i class="fa-solid fa-bolt text-cyan"></i> Juggernaut XL &amp; Lightning ~7s</span>
+                        <span class="feat-tag"><i class="fa-solid fa-image text-purple"></i> Hỗ trợ T2I &amp; I2I chuẩn tỷ lệ</span>
                         <span class="feat-tag"><i class="fa-solid fa-arrow-up-right-dots text-emerald"></i> Liên hoàn Siêu Làm Nét 4K</span>
                     </div>
                 </div>
@@ -2293,8 +2308,8 @@
                         <div class="processing-ring"></div>
                         <i class="fa-solid fa-microchip processing-center-icon"></i>
                     </div>
-                    <h3 class="processing-title" id="genProcessingStatusText">Đang Nạp Mô Hình & Khởi Tạo Mạng Khuếch Tán...</h3>
-                    <p class="processing-sub" id="genProcessingSubText">Tính toán trên nhân CUDA FP16 (RTX 3060) · Dự kiến 2-4 giây...</p>
+                    <h3 class="processing-title" id="genProcessingStatusText">Đang Nạp Mô Hình SDXL & Khởi Tạo Mạng Khuếch Tán...</h3>
+                    <p class="processing-sub" id="genProcessingSubText">Tính toán trên nhân CUDA FP16 (RTX 3060) · Dự kiến ~18-24 giây...</p>
                     <div class="progress-meta">
                         <span class="timer-badge"><i class="fa-regular fa-clock"></i> <span id="genProcessingTimer">0.0s</span></span>
                         <span class="hardware-indicator-badge"><i class="fa-solid fa-bolt text-yellow"></i> CUDA RTX 3060</span>
@@ -2307,7 +2322,7 @@
                         <div class="result-title-group">
                             <span class="badge-success" id="genResultBadge"><i class="fa-solid fa-check"></i> Đã Tạo Thành Công</span>
                             <span class="meta-tag" id="genResultModeTag">T2I</span>
-                            <span class="meta-tag" id="genResultDimsTag">512 x 512</span>
+                            <span class="meta-tag" id="genResultDimsTag">1024 x 1024</span>
                         </div>
                         <div class="view-controls">
                             <button type="button" class="btn-ctrl-icon" id="btnGenZoomToggle" title="Phóng to chi tiết (Zoom)">
@@ -2328,7 +2343,7 @@
                     <div class="stats-bar" style="margin-top: 14px;">
                         <div class="stat-item">
                             <span class="stat-label"><i class="fa-solid fa-expand"></i> Độ phân giải:</span>
-                            <span class="stat-val" id="genStatResolution">512 x 512</span>
+                            <span class="stat-val" id="genStatResolution">1024 x 1024</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label"><i class="fa-solid fa-weight-scale"></i> Dung lượng:</span>

@@ -853,7 +853,7 @@ class LLMEngine:
         detected_style = style_preset or "cinematic"
         input_lower = user_input_clean.lower()
 
-        if not style_preset or style_preset == "none":
+        if not style_preset or style_preset in ("auto", "none", ""):
             if any(k in input_lower for k in ["anime", "manga", "shinkai", "hoạt hình nhật", "2d"]):
                 detected_style = "anime"
             elif any(k in input_lower for k in ["cyberpunk", "neon", "tương lai", "sci-fi"]):
@@ -901,14 +901,26 @@ class LLMEngine:
         # 1. Translate full sentence first so zero words are discarded
         full_translated_sentence = smart_translate_prompt(text).strip()
 
-        # 2. Enrich with matched domain concepts if any
+        # 2. Enrich with matched domain concepts if any (avoid style/subject collisions)
         applied_rules = []
         enriched_tags = []
+        has_vn_context = bool(re.search(r"việt nam|vietnam|áo dài|nón lá|hồ gươm|hội an|hà nội|sài gòn|sa pa|sapa", text_lower))
+        is_stylized = style_name in ("anime", "pixar3d", "fantasy", "cyberpunk") or any(
+            k in text_lower for k in ["anime", "manga", "3d", "pixar", "robot", "hoạt hình", "châu âu", "european", "elf"]
+        )
         for pattern, english_repr in VIETNAMESE_CONCEPT_MAP.items():
             if re.search(pattern, text_lower):
+                if pattern.startswith("chân dung") and is_stylized:
+                    continue
+                rep = english_repr
+                if pattern.startswith("cô gái") and not has_vn_context:
+                    if style_name == "anime" or "anime" in text_lower:
+                        rep = "beautiful anime girl, expressive detailed eyes"
+                    elif is_stylized:
+                        rep = "young woman, expressive features"
                 applied_rules.append(pattern.split('|')[0])
-                if english_repr.lower() not in full_translated_sentence.lower():
-                    enriched_tags.append(english_repr)
+                if rep.lower() not in full_translated_sentence.lower():
+                    enriched_tags.append(rep)
 
         core_concept = full_translated_sentence
         if enriched_tags:

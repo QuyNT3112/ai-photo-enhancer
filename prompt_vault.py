@@ -61,11 +61,11 @@ def init_vault_db():
                 aspect_ratio TEXT DEFAULT '1:1',
                 width INTEGER DEFAULT 512,
                 height INTEGER DEFAULT 512,
-                steps INTEGER DEFAULT 25,
-                cfg_scale REAL DEFAULT 8.0,
+                steps INTEGER DEFAULT 24,
+                cfg_scale REAL DEFAULT 6.0,
                 seed INTEGER DEFAULT -1,
-                model_id TEXT DEFAULT 'runwayml/stable-diffusion-v1-5',
-                strength REAL DEFAULT 0.45,
+                model_id TEXT DEFAULT 'RunDiffusion/Juggernaut-XL-v9',
+                strength REAL DEFAULT 0.55,
                 duration_sec REAL DEFAULT 0.0,
                 file_size_kb REAL DEFAULT 0.0,
                 image_url TEXT NOT NULL,
@@ -176,12 +176,13 @@ def embed_png_metadata(image: Image.Image, record_data: Dict[str, Any], output_p
     height = record_data.get('height', 512)
     model_id = record_data.get('model_id', '')
     style_preset = record_data.get('style_preset', 'auto')
+    sampler_name = record_data.get('scheduler_name', 'DPM++ 2M Karras')
 
     # Standard A1111 parameter string format
     sd_params = (
         f"{record_data.get('final_positive') or prompt}\n"
         f"Negative prompt: {negative_prompt}\n"
-        f"Steps: {steps}, Sampler: Euler a, CFG scale: {cfg_scale}, Seed: {seed}, "
+        f"Steps: {steps}, Sampler: {sampler_name}, CFG scale: {cfg_scale}, Seed: {seed}, "
         f"Size: {width}x{height}, Model: {model_id}, Style: {style_preset}"
     )
 
@@ -200,7 +201,8 @@ def embed_png_metadata(image: Image.Image, record_data: Dict[str, Any], output_p
         "seed": seed,
         "steps": steps,
         "cfg_scale": cfg_scale,
-        "strength": record_data.get('strength', 0.45),
+        "strength": record_data.get('strength', 0.55),
+        "scheduler_name": sampler_name,
         "duration_sec": record_data.get('duration_sec', 0.0),
         "model_id": model_id,
         "created_at": record_data.get('created_at')
@@ -233,12 +235,13 @@ def save_record(
     translated_prompt = meta.get('translated_prompt', '')
     final_positive = meta.get('final_positive', prompt)
     applied_style = meta.get('applied_style', '')
-    width = meta.get('width', 512)
-    height = meta.get('height', 512)
-    steps = meta.get('steps', 25)
-    cfg_scale = meta.get('cfg_scale', 8.0)
+    width = meta.get('width', 1024)
+    height = meta.get('height', 1024)
+    steps = meta.get('steps', 24)
+    cfg_scale = meta.get('cfg_scale', 6.0)
     seed = meta.get('seed', -1)
-    model_id = meta.get('model_id', 'runwayml/stable-diffusion-v1-5')
+    model_id = meta.get('model_id', 'RunDiffusion/Juggernaut-XL-v9')
+    scheduler_name = meta.get('scheduler_name', 'DPM++ 2M Karras')
     duration_sec = meta.get('duration_sec', 0.0)
 
     # 1. Embed metadata into PNG & save
@@ -259,6 +262,7 @@ def save_record(
         'cfg_scale': cfg_scale,
         'seed': seed,
         'model_id': model_id,
+        'scheduler_name': scheduler_name,
         'strength': strength,
         'duration_sec': duration_sec,
         'created_at': created_at,

@@ -33,7 +33,7 @@ from werkzeug.utils import secure_filename  # type: ignore
 from enhancer import ImageEnhancer
 from aspect_converter import AspectConverter
 from compressor import ImageCompressor
-from generator import ImageGenerator
+from generator import ImageGenerator, DEFAULT_MODEL_ID, get_model_config
 from llm_engine import LLMEngine
 from bg_remover import BackgroundRemover
 from format_converter import FormatConverter
@@ -1719,6 +1719,7 @@ def api_generator_meta():
     try:
         return jsonify({
             'status': 'success',
+            'default_model_id': DEFAULT_MODEL_ID,
             'models': image_generator.get_models_info(),
             'styles': image_generator.get_style_presets(),
             'random_prompt': image_generator.get_random_prompt()
@@ -1745,7 +1746,7 @@ def api_translate_prompt():
         data = request.get_json(silent=True) or request.form.to_dict()
         prompt_text = data.get('prompt', '').strip()
         style_preset = data.get('style_preset', 'auto').strip()
-        model_id = data.get('model_id', 'runwayml/stable-diffusion-v1-5').strip()
+        model_id = (data.get('model_id') or DEFAULT_MODEL_ID).strip()
         negative_prompt = data.get('negative_prompt', '').strip()
 
         if not prompt_text:
@@ -1781,18 +1782,21 @@ def api_generate_image():
         prompt = request.form.get('prompt', '').strip()
         negative_prompt = request.form.get('negative_prompt', '').strip()
         style_preset = request.form.get('style_preset', 'auto').strip()
-        model_id = request.form.get('model_id', 'runwayml/stable-diffusion-v1-5').strip()
-        aspect_ratio = request.form.get('aspect_ratio', '1:1').strip()
+        model_id = (request.form.get('model_id') or DEFAULT_MODEL_ID).strip()
+        mcfg = get_model_config(model_id)
+        aspect_ratio = request.form.get('aspect_ratio', 'auto' if mode == 'i2i' else '1:1').strip()
         
         try:
-            steps = int(request.form.get('steps', 25))
+            raw_steps = request.form.get('steps')
+            steps = int(raw_steps) if raw_steps not in (None, '') else int(mcfg['default_steps'])
         except (ValueError, TypeError):
-            steps = 25
+            steps = int(mcfg['default_steps'])
 
         try:
-            cfg_scale = float(request.form.get('cfg_scale', 8.0))
+            raw_cfg = request.form.get('cfg_scale')
+            cfg_scale = float(raw_cfg) if raw_cfg not in (None, '') else float(mcfg['default_cfg'])
         except (ValueError, TypeError):
-            cfg_scale = 8.0
+            cfg_scale = float(mcfg['default_cfg'])
 
         try:
             seed = int(request.form.get('seed', -1))
@@ -1807,13 +1811,14 @@ def api_generate_image():
         output_path = os.path.join(OUTPUT_DIR, output_filename)
 
         orig_filename = ""
-        strength = 0.45
+        strength = float(mcfg.get('default_strength', 0.55))
 
         if mode == 'i2i':
             try:
-                strength = float(request.form.get('strength', 0.45))
+                raw_strength = request.form.get('strength')
+                strength = float(raw_strength) if raw_strength not in (None, '') else float(mcfg.get('default_strength', 0.55))
             except (ValueError, TypeError):
-                strength = 0.45
+                strength = float(mcfg.get('default_strength', 0.55))
 
             input_img = None
             orig_filename = "init_image.jpg"
@@ -1885,7 +1890,7 @@ def api_generate_image():
             negative_prompt=negative_prompt,
             style_preset=style_preset,
             aspect_ratio=aspect_ratio,
-            strength=strength if mode == 'i2i' else 0.45,
+            strength=meta.get('strength', strength) if mode == 'i2i' else float(mcfg.get('default_strength', 0.55)),
             source_image=orig_filename if mode == 'i2i' else ""
         )
 
